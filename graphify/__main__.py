@@ -171,12 +171,11 @@ def claude_uninstall(project_dir: Path | None = None) -> None:
     ).rstrip()
     if cleaned:
         target.write_text(cleaned + "\n")
+        print(f"graphify section removed from {target.resolve()}")
     else:
         target.unlink()
         print(f"CLAUDE.md was empty after removal - deleted {target.resolve()}")
-        return
 
-    print(f"graphify section removed from {target.resolve()}")
     _uninstall_claude_hook(project_dir or Path("."))
 
 

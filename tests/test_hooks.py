@@ -2,7 +2,7 @@
 import subprocess
 from pathlib import Path
 import pytest
-from graphify.hooks import install, uninstall, status, _HOOK_MARKER
+from graphify.hooks import install, uninstall, status, _HOOK_MARKER, _CHECKOUT_MARKER
 
 
 def _make_git_repo(tmp_path: Path) -> Path:
@@ -78,3 +78,35 @@ def test_status_not_installed(tmp_path):
 def test_no_git_repo_raises(tmp_path):
     with pytest.raises(RuntimeError, match="No git repository"):
         install(tmp_path / "not_a_repo")
+
+
+def test_install_creates_post_checkout_hook(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    install(repo)
+    hook = repo / ".git" / "hooks" / "post-checkout"
+    assert hook.exists()
+    assert _CHECKOUT_MARKER in hook.read_text()
+
+
+def test_install_post_checkout_is_executable(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    install(repo)
+    hook = repo / ".git" / "hooks" / "post-checkout"
+    assert hook.stat().st_mode & 0o111
+
+
+def test_uninstall_removes_post_checkout_hook(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    install(repo)
+    uninstall(repo)
+    hook = repo / ".git" / "hooks" / "post-checkout"
+    assert not hook.exists()
+
+
+def test_status_shows_both_hooks(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    install(repo)
+    result = status(repo)
+    assert "post-commit" in result
+    assert "post-checkout" in result
+    assert result.count("installed") >= 2

@@ -411,9 +411,11 @@ print('Report updated with community labels')
 Replace `LABELS_DICT` with the actual dict you constructed (e.g. `{0: "Attention Mechanism", 1: "Training Pipeline"}`).
 Replace INPUT_PATH with the actual path.
 
-### Step 6 - Generate Obsidian vault (default) + optional HTML
+### Step 6 - Generate Obsidian vault (opt-in) + HTML
 
-**Generate HTML always** (unless `--no-viz`). **Obsidian vault only if `--obsidian` was given** — it generates one file per node which creates thousands of files in large repos. Skip it by default.
+**Generate HTML always** (unless `--no-viz`). **Obsidian vault only if `--obsidian` was explicitly given** — skip it otherwise, it generates one file per node.
+
+If `--obsidian` was given:
 
 ```bash
 python3 -c "
@@ -444,7 +446,7 @@ print('  _COMMUNITY_* - overview notes with cohesion scores and dataview queries
 "
 ```
 
-Also generate the HTML graph (always, unless `--no-viz`):
+Generate the HTML graph (always, unless `--no-viz`):
 
 ```bash
 python3 -c "
@@ -631,22 +633,14 @@ rm -f .graphify_detect.json .graphify_extract.json .graphify_ast.json .graphify_
 rm -f graphify-out/.needs_update 2>/dev/null || true
 ```
 
-Tell the user:
+Tell the user (omit the obsidian line unless --obsidian was given):
 ```
-Graph complete. Outputs are in a hidden folder called graphify-out/ inside the directory you ran this on.
+Graph complete. Outputs in PATH_TO_DIR/graphify-out/
 
-The folder is hidden (dot prefix) so it won't show in Finder or a normal ls.
-To see it:
-  Mac/Linux:  ls -la graphify-out/
-  VS Code:    the Explorer panel shows hidden files by default
-  Finder:     Cmd+Shift+. to toggle hidden files
-
-What's inside:
-  graphify-out/obsidian/        - open this folder as a vault in Obsidian (File > Open Vault)
-  graphify-out/GRAPH_REPORT.md  - full audit report, also readable here in Claude
-  graphify-out/graph.json       - persistent graph, query it later with /graphify query "..."
-
-Full path: PATH_TO_DIR/graphify-out/
+  graph.html            - interactive graph, open in browser
+  GRAPH_REPORT.md       - audit report
+  graph.json            - raw graph data
+  obsidian/             - Obsidian vault (only if --obsidian was given)
 ```
 
 Replace PATH_TO_DIR with the actual absolute path of the directory that was processed.
