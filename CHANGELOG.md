@@ -2,6 +2,16 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
+## Unreleased - `graphify tree` subcommand
+
+- New: `graphify tree` emits a self-contained D3 v7 collapsible-tree HTML view
+  of `graph.json`, with expand-all, collapse-all, reset-view, wrapped labels,
+  depth coloring, click-to-toggle subtrees, and a hover inspector.
+- Hierarchy is built from `source_file` longest-common-prefix; symbols are
+  grouped by their containing module so the tree mirrors the on-disk layout.
+- Configuration: `--graph PATH`, `--output HTML`, `--root PATH`,
+  `--max-children N`, `--top-k-edges N`, and `--label NAME`.
+
 ## 0.6.6 (2026-05-02)
 
 - Fix: `skill-windows.md` rewritten from PowerShell to bash — Claude Code on Windows uses git-bash so PowerShell syntax (`$null`, `$LASTEXITCODE`, `Select-Object`, `& (Get-Content ...)`, `Remove-Item`) caused exit code 49 failures; now mirrors `skill.md` structure with `python` added as fallback after `python3` for Windows Conda (#39)
