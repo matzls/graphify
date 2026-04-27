@@ -11,6 +11,10 @@ Full release notes with details on each version: [GitHub Releases](https://githu
   grouped by their containing module so the tree mirrors the on-disk layout.
 - Configuration: `--graph PATH`, `--output HTML`, `--root PATH`,
   `--max-children N`, `--top-k-edges N`, and `--label NAME`.
+- Implementation: `graphify/tree_html.py`, with no external runtime
+  dependency beyond loading D3 v7 from jsdelivr in the generated page.
+- Security: the tree HTML emitter escapes the page title and header, and
+  JS-escapes embedded JSON so crafted labels cannot break out of the page.
 
 ## 0.6.6 (2026-05-02)
 
