@@ -523,7 +523,6 @@ def test_swift_emits_calls():
     calls = _calls(r)
     assert any("process" in src and "validate" in tgt for src, tgt in calls)
 
-
 def test_swift_call_edges_have_call_context():
     r = extract_swift(FIXTURES / "sample.swift")
     call_edges = _edges_with_relation(r, "calls")
