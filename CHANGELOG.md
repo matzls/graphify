@@ -2,19 +2,16 @@
 
 Full release notes with details on each version: [GitHub Releases](https://github.com/safishamsi/graphify/releases)
 
-## Unreleased - `graphify tree` subcommand
+## 0.6.7 (2026-05-02)
 
-- New: `graphify tree` emits a self-contained D3 v7 collapsible-tree HTML view
-  of `graph.json`, with expand-all, collapse-all, reset-view, wrapped labels,
-  depth coloring, click-to-toggle subtrees, and a hover inspector.
-- Hierarchy is built from `source_file` longest-common-prefix; symbols are
-  grouped by their containing module so the tree mirrors the on-disk layout.
-- Configuration: `--graph PATH`, `--output HTML`, `--root PATH`,
-  `--max-children N`, `--top-k-edges N`, and `--label NAME`.
-- Implementation: `graphify/tree_html.py`, with no external runtime
-  dependency beyond loading D3 v7 from jsdelivr in the generated page.
-- Security: the tree HTML emitter escapes the page title and header, and
-  JS-escapes embedded JSON so crafted labels cannot break out of the page.
+- Feat: `graphify tree` — self-contained D3 v7 collapsible-tree HTML view of `graph.json`; expand/collapse controls, depth-based colours, hover inspector; XSS-safe (#557)
+- Feat: token-aware chunking with split-and-retry on truncation (#625)
+- Feat: cross-language edge context filters in MCP `query_graph` tool (#573)
+- Feat: dynamic `import()` extraction for JS/TS (#579)
+- Fix: `save_semantic_cache` crashed with `IsADirectoryError` when a node's `source_file` was a directory path — `p.exists()` → `p.is_file()` (#655)
+- Fix: `sanitize_label(None)` raised `TypeError` crashing `to_html` on graphs with null `source_file` rationale nodes — return `""` early (#656)
+- Fix: chunk-extraction prompt omitted `rationale` from valid `file_type` values — model hallucinated `concept` on every doc/paper run; explicit merge step added to all skill variants (#657)
+- Fix: `cost.json` always reported 0 tokens — chunk JSONs have placeholder zeros; orchestrator now globs and sums real token counts before merging (#658)
 
 ## 0.6.6 (2026-05-02)
 
