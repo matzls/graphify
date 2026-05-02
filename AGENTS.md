@@ -12,7 +12,9 @@ For any non-trivial Graphify work, first read:
 
 - `docs/mase-fork-operating-model.md` for the fork model, local delta from
   upstream, Graphify architecture map, Codex integration reality, and skill-sync
-  rules.
+  rules. Use its "Upstream Skill Sync Procedure" section whenever upstream
+  changes `graphify/skill-codex.md` and the installed `.codex` skill needs a
+  carry-over review.
 - `ARCHITECTURE.md` for the upstream project architecture summary.
 - `/Users/mase/.codex/docs/reference/graphify.md` for Mase's global Graphify
   operating guide.

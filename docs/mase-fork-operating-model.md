@@ -236,6 +236,86 @@ rg -n "codex install|hook-check|GRAPH_REPORT|community_labels|doctor" \
   /Users/mase/.codex/docs/reference/graphify.md
 ```
 
+## Upstream Skill Sync Procedure
+
+Use this procedure after pulling or rebasing onto newer upstream Graphify when
+`graphify/skill-codex.md` may have changed. This is a repo maintenance task,
+not a separate skill: keep the procedure here and keep `AGENTS.md` pointing to
+it.
+
+Goal: decide what to carry from the packaged repo skill into the installed
+Codex skill without breaking local `.codex` guidance.
+
+1. Inspect both repositories before editing:
+
+```bash
+git status --short --branch
+git -C /Users/mase/.codex status --short -- skills/graphify/SKILL.md docs/reference/graphify.md
+git log --oneline --max-count=8 -- graphify/skill-codex.md
+git -C /Users/mase/.codex log --oneline --max-count=8 -- skills/graphify/SKILL.md docs/reference/graphify.md
+```
+
+2. Compare the packaged skill to the installed skill:
+
+```bash
+diff -u graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md
+rg -n "GRAPH_REPORT|graph.html|graph.json|community_labels|rationale|wiki|mcp|codex install|hook-check|doctor|graphify_semantic_new" \
+  graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md \
+  /Users/mase/.codex/docs/reference/graphify.md
+```
+
+3. Classify each delta before patching:
+
+- Port: upstream behavior that matches current code/tests and improves the
+  installed skill, such as new valid node types, output files, verification
+  commands, or corrected install guidance.
+- Adapt: upstream intent that is useful but path-, runtime-, or
+  Codex-specific details need correction for Mase's setup.
+- Preserve: local `.codex` operating guidance, especially bounded repo scans,
+  strict `.graphifyignore`, no PyPI fallback, active fork verification,
+  Second Brain separation, derived-output framing, and optional hook activation
+  only after output review.
+- Defer: output-surface expansion or product choices, such as advertising a new
+  optional export, unless Mase explicitly wants that behavior in the global
+  skill.
+
+4. Patch surgically. Do not copy `graphify/skill-codex.md` over
+   `/Users/mase/.codex/skills/graphify/SKILL.md`. Keep custom `.codex` sections
+   unless there is an explicit replacement decision.
+
+5. When importing an upstream procedure block, verify path contracts end to end.
+   For example, a semantic extraction merge step must write the same
+   `.graphify_semantic_new.json` path that later cache and graph-merge steps
+   read. If useful for auditability, mirror the same payload into
+   `graphify-out/.graphify_semantic_new.json`, but do not make the mirror the
+   only copy unless all later reads are updated too.
+
+6. Update the global operating guide only when the change affects operator
+   policy, not merely internal prompt wording:
+
+```bash
+/Users/mase/.codex/docs/reference/graphify.md
+```
+
+7. Validate the documentation sync:
+
+```bash
+git -C /Users/mase/.codex diff --check -- skills/graphify/SKILL.md docs/reference/graphify.md
+diff -u graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md
+rg -n "rationale|community_labels|graphify_semantic_new|wiki|GRAPH_REPORT|graph.html|graph.json" \
+  graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md \
+  /Users/mase/.codex/docs/reference/graphify.md
+```
+
+Keep single-use carry-over decisions out of this operating model. If a specific
+upstream-to-`.codex` skill upgrade has been accepted but not implemented yet,
+track it as a plan under `docs/plans/` and link to that plan from the task or
+PR instead of embedding the decision here.
+
+Current example plan:
+
+- `docs/plans/safe-graphify-skill-upgrade.md`
+
 ## Active Install Verification
 
 Verify the active CLI source before using Graphify as evidence for another repo:
