@@ -322,10 +322,10 @@ Load files from `.graphify_uncached.txt`. Split into chunks of 20-25 files each.
 > Requires `multi_agent = true` under `[features]` in `~/.codex/config.toml`.
 > If `spawn_agent` is unavailable, tell the user to add that config and restart Codex.
 
-Call `spawn_agent` once per chunk — ALL in the same response so they run in parallel. Build the message by wrapping the extraction prompt below in task-delegation framing:
+Call `spawn_agent` once per chunk — ALL in the same response so they run in parallel. Build the message by wrapping the extraction prompt below in task-delegation framing. Name or track each worker as chunk `NN` so the parent can write `graphify-out/.graphify_chunk_NN.json` after the worker returns.
 
 ```
-spawn_agent(agent_type="worker", message="Your task is to perform the following. Follow the instructions below exactly.\n\n<agent-instructions>\n[extraction prompt below, with FILE_LIST, CHUNK_NUM, TOTAL_CHUNKS, DEEP_MODE substituted]\n</agent-instructions>\n\nExecute this now. Output ONLY the structured JSON response.")
+spawn_agent(agent_type="worker", message="Your task is to perform the following. Follow the instructions below exactly.\n\n<agent-instructions>\n[extraction prompt below, with FILE_LIST, CHUNK_NUM, TOTAL_CHUNKS, DEEP_MODE substituted]\n</agent-instructions>\n\nExecute this now. Output ONLY the structured JSON response. Do not edit files; the parent agent writes graphify-out/.graphify_chunk_NN.json after validating your JSON.")
 ```
 
 After all agents are dispatched, collect results sequentially:
@@ -333,7 +333,11 @@ After all agents are dispatched, collect results sequentially:
 result = wait_agent(handle); close_agent(handle)   # repeat per handle
 ```
 
-Parse each result as JSON. Accumulate nodes/edges/hyperedges across all results and write to `.graphify_semantic_new.json`.
+Parse each returned worker result as JSON. The parent agent owns chunk artifacts:
+- For valid JSON with `nodes` and `edges`, write it to `graphify-out/.graphify_chunk_NN.json`.
+- If the worker result has a usage field, copy real token counts into `input_tokens` and `output_tokens` before writing.
+- If the result is missing, not valid JSON, or lacks `nodes`/`edges`, count that chunk as failed and print a warning with the chunk number.
+- Do not expect workers to write files themselves.
 
 The extraction prompt each subagent receives (substitute FILE_LIST, CHUNK_NUM, TOTAL_CHUNKS, DEEP_MODE):
 
@@ -394,14 +398,13 @@ Output exactly this JSON (no other text):
 **Step B3 - Collect, cache, and merge**
 
 Wait for all subagents. For each result:
-- Check that `graphify-out/.graphify_chunk_NN.json` exists on disk — this is the success signal
-- If the file exists and contains valid JSON with `nodes` and `edges`, include it and save to cache
-- If the file is missing, the subagent was likely dispatched as read-only (Explore type) — print a warning: "chunk N missing from disk — subagent may have been read-only. Re-run with general-purpose agent." Do not silently skip.
-- If a subagent failed or returned invalid JSON, print a warning and skip that chunk - do not abort
+- Parse the returned JSON from the worker response.
+- If it contains valid `nodes` and `edges`, write it to `graphify-out/.graphify_chunk_NN.json`.
+- If it is missing or invalid, print `Warning: chunk N returned no valid semantic JSON` and skip that chunk.
 
-If more than half the chunks failed or are missing, stop and tell the user to re-run and ensure `subagent_type="general-purpose"` is used.
+If more than half the chunks failed, stop and tell the user semantic extraction failed before continuing. Do not silently downgrade to AST-only unless the user explicitly approves an AST-only fallback.
 
-Merge all chunk files into `.graphify_semantic_new.json`. **After each Agent call completes, read the real token counts from the Agent tool result's `usage` field and write them back into the chunk JSON before merging** — the chunk JSON itself always has placeholder zeros. Then run:
+Merge all parent-written chunk files into `.graphify_semantic_new.json`. Then run:
 ```bash
 $(cat graphify-out/.graphify_python) -c "
 import json, glob
@@ -418,6 +421,10 @@ for c in chunks:
     total_in += d.get('input_tokens', 0)
     total_out += d.get('output_tokens', 0)
 Path('graphify-out/.graphify_semantic_new.json').write_text(json.dumps({
+    'nodes': all_nodes, 'edges': all_edges, 'hyperedges': all_hyperedges,
+    'input_tokens': total_in, 'output_tokens': total_out,
+}, indent=2))
+Path('.graphify_semantic_new.json').write_text(json.dumps({
     'nodes': all_nodes, 'edges': all_edges, 'hyperedges': all_hyperedges,
     'input_tokens': total_in, 'output_tokens': total_out,
 }, indent=2))
