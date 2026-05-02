@@ -312,6 +312,10 @@ upstream-to-`.codex` skill upgrade has been accepted but not implemented yet,
 track it as a plan under `docs/plans/` and link to that plan from the task or
 PR instead of embedding the decision here.
 
+Store future accepted Graphify skill-sync plans in the same folder, using one
+plan file per upgrade decision. This keeps durable workflow rules in this
+operating model and implementation-specific decisions in `docs/plans/`.
+
 Current example plan:
 
 - `docs/plans/safe-graphify-skill-upgrade.md`
