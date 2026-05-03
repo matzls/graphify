@@ -92,6 +92,16 @@ unless Mase explicitly decides to change Graphify's distribution model.
 
 To take upstream changes while preserving local fixes:
 
+Before rebasing, review the upstream GitHub release pages for every tag being
+pulled in. Match release-note bullets and linked issues against this repo's
+local patch goals, `docs/mase-fork-operating-model.md`, `docs/plans/`, and the
+relevant git history. Treat overlaps as explicit decisions:
+
+- keep the local patch if it still adds Mase-specific behavior
+- drop it if upstream now contains the same fix
+- adapt it if upstream fixed the general case but Mase's Codex setup still
+  needs local guidance
+
 ```bash
 git fetch upstream
 git checkout v6

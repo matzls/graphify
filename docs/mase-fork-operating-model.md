@@ -8,8 +8,8 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-05-02
-last_verified: 2026-05-02
+updated: 2026-05-03
+last_verified: 2026-05-03
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -91,9 +91,43 @@ git diff --name-status upstream/v6..HEAD
 git log --oneline --decorate --max-count=12
 ```
 
+## Upstream Release Review Gate
+
+Before rebasing local fixes onto a newer upstream branch, inspect the GitHub
+release pages for every incoming tag between the current local mirror and the
+target upstream head:
+
+```text
+https://github.com/safishamsi/graphify/releases
+```
+
+Use the release notes and linked issues as an explicit reconciliation checklist.
+For each relevant item, compare upstream's claim to:
+
+- current local patch goals in this document and `AGENTS.md`
+- accepted or pending plans in `docs/plans/`
+- git history for the touched files, especially `graphify/__main__.py`,
+  `graphify/skill-codex.md`, `graphify/watch.py`, `graphify/transcribe.py`,
+  and their tests
+- recent operator history or session notes when they are available in the
+  active task context
+
+Classify each overlap before rebasing or after the first conflict:
+
+- Keep: local behavior is still Mase-specific or intentionally stricter.
+- Drop: upstream now contains the same fix and the local commit is redundant.
+- Adapt: upstream fixed the general product issue, but Mase's Codex runtime or
+  installed-skill guidance still needs a local overlay.
+- Defer: upstream added a feature that is not needed for Mase's active workflow.
+
+Pay special attention to release bullets about Codex hooks, `AGENTS.md`,
+skill files, output paths, cache roots, graph freshness, and install commands.
+Those areas overlap with this fork's local operating model and are easy to
+misreport if the release page is not checked.
+
 ## Current Local Delta From Upstream
 
-As last verified on 2026-05-02 against `upstream/v6`, the local fork carries
+As last verified on 2026-05-03 against `upstream/v6`, the local fork carries
 Mase-specific or recently upstream-oriented changes in these areas:
 
 - `AGENTS.md`: fork operating notes for Mase's local setup.
