@@ -8,8 +8,8 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-05-03
-last_verified: 2026-05-03
+updated: 2026-05-04
+last_verified: 2026-05-04
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -252,6 +252,18 @@ Default rule: preserve both sides, then make an explicit sync decision. Do not
 silently prefer the repo copy or the `.codex` copy based only on path or
 packaging role.
 
+Freshness has three separate meanings:
+
+- CLI freshness: `graphify doctor --require-source` proves the active CLI is
+  installed from Mase's fork.
+- Package-version freshness: `.graphify_version` only records the package
+  version that last wrote a skill install. It can warn about stale package
+  installs, but it does not prove the installed Codex skill contains current
+  guidance.
+- Skill-content freshness: only a diff review plus explicit delta
+  classification proves `/Users/mase/.codex/skills/graphify/SKILL.md` has the
+  intended current behavior.
+
 Do not remove the packaged skill files from this repo as a drift workaround.
 They are part of Graphify's distributable platform support. If Mase wants a
 single source of truth, keep the repo skill as the package source and treat the
@@ -265,6 +277,7 @@ diff -u graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md
 git log --oneline -- graphify/skill-codex.md
 git -C /Users/mase/.codex log --oneline -- skills/graphify/SKILL.md docs/reference/graphify.md
 git -C /Users/mase/.codex status --short -- skills/graphify/SKILL.md docs/reference/graphify.md
+shasum -a 256 /Users/mase/.codex/skills/graphify/SKILL.md
 rg -n "codex install|hook-check|GRAPH_REPORT|community_labels|doctor" \
   graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md \
   /Users/mase/.codex/docs/reference/graphify.md
@@ -280,6 +293,10 @@ it.
 Goal: decide what to carry from the packaged repo skill into the installed
 Codex skill without breaking local `.codex` guidance.
 
+Do not treat `.graphify_version` as proof that the installed Codex skill is
+current. It is only a package-version staleness signal. A skill sync is current
+only after the meaningful content diff has been reviewed and classified.
+
 1. Inspect both repositories before editing:
 
 ```bash
@@ -287,6 +304,7 @@ git status --short --branch
 git -C /Users/mase/.codex status --short -- skills/graphify/SKILL.md docs/reference/graphify.md
 git log --oneline --max-count=8 -- graphify/skill-codex.md
 git -C /Users/mase/.codex log --oneline --max-count=8 -- skills/graphify/SKILL.md docs/reference/graphify.md
+shasum -a 256 /Users/mase/.codex/skills/graphify/SKILL.md
 ```
 
 2. Compare the packaged skill to the installed skill:
@@ -331,7 +349,37 @@ rg -n "GRAPH_REPORT|graph.html|graph.json|community_labels|rationale|wiki|mcp|co
 /Users/mase/.codex/docs/reference/graphify.md
 ```
 
-7. Validate the documentation sync:
+7. For non-trivial syncs, record a compact skill sync receipt in the relevant
+   task closeout, plan, or PR notes. Keep the receipt procedural and
+   checklist-sized; do not add runtime enforcement unless Mase explicitly asks
+   for it.
+
+```markdown
+## Skill Sync Receipt
+
+Date:
+Graphify package version:
+Repo branch + commit:
+Installed .codex skill git commit:
+Installed skill SHA256:
+Decision:
+- Port:
+- Adapt:
+- Preserve:
+- Defer:
+
+Validation:
+- diff reviewed:
+- keyword/invariant scan passed:
+- .codex diff --check passed:
+- remaining intentional divergences:
+```
+
+The closeout should state the reconciliation boundary plainly, for example:
+`Global Codex skill reconciled through repo commit <commit>, with intentional
+divergences: <summary>.`
+
+8. Validate the documentation sync:
 
 ```bash
 git -C /Users/mase/.codex diff --check -- skills/graphify/SKILL.md docs/reference/graphify.md
