@@ -12,6 +12,9 @@ Full release notes with details on each version: [GitHub Releases](https://githu
 
 ## 0.7.6 (2026-05-05)
 
+- Fix: `detect_incremental()` forwards `follow_symlinks` to `detect()`, so
+  `--update` includes files reached through symlinked subtrees when the full
+  run used symlink traversal.
 - Fix: `cluster-only` now accepts `--graph <path>` to specify a non-default graph.json location; positional path and flags can appear in any order (#724)
 - Fix: `_is_sensitive()` no longer drops legitimate source files — word boundaries on the keyword pattern prevent false positives like `tokenizer.py`, `password_verification.py`, `SecretManager.java` (#718)
 - Fix: `graphify extract --backend claude/kimi` raises default `max_tokens` from 8192 → 16384, eliminating the truncation-then-recursive-split cascade on dense doc corpora; respects `GRAPHIFY_MAX_OUTPUT_TOKENS` env var (#730)
