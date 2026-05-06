@@ -1,5 +1,6 @@
 """Tests for graphify install --platform routing."""
 from pathlib import Path
+import subprocess
 from unittest.mock import patch
 import pytest
 
@@ -147,6 +148,32 @@ def test_codex_agents_install_writes_agents_md(tmp_path):
     assert agents_md.exists()
     assert "graphify" in agents_md.read_text()
     assert "GRAPH_REPORT.md" in agents_md.read_text()
+
+
+def test_codex_agents_install_installs_git_hooks_in_repo(tmp_path):
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+    _agents_install(tmp_path, "codex")
+
+    post_commit = tmp_path / ".git" / "hooks" / "post-commit"
+    post_checkout = tmp_path / ".git" / "hooks" / "post-checkout"
+    assert post_commit.exists()
+    assert "# graphify-hook-start" in post_commit.read_text(encoding="utf-8")
+    assert post_checkout.exists()
+    assert "# graphify-checkout-hook-start" in post_checkout.read_text(encoding="utf-8")
+
+
+def test_codex_agents_uninstall_removes_git_hooks_in_repo(tmp_path):
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+    _agents_install(tmp_path, "codex")
+
+    from graphify.__main__ import _uninstall_codex_hook, _uninstall_git_hooks_if_possible
+
+    _agents_uninstall(tmp_path, platform="codex")
+    _uninstall_codex_hook(tmp_path)
+    _uninstall_git_hooks_if_possible(tmp_path)
+
+    assert not (tmp_path / ".git" / "hooks" / "post-commit").exists()
+    assert not (tmp_path / ".git" / "hooks" / "post-checkout").exists()
 
 
 def test_opencode_agents_install_writes_agents_md(tmp_path):

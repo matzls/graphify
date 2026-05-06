@@ -880,6 +880,32 @@ def _install_codex_hook(project_dir: Path) -> None:
     print(f"  .codex/hooks.json  ->  PreToolUse hook registered ({graphify_exe} hook-check)")
 
 
+def _install_git_hooks_if_possible(project_dir: Path) -> None:
+    """Install repo-local Git refresh hooks when running inside a Git repo."""
+    try:
+        from graphify.hooks import install as hook_install
+        result = hook_install(project_dir)
+    except RuntimeError as exc:
+        print(f"  Git hooks          ->  skipped ({exc})")
+        return
+    print("  Git hooks          ->  installed")
+    for line in result.splitlines():
+        print(f"    {line}")
+
+
+def _uninstall_git_hooks_if_possible(project_dir: Path) -> None:
+    """Remove repo-local Graphify Git hooks when running inside a Git repo."""
+    try:
+        from graphify.hooks import uninstall as hook_uninstall
+        result = hook_uninstall(project_dir)
+    except RuntimeError as exc:
+        print(f"  Git hooks          ->  skipped ({exc})")
+        return
+    print("  Git hooks          ->  removed")
+    for line in result.splitlines():
+        print(f"    {line}")
+
+
 def _uninstall_codex_hook(project_dir: Path) -> None:
     """Remove graphify PreToolUse hook from .codex/hooks.json."""
     hooks_path = project_dir / ".codex" / "hooks.json"
@@ -913,6 +939,7 @@ def _agents_install(project_dir: Path, platform: str) -> None:
 
     if platform == "codex":
         _install_codex_hook(project_dir or Path("."))
+        _install_git_hooks_if_possible(project_dir or Path("."))
     elif platform == "opencode":
         _install_opencode_plugin(project_dir or Path("."))
 
@@ -1183,8 +1210,8 @@ def main() -> None:
         print("  cursor uninstall        remove .cursor/rules/graphify.mdc")
         print("  claude install          write graphify section to CLAUDE.md + PreToolUse hook (Claude Code)")
         print("  claude uninstall        remove graphify section from CLAUDE.md + PreToolUse hook")
-        print("  codex install           write graphify section to AGENTS.md (Codex)")
-        print("  codex uninstall         remove graphify section from AGENTS.md")
+        print("  codex install           write AGENTS.md + Codex reminder + Git refresh hooks")
+        print("  codex uninstall         remove AGENTS.md section + Codex reminder + Git refresh hooks")
         print("  opencode install        write graphify section to AGENTS.md + tool.execute.before plugin (OpenCode)")
         print("  opencode uninstall      remove graphify section from AGENTS.md + plugin")
         print("  aider install           write graphify section to AGENTS.md (Aider)")
@@ -1334,6 +1361,7 @@ def main() -> None:
             _agents_uninstall(Path("."), platform=cmd)
             if cmd == "codex":
                 _uninstall_codex_hook(Path("."))
+                _uninstall_git_hooks_if_possible(Path("."))
         else:
             print(f"Usage: graphify {cmd} [install|uninstall]", file=sys.stderr)
             sys.exit(1)

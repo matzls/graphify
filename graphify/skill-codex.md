@@ -1361,14 +1361,13 @@ checklist above passed:
 
 ```bash
 graphify codex install
-graphify hook install
 graphify hook status
 ```
 
-This writes or updates the repo-local `AGENTS.md` Graphify section and creates
-repo-local `.codex/hooks.json` reminders. After installation, review the
-generated `## graphify` section and make sure it includes the local freshness
-model:
+This writes or updates the repo-local `AGENTS.md` Graphify section, creates
+repo-local `.codex/hooks.json` reminders, and installs repo-local Git refresh
+hooks. After installation, review the generated `## graphify` section and make
+sure it includes the local freshness model:
 
 - The Codex reminder hook is passive. It reminds the agent when
   `graphify-out/graph.json` exists or when `graphify-out/needs_update` exists.
@@ -1386,6 +1385,9 @@ model:
   tokens.
 - Treat Git hooks and `graphify watch .` as freshness helpers. When report
   quality matters, prefer a full `graphify . --update`.
+
+If the Git hooks are missing after a previous or partial install, repair them
+with `graphify hook install`, then verify with `graphify hook status`.
 
 Keep this guidance in the repo-local `AGENTS.md`; it is part of the standard
 bootstrap for Graphify-enabled repos.

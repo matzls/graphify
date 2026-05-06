@@ -201,10 +201,12 @@ workflow is:
 
 ## Codex Integration Reality
 
-`graphify codex install` writes two repo-local surfaces:
+`graphify codex install` writes three repo-local surfaces:
 
 - an `AGENTS.md` `## graphify` section
 - `.codex/hooks.json` with a PreToolUse hook that runs `graphify hook-check`
+- `.git/hooks/post-commit` and `.git/hooks/post-checkout` Graphify refresh
+  hooks
 
 Important current limitation:
 
@@ -224,6 +226,10 @@ Practical compensation:
 
 Do not tell Mase that Codex is actively reminded by the hook unless
 `graphify hook-check` has been changed and verified in the active Codex runtime.
+
+The local Git hooks are active when installed. They refresh code graph outputs
+after commits and branch switches, but they do not semantically refresh docs,
+media, images, or research notes.
 
 ## Skill And Guide Sync Rules
 
