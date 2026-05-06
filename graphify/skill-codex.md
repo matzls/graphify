@@ -131,7 +131,8 @@ If this check fails, stop and reinstall from the fork before continuing:
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
   --with faster-whisper \
   --with yt-dlp \
-  --with watchdog
+  --with watchdog \
+  --with tree-sitter-sql
 ```
 
 Do not continue by running a plain `pip install graphifyy` or

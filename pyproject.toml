@@ -39,6 +39,7 @@ dependencies = [
     "tree-sitter-verilog",
     "tree-sitter-sql>=0.3.11",
     "tree-sitter-fortran",
+    "tree-sitter-sql",
 ]
 
 [project.urls]

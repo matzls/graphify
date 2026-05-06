@@ -42,7 +42,8 @@ of or behind Mase's GitHub remote and upstream at the same time.
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
   --with faster-whisper \
   --with yt-dlp \
-  --with watchdog
+  --with watchdog \
+  --with tree-sitter-sql
 ```
 
 Verify the active tool still points to this checkout before bootstrapping
@@ -112,7 +113,8 @@ uv run pytest tests/test_watch.py tests/test_transcribe.py tests/test_hooks.py
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
   --with faster-whisper \
   --with yt-dlp \
-  --with watchdog
+  --with watchdog \
+  --with tree-sitter-sql
 ```
 
 If upstream includes equivalent fixes, drop the matching local commits from

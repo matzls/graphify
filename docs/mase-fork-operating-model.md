@@ -8,8 +8,8 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-05-04
-last_verified: 2026-05-04
+updated: 2026-05-05
+last_verified: 2026-05-05
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -416,7 +416,8 @@ If it fails, reinstall from this checkout:
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
   --with faster-whisper \
   --with yt-dlp \
-  --with watchdog
+  --with watchdog \
+  --with tree-sitter-sql
 ```
 
 Do not use `pip install graphify`, `pip install graphifyy`, or
