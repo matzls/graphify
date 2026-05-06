@@ -314,6 +314,7 @@ graphify extract ./docs                        # headless LLM extraction for CI 
 graphify extract ./docs --backend claude       # explicit backend: gemini, kimi, claude, openai, or ollama
 graphify extract ./docs --backend ollama       # local Ollama (set OLLAMA_BASE_URL / OLLAMA_MODEL)
 graphify extract ./docs --backend gemini --model gemini-3.1-pro-preview
+graphify extract ./docs --google-workspace     # export .gdoc/.gsheet/.gslides via gws before extraction
 graphify extract ./docs --no-cluster           # raw extraction only, skip clustering
 graphify extract ./docs --dedup-llm            # LLM tiebreaker for ambiguous entity pairs (uses same API key)
 graphify extract ./docs --global --as myrepo   # extract and register into the cross-project global graph

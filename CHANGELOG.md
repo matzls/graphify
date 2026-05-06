@@ -4,6 +4,7 @@ Full release notes with details on each version: [GitHub Releases](https://githu
 
 ## 0.7.8 (2026-05-06)
 
+- Feat: optional Google Workspace shortcut export for headless extraction -- `graphify extract ./docs --google-workspace` converts `.gdoc`, `.gsheet`, and `.gslides` files into Markdown sidecars with the `gws` CLI before semantic extraction; `[google]` extra adds Sheets table rendering support
 - Fix: CommonJS `require()` imports now extracted from JS/TS -- `const { foo } = require('./mod')`, `const m = require('./mod')`, and `const x = require('./mod').y` all emit EXTRACTED `imports_from` (and per-symbol `imports`) edges. Previously CJS-only Node.js codebases produced AST graphs missing every import edge, which downgraded all cross-file calls to INFERRED.
 - Fix: cross-file `calls` edges are now promoted from INFERRED to EXTRACTED when the caller's file has an explicit `imports` or `imports_from` edge to the callee. Previously every cross-file call was unconditionally INFERRED, even when a top-of-file `import` / `require` proved the binding. On a 92-file CJS Node.js corpus this promoted 88% of cross-file calls (104 of 118) to EXTRACTED.
 - Feat: Gemini and OpenAI backends -- `graphify extract ./docs --backend gemini` (GEMINI_API_KEY / GOOGLE_API_KEY) or `--backend openai` (OPENAI_API_KEY); `[gemini]` and `[openai]` extras added (#735)
