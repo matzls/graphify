@@ -60,7 +60,7 @@ All changes are on: **`feat/md-extraction-and-extensions-sync`**
 
 Type `/graphify` in your AI coding assistant and it maps your entire project — code, docs, PDFs, images, videos — into a knowledge graph you can query instead of grepping through files.
 
-Works in Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, VS Code Copilot Chat, Aider, OpenClaw, Factory Droid, Trae, Hermes, Kiro, Pi, and Google Antigravity.
+Works in Claude Code, Codex, OpenCode, Cursor, Gemini CLI, GitHub Copilot CLI, VS Code Copilot Chat, Aider, OpenClaw, Factory Droid, Trae, Hermes, Kimi Code, Kiro, Pi, and Google Antigravity.
 
 ```
 /graphify .
@@ -108,6 +108,7 @@ uv tool install graphifyy && graphify install
 | Trae CN | `graphify install --platform trae-cn` |
 | Gemini CLI | `graphify install --platform gemini` |
 | Hermes | `graphify install --platform hermes` |
+| Kimi Code | `graphify install --platform kimi` |
 | Kiro IDE/CLI | `graphify kiro install` |
 | Pi coding agent | `graphify install --platform pi` |
 | Cursor | `graphify cursor install` |
@@ -137,6 +138,7 @@ Run this once in your project after building a graph:
 | Cursor | `graphify cursor install` |
 | Gemini CLI | `graphify gemini install` |
 | Hermes | `graphify hermes install` |
+| Kimi Code | `graphify install --platform kimi` |
 | Kiro IDE/CLI | `graphify kiro install` |
 | Pi coding agent | `graphify pi install` |
 | Google Antigravity | `graphify antigravity install` |
@@ -244,6 +246,9 @@ graphify query "what connects DigestAuth to Response?" --graph graphify-out/grap
 
 # expose the graph as an MCP server (for repeated tool-call access)
 python -m graphify.serve graphify-out/graph.json
+
+# register with Kimi Code:
+kimi mcp add --transport stdio graphify -- python -m graphify.serve graphify-out/graph.json
 ```
 
 The MCP server gives your assistant structured access: `query_graph`, `get_node`, `get_neighbors`, `shortest_path`.
