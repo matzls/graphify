@@ -778,11 +778,7 @@ def _require_imports_js(node, source: bytes, file_nid: str, stem: str, edges: li
 def _js_extra_walk(node, source: bytes, file_nid: str, stem: str, str_path: str,
                    nodes: list, edges: list, seen_ids: set, function_bodies: list,
                    parent_class_nid: str | None, add_node_fn, add_edge_fn) -> bool:
-    """Handle JS/TS declarations not covered by the generic walker.
-
-    Covers arrow functions, CJS requires, and module-level const literals.
-    Returns True if handled (caller should not descend further).
-    """
+    """Handle CJS requires, arrow functions, and module-level const literals."""
     if node.type in ("lexical_declaration", "variable_declaration"):
         # CJS require imports — emit edges, do not block other lexical_declaration handling
         require_found = _require_imports_js(node, source, file_nid, stem, edges, str_path)
@@ -807,7 +803,7 @@ def _js_extra_walk(node, source: bytes, file_nid: str, stem: str, str_path: str,
                             arrow_found = True
                     elif value and value.type in (
                         "object", "array", "as_expression", "call_expression",
-                        "new_expression", "string", "template_string", "number",
+                        "new_expression",
                     ):
                         name_node = child.child_by_field_name("name")
                         if name_node:
