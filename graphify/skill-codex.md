@@ -268,7 +268,7 @@ for f in detect.get('files', {}).get('code', []):
     code_files.extend(collect_files(Path(f)) if Path(f).is_dir() else [Path(f)])
 
 if code_files:
-    result = extract(code_files)
+    result = extract(code_files, cache_root=Path('INPUT_PATH'), root=Path('INPUT_PATH'))
     Path('.graphify_ast.json').write_text(json.dumps(result, indent=2))
     print(f'AST: {len(result[\"nodes\"])} nodes, {len(result[\"edges\"])} edges')
 else:
@@ -822,7 +822,7 @@ print(f'This run: {input_tok:,} input tokens, {output_tok:,} output tokens')
 print(f'All time: {cost[\"total_input_tokens\"]:,} input, {cost[\"total_output_tokens\"]:,} output ({len(cost[\"runs\"])} runs)')
 "
 rm -f .graphify_detect.json .graphify_extract.json .graphify_ast.json .graphify_semantic.json .graphify_analysis.json .graphify_labels.json .graphify_chunk_*.json
-rm -f graphify-out/.needs_update 2>/dev/null || true
+rm -f graphify-out/needs_update 2>/dev/null || true
 ```
 
 Tell the user (omit the obsidian line unless --obsidian was given):
@@ -1330,13 +1330,13 @@ Debounce (default 3s): waits until file activity stops before triggering, so a w
 
 Press Ctrl+C to stop.
 
-For agentic workflows: run `--watch` in a separate terminal. Code changes from agent waves are picked up automatically between waves. If agents are also writing docs or notes, you'll need a manual `/graphify --update` after those waves. A Codex reminder hook can surface `graphify-out/needs_update`, but it does not watch files by itself.
+For agentic workflows: run `--watch` in a separate terminal when you need live freshness before commits. Code changes from agent waves are picked up automatically between waves. If agents are also writing docs or notes, `--watch` writes `graphify-out/needs_update` immediately; otherwise the post-commit Git hook writes the same flag after those docs are committed.
 
 ---
 
 ## For git commit hook
 
-Install repo-local Git hooks that trigger a code-only graph rebuild after commits and branch switches. No watcher process is needed for these triggers.
+Install repo-local Git hooks that refresh code graph outputs after commits and branch switches and flag committed docs/media for later semantic refresh. No watcher process is needed for these Git-triggered freshness checks.
 
 ```bash
 graphify hook install    # install
@@ -1344,13 +1344,13 @@ graphify hook uninstall  # remove
 graphify hook status     # check
 ```
 
-After every `git commit`, the hook detects changed files (via `git diff HEAD~1`), launches a detached `_rebuild_code(Path('.'))`, and rebuilds `graph.json` and `GRAPH_REPORT.md` without LLM tokens. On branch switches, `post-checkout` does the same when `graphify-out/` already exists.
+After every `git commit`, the hook detects changed files (via `git diff HEAD~1`). Code changes launch a detached `_rebuild_code(Path('.'))` and rebuild `graph.json` and `GRAPH_REPORT.md` without LLM tokens. Docs, papers, images, and videos write `graphify-out/needs_update` so the next `/graphify --update` can refresh semantic relationships. Mixed commits do both: code rebuild first, then the stale semantic flag is written.
 
-The code-only rebuild preserves semantic nodes, edges, and community labels from the previous graph. Use the Git hooks for code freshness, not as a replacement for `/graphify --update` when docs/media changed or when report quality matters.
+The code-only rebuild preserves semantic nodes, edges, and community labels from the previous graph. Use the Git hooks for code freshness and stale detection, not as a replacement for `/graphify --update` when docs/media changed or when report quality matters.
 
-Doc/image/media changes are not semantically refreshed by the Git hooks. Use `graphify watch INPUT_PATH` to write `graphify-out/needs_update` when non-code files change, then run `/graphify --update` manually.
+Doc/image/media changes are not semantically refreshed by the Git hooks. They only write `graphify-out/needs_update`; run `/graphify --update` manually when that flag exists.
 
-If a post-commit hook already exists, graphify appends to it rather than replacing it.
+If a hook already contains a Graphify marker block, `graphify hook install` upgrades that block in place. If unrelated hook content exists, Graphify preserves it and appends its block.
 
 ---
 
@@ -1372,8 +1372,9 @@ sure it includes the local freshness model:
 - The Codex reminder hook is passive. It reminds the agent when
   `graphify-out/graph.json` exists or when `graphify-out/needs_update` exists.
 - The Git hooks are repo-local. They refresh code graph outputs after commits
-  and branch switches, but they do not semantically refresh docs, media, images,
-  or research notes.
+  and branch switches. After commits, docs/media/image changes write
+  `graphify-out/needs_update`; they are not semantically refreshed until
+  `graphify . --update` runs.
 - `graphify watch .` is optional and foreground. Use it in a separate terminal
   for longer active coding sessions; it watches live file changes while running,
   rebuilds for code changes, and writes `graphify-out/needs_update` for

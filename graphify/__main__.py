@@ -298,8 +298,9 @@ Rules:
   `graphify explain "<concept>"` over grep. These traverse EXTRACTED and
   INFERRED graph edges instead of only scanning file text.
 - This repo can use repo-local Graphify Git hooks. They refresh code graph
-  outputs after commits and branch switches, but they do not semantically
-  refresh docs, media, images, or research notes.
+  outputs after commits and branch switches. After commits, docs/media/image
+  changes write `graphify-out/needs_update`; they are not semantically
+  refreshed until `graphify . --update` runs.
 - For longer active coding sessions, consider running `graphify watch .` in a
   separate terminal. It watches live file changes while the process is running:
   code changes trigger a code-only graph rebuild, and non-code changes write
@@ -944,7 +945,18 @@ def _agents_install(project_dir: Path, platform: str) -> None:
     if target.exists():
         content = target.read_text(encoding="utf-8")
         if _AGENTS_MD_MARKER in content:
-            print(f"graphify already configured in AGENTS.md")
+            updated, count = re.subn(
+                r"## graphify\n.*?(?=\n## |\Z)",
+                _AGENTS_MD_SECTION.rstrip(),
+                content,
+                count=1,
+                flags=re.DOTALL,
+            )
+            if count:
+                target.write_text(updated.rstrip() + "\n", encoding="utf-8")
+                print(f"graphify section updated in {target.resolve()}")
+            else:
+                print(f"graphify already configured in AGENTS.md")
         else:
             target.write_text(content.rstrip() + "\n\n" + _AGENTS_MD_SECTION, encoding="utf-8")
             print(f"graphify section written to {target.resolve()}")
@@ -2330,7 +2342,7 @@ def main() -> None:
             from graphify.extract import extract as _ast_extract
             print(f"[graphify extract] AST extraction on {len(code_files)} code files...")
             try:
-                ast_result = _ast_extract(code_files, cache_root=target)
+                ast_result = _ast_extract(code_files, cache_root=target, root=target)
             except Exception as exc:
                 print(f"[graphify extract] AST extraction failed: {exc}", file=sys.stderr)
                 ast_result = {"nodes": [], "edges": [], "input_tokens": 0, "output_tokens": 0}

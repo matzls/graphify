@@ -4688,6 +4688,7 @@ def extract(
     paths: list[Path],
     cache_root: Path | None = None,
     *,
+    root: Path | None = None,
     parallel: bool = True,
     max_workers: int | None = None,
 ) -> dict:
@@ -4700,9 +4701,12 @@ def extract(
 
     Args:
         paths: files to extract from
-        cache_root: explicit root for graphify-out/cache/ (overrides the
-            inferred common path prefix). Pass Path('.') when running on a
-            subdirectory so the cache stays at ./graphify-out/cache/.
+        cache_root: explicit root for graphify-out/cache/. This controls cache
+            location only; it must not change source_file relativization.
+        root: explicit project/corpus root for node IDs and source_file
+            relativization. Pass this for incremental or partial extractions so
+            nested files keep paths like tests/test_example.py instead of
+            collapsing to bare filenames.
         parallel: if True and there are >= _PARALLEL_THRESHOLD uncached files,
             use ProcessPoolExecutor for multi-core extraction.
         max_workers: max subprocess count. Defaults to min(cpu_count, 8).
@@ -4710,26 +4714,30 @@ def extract(
     _check_tree_sitter_version()
     _raise_recursion_limit()
 
-    # Infer a common root for cache keys (use first diverging segment, not sum of all matches)
-    try:
-        if not paths:
-            root = Path(".")
-        elif len(paths) == 1:
-            root = paths[0].parent
-        else:
-            min_parts = min(len(p.parts) for p in paths)
-            common_len = 0
-            for i in range(min_parts):
-                if len({p.parts[i] for p in paths}) == 1:
-                    common_len += 1
-                else:
-                    break
-            root = Path(*paths[0].parts[:common_len]) if common_len else Path(".")
-    except Exception:
-        root = Path(".")
-    root = root.resolve()
+    if root is None:
+        # Infer a common graph root when the caller is doing a full extraction.
+        # Partial/incremental callers should pass root explicitly.
+        try:
+            if not paths:
+                graph_root = Path(".")
+            elif len(paths) == 1:
+                graph_root = paths[0].parent
+            else:
+                min_parts = min(len(p.parts) for p in paths)
+                common_len = 0
+                for i in range(min_parts):
+                    if len({p.parts[i] for p in paths}) == 1:
+                        common_len += 1
+                    else:
+                        break
+                graph_root = Path(*paths[0].parts[:common_len]) if common_len else Path(".")
+        except Exception:
+            graph_root = Path(".")
+    else:
+        graph_root = root
+    graph_root = graph_root.resolve()
 
-    effective_root = cache_root or root
+    effective_root = cache_root.resolve() if cache_root is not None else graph_root
     total = len(paths)
 
     # Phase 1: separate cached hits from uncached work
@@ -4772,7 +4780,7 @@ def extract(
     for path in paths:
         old_id = _make_id(str(path))
         try:
-            new_id = _make_id(str(path.relative_to(root)))
+            new_id = _make_id(str(path.resolve().relative_to(graph_root)))
         except ValueError:
             continue
         if old_id != new_id:
@@ -4851,7 +4859,7 @@ def extract(
             continue
         sf_path = Path(sf)
         try:
-            sf_rel = sf_path.relative_to(root) if sf_path.is_absolute() else sf_path
+            sf_rel = sf_path.relative_to(graph_root) if sf_path.is_absolute() else sf_path
         except ValueError:
             sf_rel = sf_path
         nid_to_file_nid[n["id"]] = _make_id(str(sf_rel))
@@ -4914,7 +4922,7 @@ def extract(
         if not sf_path.is_absolute():
             continue
         try:
-            item["source_file"] = str(sf_path.relative_to(root))
+            item["source_file"] = str(sf_path.relative_to(graph_root))
         except ValueError:
             pass
 

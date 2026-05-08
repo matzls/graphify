@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import time
+import urllib.request
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -63,7 +64,7 @@ BACKENDS: dict[str, dict] = {
     },
     "ollama": {
         "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-        "default_model": os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:7b"),
+        "default_model": os.environ.get("GRAPHIFY_OLLAMA_MODEL") or os.environ.get("OLLAMA_MODEL", "gemma4:31b"),
         "env_key": "OLLAMA_API_KEY",
         "pricing": {"input": 0.0, "output": 0.0},
         "temperature": 0,
@@ -200,6 +201,10 @@ def _format_backend_env_keys(backend: str) -> str:
 def _default_model_for_backend(backend: str) -> str:
     """Return configured model override or backend default model."""
     cfg = BACKENDS[backend]
+    if backend == "ollama":
+        model = os.environ.get("GRAPHIFY_OLLAMA_MODEL") or os.environ.get("OLLAMA_MODEL")
+        if model:
+            return model
     model_env_key = cfg.get("model_env_key")
     if model_env_key:
         model = os.environ.get(model_env_key)
@@ -754,10 +759,32 @@ def _validate_ollama_base_url(url: str) -> None:
         )
 
 
+def _ollama_tags_url(base_url: str) -> str:
+    """Return the native Ollama /api/tags URL for an OpenAI-compatible base."""
+    root = base_url.rstrip("/")
+    if root.endswith("/v1"):
+        root = root[:-3].rstrip("/")
+    return f"{root}/api/tags"
+
+
+def _local_ollama_available(base_url: str = "http://localhost:11434/v1", timeout: float = 0.5) -> bool:
+    """Return True when a local Ollama server is reachable.
+
+    This is intentionally only used after paid/API-key backends are absent, so
+    an installed local Ollama daemon can provide a zero-cost default without
+    shadowing explicit provider credentials.
+    """
+    try:
+        with urllib.request.urlopen(_ollama_tags_url(base_url), timeout=timeout) as resp:
+            return 200 <= getattr(resp, "status", 200) < 300
+    except Exception:
+        return False
+
+
 def detect_backend() -> str | None:
     """Return the name of whichever backend has an API key set, or None.
 
-    Priority: gemini → kimi → claude → openai → bedrock → ollama (last, opt-in).
+    Priority: gemini → kimi → claude → openai → bedrock → ollama (last).
 
     Ollama is intentionally checked LAST so a paid API key (Anthropic/OpenAI/etc.)
     is never silently shadowed by an incidental OLLAMA_BASE_URL in the environment
@@ -773,5 +800,7 @@ def detect_backend() -> str | None:
     ollama_url = os.environ.get("OLLAMA_BASE_URL")
     if ollama_url:
         _validate_ollama_base_url(ollama_url)
+        return "ollama"
+    if _local_ollama_available():
         return "ollama"
     return None

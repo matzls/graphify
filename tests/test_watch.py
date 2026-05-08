@@ -9,6 +9,7 @@ from graphify.watch import (
     _parse_report_community_labels,
     _save_community_labels,
     _WATCHED_EXTENSIONS,
+    mark_needs_update,
 )
 
 
@@ -33,6 +34,13 @@ def test_notify_only_idempotent(tmp_path):
     assert flag.read_text() == "1"
 
 
+def test_mark_needs_update_returns_flag_path(tmp_path):
+    flag = mark_needs_update(tmp_path)
+
+    assert flag == tmp_path / "graphify-out" / "needs_update"
+    assert flag.read_text(encoding="utf-8") == "1"
+
+
 # --- _WATCHED_EXTENSIONS ---
 
 def test_watched_extensions_includes_code():
@@ -49,6 +57,8 @@ def test_watched_extensions_includes_docs():
 def test_watched_extensions_includes_images():
     assert ".png" in _WATCHED_EXTENSIONS
     assert ".jpg" in _WATCHED_EXTENSIONS
+    assert ".mp4" in _WATCHED_EXTENSIONS
+    assert ".mp3" in _WATCHED_EXTENSIONS
 
 def test_watched_extensions_excludes_noise():
     assert ".json" not in _WATCHED_EXTENSIONS

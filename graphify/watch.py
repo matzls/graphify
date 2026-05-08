@@ -20,9 +20,17 @@ def _git_head() -> str | None:
         return None
 
 
-from graphify.detect import CODE_EXTENSIONS, DOC_EXTENSIONS, PAPER_EXTENSIONS, IMAGE_EXTENSIONS
+from graphify.detect import (
+    CODE_EXTENSIONS,
+    DOC_EXTENSIONS,
+    PAPER_EXTENSIONS,
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+)
 
-_WATCHED_EXTENSIONS = CODE_EXTENSIONS | DOC_EXTENSIONS | PAPER_EXTENSIONS | IMAGE_EXTENSIONS
+_WATCHED_EXTENSIONS = (
+    CODE_EXTENSIONS | DOC_EXTENSIONS | PAPER_EXTENSIONS | IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+)
 _CODE_EXTENSIONS = CODE_EXTENSIONS
 
 
@@ -127,7 +135,7 @@ def _rebuild_code(watch_path: Path, *, follow_symlinks: bool = False, force: boo
             return False
 
         commit = _git_head()
-        result = extract(code_files, cache_root=watch_root)
+        result = extract(code_files, cache_root=watch_root, root=watch_root)
 
         # Preserve semantic nodes/edges from a previous full run.
         # AST-only rebuild replaces nodes for changed files; everything else is kept.
@@ -238,11 +246,21 @@ def check_update(watch_path: Path) -> bool:
     return True
 
 
-def _notify_only(watch_path: Path) -> None:
-    """Write a flag file and print a notification (fallback for non-code-only corpora)."""
-    flag = watch_path / _GRAPHIFY_OUT / "needs_update"
+def mark_needs_update(watch_path: Path) -> Path:
+    """Write the semantic-refresh sentinel used by watch and Git hooks.
+
+    The file intentionally stays a tiny stable sentinel (`1`) so older
+    `check_update` callers and existing tests continue to work.
+    """
+    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
     flag.parent.mkdir(parents=True, exist_ok=True)
     flag.write_text("1", encoding="utf-8")
+    return flag
+
+
+def _notify_only(watch_path: Path) -> None:
+    """Write a flag file and print a notification (fallback for non-code-only corpora)."""
+    flag = mark_needs_update(watch_path)
     print(f"\n[graphify watch] New or changed files detected in {watch_path}")
     print("[graphify watch] Non-code files changed - semantic re-extraction requires LLM.")
     print("[graphify watch] Run `/graphify --update` in Claude Code to update the graph.")
@@ -258,7 +276,7 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
     Watch watch_path for new or modified files and auto-update the graph.
 
     For code-only changes: re-runs AST extraction + rebuild immediately (no LLM).
-    For doc/paper/image changes: writes a needs_update flag and notifies the user
+    For doc/media changes: writes a needs_update flag and notifies the user
     to run /graphify --update (LLM extraction required).
 
     debounce: seconds to wait after the last change before triggering (avoids
@@ -299,7 +317,7 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 
     print(f"[graphify watch] Watching {watch_path.resolve()} - press Ctrl+C to stop")
     print(f"[graphify watch] Code changes rebuild graph automatically. "
-          f"Doc/image changes require /graphify --update.")
+          f"Doc/media changes require /graphify --update.")
     print(f"[graphify watch] Debounce: {debounce}s")
 
     try:

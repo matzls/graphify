@@ -56,6 +56,22 @@ def test_extract_merges_multiple_files():
     assert result["input_tokens"] == 0
 
 
+def test_extract_partial_nested_file_preserves_project_relative_source_file(tmp_path):
+    """Partial extraction must not collapse nested paths to bare filenames."""
+    repo = tmp_path / "repo"
+    tests_dir = repo / "tests"
+    tests_dir.mkdir(parents=True)
+    test_file = tests_dir / "test_example.py"
+    test_file.write_text("def test_example():\n    assert True\n", encoding="utf-8")
+
+    result = extract([test_file], cache_root=repo, root=repo, parallel=False)
+
+    source_files = {n["source_file"] for n in result["nodes"]}
+    assert "tests/test_example.py" in source_files
+    assert "test_example.py" not in source_files
+    assert any(n["id"] == "tests_test_example_py" for n in result["nodes"])
+
+
 def test_collect_files_from_dir():
     from graphify.extract import _DISPATCH
     files = collect_files(FIXTURES)

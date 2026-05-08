@@ -194,7 +194,7 @@ Code is extracted locally with no API calls (AST via tree-sitter). Everything el
 /graphify add https://arxiv.org/abs/1706.03762   # fetch a paper and add it
 /graphify add <youtube-url>                       # transcribe and add a video
 
-graphify hook install              # auto-rebuild on git commit
+graphify hook install              # rebuild code, flag docs/media after commits
 graphify merge-graphs a.json b.json              # combine two graphs
 ```
 
@@ -234,8 +234,8 @@ graphify-out/cost.json        # local only
 **Workflow:**
 1. One person runs `/graphify .` and commits `graphify-out/`.
 2. Everyone pulls — their assistant reads the graph immediately.
-3. Run `graphify hook install` to auto-rebuild after each commit (AST only, no API cost). This also sets up a git merge driver so `graph.json` is never left with conflict markers — two devs committing in parallel get their graphs union-merged automatically.
-4. When docs or papers change, run `/graphify --update` to refresh those nodes.
+3. Run `graphify hook install` to keep code graph outputs fresh after commits and branch switches (AST only, no API cost). The post-commit hook also writes `graphify-out/needs_update` when committed docs, papers, or media need semantic refresh. This also sets up a git merge driver so `graph.json` is never left with conflict markers — two devs committing in parallel get their graphs union-merged automatically.
+4. When `graphify-out/needs_update` exists, run `/graphify --update` to refresh semantic docs/media nodes.
 
 ---
 

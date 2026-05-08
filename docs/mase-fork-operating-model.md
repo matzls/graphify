@@ -177,7 +177,7 @@ Main modules:
 - `serve.py`: exposes `graph.json` through MCP-style graph access.
 - `watch.py`: live file watching and code-only rebuilds.
 - `hooks.py`: repo-local Git hooks for post-commit and post-checkout code graph
-  refreshes.
+  refreshes, plus post-commit stale flags for committed docs/media.
 - `transcribe.py`: local faster-whisper transcription for media inputs.
 - `ingest.py` and `security.py`: URL ingestion and local security guards.
 
@@ -228,8 +228,9 @@ Do not tell Mase that Codex is actively reminded by the hook unless
 `graphify hook-check` has been changed and verified in the active Codex runtime.
 
 The local Git hooks are active when installed. They refresh code graph outputs
-after commits and branch switches, but they do not semantically refresh docs,
-media, images, or research notes.
+after commits and branch switches. After commits, docs/media/image changes
+write `graphify-out/needs_update`; they do not semantically refresh until
+`graphify . --update` runs.
 
 ## Skill And Guide Sync Rules
 

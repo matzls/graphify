@@ -4,7 +4,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from graphify.llm import detect_backend, BACKENDS
+from graphify.llm import _default_model_for_backend, detect_backend, BACKENDS
 
 
 def test_ollama_in_backends():
@@ -12,12 +12,25 @@ def test_ollama_in_backends():
     assert BACKENDS["ollama"]["pricing"]["input"] == 0.0
     assert BACKENDS["ollama"]["pricing"]["output"] == 0.0
     assert "max_tokens" in BACKENDS["ollama"]
+    assert _default_model_for_backend("ollama") == "gemma4:31b"
 
 
 def test_detect_backend_ollama(monkeypatch):
     monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    assert detect_backend() == "ollama"
+
+
+def test_detect_backend_auto_detects_local_ollama(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    monkeypatch.setattr("graphify.llm._local_ollama_available", lambda: True)
+
     assert detect_backend() == "ollama"
 
 
@@ -40,9 +53,16 @@ def test_detect_backend_claude_beats_ollama(monkeypatch):
 
 
 def test_detect_backend_none_without_envvars(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.delenv("AWS_REGION", raising=False)
+    monkeypatch.delenv("AWS_DEFAULT_REGION", raising=False)
+    monkeypatch.setattr("graphify.llm._local_ollama_available", lambda: False)
     assert detect_backend() is None
 
 

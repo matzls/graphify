@@ -224,6 +224,33 @@ def test_agents_install_idempotent(tmp_path):
     assert content.count("## graphify") == 1
 
 
+def test_agents_install_updates_existing_graphify_section(tmp_path):
+    """Installing again replaces stale Graphify guidance in AGENTS.md."""
+    agents_md = tmp_path / "AGENTS.md"
+    agents_md.write_text(
+        "# Existing rules\n\n"
+        "Keep this.\n\n"
+        "## graphify\n\n"
+        "This project has stale graphify guidance.\n"
+        "- This repo can use repo-local Graphify Git hooks. They refresh code graph\n"
+        "  outputs after commits and branch switches, but they do not semantically\n"
+        "  refresh docs, media, images, or research notes.\n\n"
+        "## Other\n\n"
+        "Also keep this.\n",
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+    content = agents_md.read_text(encoding="utf-8")
+
+    assert "Keep this." in content
+    assert "## Other" in content
+    assert "Also keep this." in content
+    assert "stale graphify guidance" not in content
+    assert "changes write `graphify-out/needs_update`" in content
+    assert content.count("## graphify") == 1
+
+
 def test_agents_install_appends_to_existing(tmp_path):
     """Installs into an existing AGENTS.md without overwriting other content."""
     agents_md = tmp_path / "AGENTS.md"

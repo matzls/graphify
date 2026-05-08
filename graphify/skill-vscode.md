@@ -83,7 +83,7 @@ for f in detect.get('files', {}).get('code', []):
     code_files.extend(collect_files(p) if p.is_dir() else [p])
 
 if code_files:
-    result = extract(code_files)
+    result = extract(code_files, cache_root=Path('INPUT_PATH'), root=Path('INPUT_PATH'))
     Path('graphify-out/.graphify_ast.json').write_text(json.dumps(result, indent=2))
     print(f'AST: {len(result[\"nodes\"])} nodes, {len(result[\"edges\"])} edges')
 else:

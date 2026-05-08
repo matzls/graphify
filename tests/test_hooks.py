@@ -3,7 +3,15 @@ import os
 import subprocess
 from pathlib import Path
 import pytest
-from graphify.hooks import install, uninstall, status, _HOOK_MARKER, _CHECKOUT_MARKER
+from graphify.hooks import (
+    install,
+    uninstall,
+    status,
+    _HOOK_MARKER,
+    _HOOK_MARKER_END,
+    _CHECKOUT_MARKER,
+    _HOOK_SCRIPT,
+)
 
 
 def _make_git_repo(tmp_path: Path) -> Path:
@@ -34,7 +42,7 @@ def test_install_idempotent(tmp_path):
     repo = _make_git_repo(tmp_path)
     install(repo)
     result = install(repo)
-    assert "already installed" in result
+    assert "updated existing" in result
     # marker appears only once
     hook = repo / ".git" / "hooks" / "post-commit"
     assert hook.read_text().count(_HOOK_MARKER) == 1
@@ -49,6 +57,60 @@ def test_install_appends_to_existing_hook(tmp_path):
     content = hook.read_text()
     assert "existing" in content
     assert _HOOK_MARKER in content
+
+
+def test_install_updates_existing_graphify_block(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    hook = repo / ".git" / "hooks" / "post-commit"
+    hook.write_text(
+        "#!/bin/bash\n"
+        "echo before\n"
+        f"{_HOOK_MARKER}\n"
+        "echo old graphify hook\n"
+        f"{_HOOK_MARKER_END}\n"
+        "echo after\n",
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+
+    result = install(repo)
+    content = hook.read_text(encoding="utf-8")
+
+    assert "updated existing post-commit" in result
+    assert "echo before" in content
+    assert "echo after" in content
+    assert "echo old graphify hook" not in content
+    assert content.count(_HOOK_MARKER) == 1
+    assert "docs/media changes write graphify-out/needs_update" in content
+
+
+def test_install_backs_up_partial_graphify_block(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    hook = repo / ".git" / "hooks" / "post-commit"
+    hook.write_text(
+        "#!/bin/bash\n"
+        f"{_HOOK_MARKER}\n"
+        "echo truncated graphify hook\n",
+        encoding="utf-8",
+    )
+    hook.chmod(0o755)
+
+    result = install(repo)
+
+    backup = repo / ".git" / "hooks" / "post-commit.graphify-backup"
+    assert "backed up partial graphify block" in result
+    assert backup.exists()
+    assert "echo truncated graphify hook" in backup.read_text(encoding="utf-8")
+    assert _HOOK_MARKER_END in hook.read_text(encoding="utf-8")
+
+
+def test_post_commit_hook_marks_docs_and_media_stale():
+    assert "classify_file" in _HOOK_SCRIPT
+    assert "_load_graphifyignore" in _HOOK_SCRIPT
+    assert "FileType.DOCUMENT" in _HOOK_SCRIPT
+    assert "FileType.IMAGE" in _HOOK_SCRIPT
+    assert "mark_needs_update" in _HOOK_SCRIPT
+    assert _HOOK_SCRIPT.index("_rebuild_code") < _HOOK_SCRIPT.index("mark_needs_update")
 
 
 def test_uninstall_removes_hook(tmp_path):
