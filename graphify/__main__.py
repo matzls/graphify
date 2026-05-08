@@ -2258,7 +2258,7 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        if not _get_backend_api_key(backend):
+        if backend not in ("bedrock", "ollama") and not _get_backend_api_key(backend):
             print(
                 f"error: backend '{backend}' requires {_format_backend_env_keys(backend)} to be set.",
                 file=sys.stderr,

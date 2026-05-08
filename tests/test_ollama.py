@@ -1,6 +1,9 @@
 """Tests for the Ollama backend additions in graphify/llm.py."""
 from __future__ import annotations
 
+import subprocess
+import sys
+
 from graphify.llm import detect_backend, BACKENDS
 
 
@@ -72,3 +75,29 @@ def test_ollama_api_key_sentinel(monkeypatch):
             assert api_key_used == "ollama"
         finally:
             tmp.unlink(missing_ok=True)
+
+
+def test_cli_ollama_backend_does_not_require_api_key_for_code_only_corpus(tmp_path, monkeypatch):
+    """The CLI should allow Ollama's no-auth sentinel instead of rejecting early."""
+    monkeypatch.delenv("OLLAMA_API_KEY", raising=False)
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    source = tmp_path / "sample.py"
+    source.write_text("def hello():\n    return 'world'\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "graphify",
+            "extract",
+            str(tmp_path),
+            "--backend",
+            "ollama",
+            "--no-cluster",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert "requires OLLAMA_API_KEY" not in result.stderr
