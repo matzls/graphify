@@ -201,6 +201,33 @@ def test_corpus_parallel_sequential_when_max_concurrency_is_one(tmp_path):
     assert call_order == [("f0.py",), ("f1.py",), ("f2.py",)]
 
 
+def test_corpus_parallel_reports_chunk_start_before_slow_backend(tmp_path):
+    """Slow local backends should expose visible progress before a chunk returns."""
+    from graphify.llm import extract_corpus_parallel
+
+    source = tmp_path / "note.md"
+    source.write_text("# Note\n", encoding="utf-8")
+    events = []
+
+    def slow_extract(chunk, **kwargs):
+        events.append("backend_called")
+        return _stub_chunk_result(len(chunk), 0)
+
+    def on_start(idx, total, chunk):
+        events.append((idx, total, tuple(p.name for p in chunk)))
+
+    with patch("graphify.llm.extract_files_direct", side_effect=slow_extract):
+        extract_corpus_parallel(
+            [source],
+            backend="ollama",
+            token_budget=None,
+            chunk_size=1,
+            on_chunk_start=on_start,
+        )
+
+    assert events == [(0, 1, ("note.md",)), "backend_called"]
+
+
 def test_corpus_parallel_continues_after_chunk_failure(tmp_path, capsys):
     """A single chunk raising should be logged but not abort the run.
     Other chunks' results should still be merged."""

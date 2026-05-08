@@ -135,6 +135,18 @@ uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graph
   --with tree-sitter-sql
 ```
 
+This fork installs the OpenAI-compatible Python SDK by default because
+semantic extraction uses it for `ollama`, `gemini`, `kimi`, and `openai`
+backends. If semantic extraction reports that `openai` is missing, reinstall
+from this checkout rather than installing from PyPI.
+
+Local Ollama semantic extraction can be slow. Graphify runs Ollama chunks
+sequentially by default, prints chunk-start lines with filenames before waiting
+on the model, uses smaller local-model prompt chunks than hosted backends, asks
+for JSON-object output, repairs missing final JSON delimiters, and uses a
+30-minute request timeout unless `GRAPHIFY_LLM_TIMEOUT_SECONDS` is set for a
+bounded smoke check.
+
 Do not continue by running a plain `pip install graphifyy` or
 `uv tool upgrade graphifyy` when Mase's fork fixes are still required.
 

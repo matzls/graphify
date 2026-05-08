@@ -2372,13 +2372,40 @@ def main() -> None:
                 print(f"[graphify extract] semantic cache: {sem_cache_hits} hit / {sem_cache_misses} miss")
 
             if uncached_paths:
-                print(f"[graphify extract] semantic extraction on {len(uncached_paths)} files via {backend}...")
+                print(
+                    f"[graphify extract] semantic extraction on {len(uncached_paths)} files via {backend}...",
+                    flush=True,
+                )
+                def _log_semantic_chunk_start(idx: int, total: int, chunk: list[Path]) -> None:
+                    names = []
+                    for path in chunk[:3]:
+                        try:
+                            names.append(str(path.relative_to(target)))
+                        except ValueError:
+                            names.append(path.name)
+                    suffix = "" if len(chunk) <= 3 else f", +{len(chunk) - 3} more"
+                    print(
+                        f"[graphify extract] semantic chunk {idx + 1}/{total} started: "
+                        f"{len(chunk)} files ({', '.join(names)}{suffix})",
+                        flush=True,
+                    )
+
+                def _log_semantic_chunk(idx: int, total: int, result: dict) -> None:
+                    print(
+                        f"[graphify extract] semantic chunk {idx + 1}/{total} done: "
+                        f"{len(result.get('nodes', []))} nodes, "
+                        f"{len(result.get('edges', []))} edges, "
+                        f"{result.get('elapsed_seconds', 0)}s",
+                        flush=True,
+                    )
                 try:
                     fresh = _extract_corpus_parallel(
                         [Path(p) for p in uncached_paths],
                         backend=backend,
                         model=model_override,
                         root=target,
+                        on_chunk_start=_log_semantic_chunk_start,
+                        on_chunk_done=_log_semantic_chunk,
                     )
                 except ImportError as exc:
                     print(f"error: {exc}", file=sys.stderr)

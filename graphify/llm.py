@@ -17,12 +17,15 @@ from pathlib import Path
 # `_read_files` truncates each file at this many characters before joining into
 # the user message. Token estimates use the same cap so packing matches reality.
 _FILE_CHAR_CAP = 20_000
+_OLLAMA_FILE_CHAR_CAP = 8_000
 # `_read_files` also wraps each file in a `=== {rel} ===\n...\n\n` separator;
 # this is roughly the per-file overhead in characters that the prompt adds.
 _PER_FILE_OVERHEAD_CHARS = 80
 # Coarse fallback used only when `tiktoken` is not installed. 1 token ≈ 4 chars
 # is the standard heuristic for English/code on BPE tokenizers.
 _CHARS_PER_TOKEN = 4
+_DEFAULT_TOKEN_BUDGET = 60_000
+_OLLAMA_TOKEN_BUDGET = 8_000
 
 
 def _get_tokenizer():
@@ -68,7 +71,8 @@ BACKENDS: dict[str, dict] = {
         "env_key": "OLLAMA_API_KEY",
         "pricing": {"input": 0.0, "output": 0.0},
         "temperature": 0,
-        "max_tokens": 16384,
+        "max_tokens": 8192,
+        "timeout": 1800.0,
     },
     "gemini": {
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -110,6 +114,39 @@ def _resolve_max_tokens(default: int) -> int:
             pass
     return default
 
+
+def _resolve_request_timeout(backend: str, default: float | None = None) -> float | None:
+    """Return the LLM request timeout in seconds.
+
+    Local Ollama calls can otherwise block indefinitely while a model is wedged,
+    swapping, or producing unusable output. Keep this configurable for slow
+    hardware, but default to a bounded request so CLI runs fail visibly.
+    """
+    raw = os.environ.get("GRAPHIFY_LLM_TIMEOUT_SECONDS", "").strip()
+    if raw:
+        try:
+            value = float(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    if default is not None:
+        return default
+    cfg = BACKENDS.get(backend, {})
+    timeout = cfg.get("timeout")
+    return float(timeout) if timeout else None
+
+
+def _openai_client_kwargs(backend: str) -> dict:
+    """Return backend-specific OpenAI SDK client options."""
+    kwargs: dict = {"timeout": _resolve_request_timeout(backend)}
+    if backend == "ollama":
+        # The SDK default retries can turn a bounded local timeout into a long
+        # apparent hang. Ollama failures should surface immediately so the CLI
+        # can continue or report a clear chunk failure.
+        kwargs["max_retries"] = 0
+    return kwargs
+
 _EXTRACTION_SYSTEM = """\
 You are a graphify semantic extraction agent. Extract a knowledge graph fragment from the files provided.
 Output ONLY valid JSON — no explanation, no markdown fences, no preamble.
@@ -127,7 +164,22 @@ Output exactly this schema:
 """
 
 
-def _read_files(paths: list[Path], root: Path) -> str:
+def _resolve_file_char_cap(backend: str) -> int:
+    """Return per-file prompt character cap for a backend."""
+    raw = os.environ.get("GRAPHIFY_FILE_CHAR_CAP", "").strip()
+    if raw:
+        try:
+            value = int(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    if backend == "ollama":
+        return _OLLAMA_FILE_CHAR_CAP
+    return _FILE_CHAR_CAP
+
+
+def _read_files(paths: list[Path], root: Path, char_cap: int = _FILE_CHAR_CAP) -> str:
     """Return file contents formatted for the extraction prompt."""
     parts: list[str] = []
     for p in paths:
@@ -139,7 +191,7 @@ def _read_files(paths: list[Path], root: Path) -> str:
             content = p.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        parts.append(f"=== {rel} ===\n{content[:20000]}")
+        parts.append(f"=== {rel} ===\n{content[:char_cap]}")
     return "\n\n".join(parts)
 
 
@@ -167,8 +219,57 @@ def _parse_llm_json(raw: str) -> dict:
     try:
         return json.loads(raw.strip())
     except json.JSONDecodeError as exc:
+        repaired = _repair_truncated_json(raw.strip())
+        if repaired is not None:
+            try:
+                parsed = json.loads(repaired)
+                print(
+                    f"[graphify] repaired malformed LLM JSON by adding missing closing delimiters: {exc}",
+                    file=sys.stderr,
+                )
+                return parsed
+            except json.JSONDecodeError:
+                pass
         print(f"[graphify] LLM returned invalid JSON, skipping chunk: {exc}", file=sys.stderr)
         return {"nodes": [], "edges": [], "hyperedges": []}
+
+
+def _repair_truncated_json(raw: str) -> str | None:
+    """Repair the common Ollama JSON-mode case where the final delimiter is
+    missing despite `finish_reason="stop"`.
+
+    This intentionally only appends closing delimiters for already-open
+    objects/arrays. It does not attempt semantic correction, quote repair, or
+    comma insertion, so genuinely malformed model output still gets skipped.
+    """
+    if not raw:
+        return None
+    stack: list[str] = []
+    in_string = False
+    escaped = False
+    for ch in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append(ch)
+        elif ch in "}]":
+            if not stack:
+                return None
+            opener = stack.pop()
+            if (opener, ch) not in (("{", "}"), ("[", "]")):
+                return None
+    if in_string or escaped or not stack:
+        return None
+    closers = "".join("}" if opener == "{" else "]" for opener in reversed(stack))
+    return raw + closers
 
 
 def _backend_env_keys(backend: str) -> list[str]:
@@ -234,7 +335,7 @@ def _call_openai_compat(
             f"Run: pip install {pkg_hint}"
         ) from exc
 
-    client = OpenAI(api_key=api_key, base_url=base_url)
+    client = OpenAI(api_key=api_key, base_url=base_url, **_openai_client_kwargs(backend))
     kwargs: dict = {
         "model": model,
         "messages": [
@@ -247,8 +348,11 @@ def _call_openai_compat(
         kwargs["temperature"] = temperature
     if reasoning_effort is not None:
         kwargs["reasoning_effort"] = reasoning_effort
+    if backend == "ollama":
+        kwargs["response_format"] = {"type": "json_object"}
+        kwargs["extra_body"] = {"options": {"num_predict": max_completion_tokens}}
     # Kimi-k2.6 is a reasoning model — disable thinking so content isn't empty
-    if "moonshot" in base_url:
+    elif "moonshot" in base_url:
         kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     resp = client.chat.completions.create(**kwargs)
     result = _parse_llm_json(resp.choices[0].message.content or "{}")
@@ -363,6 +467,7 @@ def extract_files_direct(
             f"sending corpus to {ollama_url}. Set OLLAMA_API_KEY (any non-empty value) "
             "to suppress this warning.",
             file=sys.stderr,
+            flush=True,
         )
         key = "ollama"
     if not key and backend != "bedrock":
@@ -371,7 +476,7 @@ def extract_files_direct(
             f"Set {_format_backend_env_keys(backend)} or pass api_key=."
         )
     mdl = model or _default_model_for_backend(backend)
-    user_msg = _read_files(files, root)
+    user_msg = _read_files(files, root, char_cap=_resolve_file_char_cap(backend))
     max_out = _resolve_max_tokens(cfg.get("max_tokens", cfg.get("max_completion_tokens", 8192)))
 
     if backend == "claude":
@@ -390,7 +495,7 @@ def extract_files_direct(
     )
 
 
-def _estimate_file_tokens(path: Path) -> int:
+def _estimate_file_tokens(path: Path, char_cap: int = _FILE_CHAR_CAP) -> int:
     """Estimate the prompt-token cost of a single file under `_read_files` rules.
 
     Uses tiktoken (`cl100k_base`) when available for accurate counts. Falls back
@@ -404,11 +509,11 @@ def _estimate_file_tokens(path: Path) -> int:
             size = path.stat().st_size
         except OSError:
             return 0
-        chars = min(size, _FILE_CHAR_CAP) + _PER_FILE_OVERHEAD_CHARS
+        chars = min(size, char_cap) + _PER_FILE_OVERHEAD_CHARS
         return chars // _CHARS_PER_TOKEN
 
     try:
-        content = path.read_text(encoding="utf-8", errors="replace")[:_FILE_CHAR_CAP]
+        content = path.read_text(encoding="utf-8", errors="replace")[:char_cap]
     except OSError:
         return 0
     return len(_TOKENIZER.encode(content)) + (_PER_FILE_OVERHEAD_CHARS // _CHARS_PER_TOKEN)
@@ -417,6 +522,7 @@ def _estimate_file_tokens(path: Path) -> int:
 def _pack_chunks_by_tokens(
     files: list[Path],
     token_budget: int,
+    char_cap: int = _FILE_CHAR_CAP,
 ) -> list[list[Path]]:
     """Greedily pack files into chunks that fit a token budget.
 
@@ -441,7 +547,7 @@ def _pack_chunks_by_tokens(
 
     for directory in sorted(by_dir):
         for path in by_dir[directory]:
-            cost = _estimate_file_tokens(path)
+            cost = _estimate_file_tokens(path, char_cap=char_cap)
             if current and current_tokens + cost > token_budget:
                 chunks.append(current)
                 current = []
@@ -452,6 +558,33 @@ def _pack_chunks_by_tokens(
     if current:
         chunks.append(current)
     return chunks
+
+
+def _resolve_token_budget(backend: str, token_budget: int | None | str) -> int | None:
+    """Return the semantic extraction chunk budget for a backend.
+
+    Hosted models can handle large chunks efficiently, but local Ollama models
+    need smaller prompts for usable latency and JSON compliance. Keep a global
+    env override so CLI users can tune quality/speed without code changes.
+    """
+    raw = os.environ.get("GRAPHIFY_SEMANTIC_TOKEN_BUDGET", "").strip()
+    if raw:
+        try:
+            value = int(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    if token_budget != "auto":
+        if token_budget is None:
+            return None
+        if isinstance(token_budget, int) and token_budget > 0:
+            return token_budget
+    if token_budget != "auto":
+        return token_budget
+    if backend == "ollama":
+        return _OLLAMA_TOKEN_BUDGET
+    return _DEFAULT_TOKEN_BUDGET
 
 
 def _extract_with_adaptive_retry(
@@ -538,18 +671,19 @@ def extract_corpus_parallel(
     model: str | None = None,
     root: Path = Path("."),
     chunk_size: int = 20,
+    on_chunk_start: Callable | None = None,
     on_chunk_done: Callable | None = None,
-    token_budget: int | None = 60_000,
+    token_budget: int | None | str = "auto",
     max_concurrency: int = 4,
     max_retry_depth: int = 3,
 ) -> dict:
     """Extract a corpus in chunks, merging results.
 
     Chunking strategy:
-        - If `token_budget` is set (default 60_000), files are packed to fit
-          the budget and grouped by parent directory. This avoids the worst
-          case where 20 randomly-grouped files exceed a model's context
-          window in a single request.
+        - If `token_budget` is set, files are packed to fit the budget and
+          grouped by parent directory. If omitted, hosted backends use 60k
+          tokens while Ollama uses a smaller 8k local-model budget. This avoids
+          the worst case where a large docs set becomes one giant local prompt.
         - If `token_budget=None`, falls back to the legacy fixed-count
           `chunk_size` packing for backwards compatibility.
 
@@ -567,7 +701,9 @@ def extract_corpus_parallel(
           self-heal by splitting until they do, while well-sized chunks pay
           no extra cost. Set `max_retry_depth=0` to disable retries.
 
-    `on_chunk_done(idx, total, chunk_result)` fires once per chunk as it
+    `on_chunk_start(idx, total, chunk)` fires immediately before a top-level
+    chunk is submitted to the backend, so slow local models still show visible
+    progress. `on_chunk_done(idx, total, chunk_result)` fires once per chunk as it
     completes (in completion order, not submission order). `idx` is the
     chunk's submission index so callers can correlate progress. The
     callback fires once per top-level chunk; recursive splits are merged
@@ -577,8 +713,10 @@ def extract_corpus_parallel(
     output_tokens. Failed chunks are logged to stderr and skipped — one bad
     chunk does not abort the run.
     """
-    if token_budget is not None:
-        chunks = _pack_chunks_by_tokens(files, token_budget=token_budget)
+    resolved_token_budget = _resolve_token_budget(backend, token_budget)
+    char_cap = _resolve_file_char_cap(backend)
+    if resolved_token_budget is not None:
+        chunks = _pack_chunks_by_tokens(files, token_budget=resolved_token_budget, char_cap=char_cap)
     else:
         chunks = [files[i:i + chunk_size] for i in range(0, len(files), chunk_size)]
 
@@ -588,6 +726,8 @@ def extract_corpus_parallel(
     def _run_one(idx: int, chunk: list[Path]) -> tuple[int, dict | None, Exception | None]:
         t0 = time.time()
         try:
+            if callable(on_chunk_start):
+                on_chunk_start(idx, total, chunk)
             result = _extract_with_adaptive_retry(
                 chunk,
                 backend=backend,
@@ -601,6 +741,13 @@ def extract_corpus_parallel(
         except Exception as exc:  # noqa: BLE001 — caller-facing surface, log + continue
             return idx, None, exc
 
+    if backend == "ollama" and max_concurrency == 4:
+        # Local Ollama servers commonly serialize generation internally. Sending
+        # four large corpus chunks at once can look like a hang and can starve
+        # smaller models; users can still pass max_concurrency explicitly in
+        # library calls if their server can handle it.
+        max_concurrency = 1
+
     workers = max(1, min(max_concurrency, total))
     if workers == 1:
         # Avoid thread pool overhead for single-worker runs (and keep
@@ -608,7 +755,7 @@ def extract_corpus_parallel(
         for idx, chunk in enumerate(chunks):
             _, result, exc = _run_one(idx, chunk)
             if exc is not None:
-                print(f"[graphify] chunk {idx + 1}/{total} failed: {exc}", file=sys.stderr)
+                print(f"[graphify] chunk {idx + 1}/{total} failed: {exc}", file=sys.stderr, flush=True)
                 continue
             assert result is not None
             _merge_into(merged, result)
@@ -621,7 +768,7 @@ def extract_corpus_parallel(
         for future in as_completed(futures):
             idx, result, exc = future.result()
             if exc is not None:
-                print(f"[graphify] chunk {idx + 1}/{total} failed: {exc}", file=sys.stderr)
+                print(f"[graphify] chunk {idx + 1}/{total} failed: {exc}", file=sys.stderr, flush=True)
                 continue
             assert result is not None
             _merge_into(merged, result)
@@ -699,7 +846,7 @@ def _call_llm(prompt: str, *, backend: str, max_tokens: int = 200) -> str:
         from openai import OpenAI
     except ImportError as exc:
         raise ImportError("openai package required for this backend") from exc
-    client = OpenAI(api_key=key, base_url=cfg["base_url"])
+    client = OpenAI(api_key=key, base_url=cfg["base_url"], **_openai_client_kwargs(backend))
     kwargs: dict = {
         "model": mdl,
         "messages": [{"role": "user", "content": prompt}],
@@ -710,7 +857,10 @@ def _call_llm(prompt: str, *, backend: str, max_tokens: int = 200) -> str:
         kwargs["temperature"] = temperature
     if cfg.get("reasoning_effort"):
         kwargs["reasoning_effort"] = cfg["reasoning_effort"]
-    if "moonshot" in cfg["base_url"]:
+    if backend == "ollama":
+        kwargs["response_format"] = {"type": "json_object"}
+        kwargs["extra_body"] = {"options": {"num_predict": max_tokens}}
+    elif "moonshot" in cfg["base_url"]:
         kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     resp = client.chat.completions.create(**kwargs)
     return resp.choices[0].message.content or ""
