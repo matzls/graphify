@@ -122,7 +122,10 @@ def _resolve_request_timeout(backend: str, default: float | None = None) -> floa
     swapping, or producing unusable output. Keep this configurable for slow
     hardware, but default to a bounded request so CLI runs fail visibly.
     """
-    raw = os.environ.get("GRAPHIFY_LLM_TIMEOUT_SECONDS", "").strip()
+    raw = (
+        os.environ.get("GRAPHIFY_API_TIMEOUT", "").strip()
+        or os.environ.get("GRAPHIFY_LLM_TIMEOUT_SECONDS", "").strip()
+    )
     if raw:
         try:
             value = float(raw)
