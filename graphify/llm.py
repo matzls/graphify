@@ -373,10 +373,30 @@ def _call_openai_compat(
         kwargs["reasoning_effort"] = reasoning_effort
     if backend == "ollama":
         kwargs["response_format"] = {"type": "json_object"}
-        kwargs["extra_body"] = {"options": {"num_predict": max_completion_tokens}}
     # Kimi-k2.6 is a reasoning model — disable thinking so content isn't empty
     elif "moonshot" in base_url:
         kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+    # Ollama defaults num_ctx to 2048 and silently truncates prompts larger
+    # than that — the symptom is hollow 200 OK responses after the first few
+    # chunks (#798). We send num_ctx large enough to fit our default 60k-token
+    # chunk budget plus system prompt and JSON output headroom. Ollama caps
+    # gracefully at the model's built-in limit if it's lower, so a large
+    # default is safe. keep_alive pins the model in VRAM across chunks so it
+    # isn't unloaded/reloaded mid-run under concurrency pressure.
+    if backend == "ollama":
+        num_ctx_raw = os.environ.get("GRAPHIFY_OLLAMA_NUM_CTX", "").strip()
+        try:
+            num_ctx = int(num_ctx_raw) if num_ctx_raw else 131072
+        except ValueError:
+            num_ctx = 131072
+        keep_alive = os.environ.get("GRAPHIFY_OLLAMA_KEEP_ALIVE", "30m")
+        kwargs["extra_body"] = {
+            "options": {
+                "num_predict": max_completion_tokens,
+                "num_ctx": num_ctx,
+            },
+            "keep_alive": keep_alive,
+        }
     resp = client.chat.completions.create(**kwargs)
     raw_content = resp.choices[0].message.content
     result = _parse_llm_json(raw_content or "{}")
@@ -876,13 +896,11 @@ def extract_corpus_parallel(
         except Exception as exc:  # noqa: BLE001 — caller-facing surface, log + continue
             return idx, None, exc
 
-    if backend == "ollama" and max_concurrency == 4:
-        # Local Ollama servers commonly serialize generation internally. Sending
-        # four large corpus chunks at once can look like a hang and can starve
-        # smaller models; users can still pass max_concurrency explicitly in
-        # library calls if their server can handle it.
+    # Ollama serves one request at a time per loaded model on a single GPU.
+    # Four concurrent 60k-token requests cause VRAM pressure and hollow
+    # responses after 3-4 chunks (#798). Force serial unless the user opts in.
+    if backend == "ollama" and os.environ.get("GRAPHIFY_OLLAMA_PARALLEL", "").strip() != "1":
         max_concurrency = 1
-
     workers = max(1, min(max_concurrency, total))
     if workers == 1:
         # Avoid thread pool overhead for single-worker runs (and keep
