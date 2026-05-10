@@ -855,8 +855,6 @@ def test_ts_static_template_literal_resolved():
     assert any("statichelper" in t.lower() for t in targets), \
         f"Static template literal import not resolved: {targets}"
 
-
-<<<<<<< HEAD
 # ── Markdown ─────────────────────────────────────────────────────────────────
 
 from graphify.extract import extract_markdown
