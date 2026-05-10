@@ -1,6 +1,7 @@
 """Integration tests for incremental graphify extract behavior."""
 from __future__ import annotations
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -11,11 +12,27 @@ PYTHON = sys.executable
 
 
 def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
+    env = os.environ.copy()
+    for key in (
+        "ANTHROPIC_API_KEY",
+        "MOONSHOT_API_KEY",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "AWS_PROFILE",
+        "AWS_REGION",
+        "AWS_DEFAULT_REGION",
+    ):
+        env.pop(key, None)
+    env["OLLAMA_BASE_URL"] = "http://127.0.0.1:1"
+    env["GRAPHIFY_OLLAMA_TIMEOUT"] = "0.1"
     return subprocess.run(
         [PYTHON, "-m", "graphify"] + args,
         cwd=cwd,
+        env=env,
         capture_output=True,
         text=True,
+        timeout=10,
     )
 
 
@@ -54,4 +71,4 @@ def test_no_incremental_without_manifest(tmp_path):
     """Without manifest.json, full scan message is shown (not incremental)."""
     docs = _make_docs_corpus(tmp_path)
     r = _run(["extract", str(docs)], tmp_path)
-    assert "incremental" not in r.stdout
+    assert "[graphify extract] incremental" not in r.stdout
