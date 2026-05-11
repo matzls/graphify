@@ -189,3 +189,31 @@ Safety rules:
 - Do not update global installs unless Mase explicitly confirms.
 - Do not update unknown-source installs unless Mase explicitly confirms.
 <!-- gsd-routing-end -->
+
+## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read
+  `graphify-out/GRAPH_REPORT.md` for god nodes and community structure.
+- If `graphify-out/wiki/index.md` exists, navigate it before reading raw files.
+- For cross-module "how does X relate to Y" questions, prefer
+  `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or
+  `graphify explain "<concept>"` over grep. These traverse EXTRACTED and
+  INFERRED graph edges instead of only scanning file text.
+- This repo can use repo-local Graphify Git hooks. They refresh code graph
+  outputs after commits and branch switches. After commits, docs/media/image
+  changes write `graphify-out/needs_update`; they are not semantically
+  refreshed until `graphify . --update` runs.
+- For longer active coding sessions, consider running `graphify watch .` in a
+  separate terminal. It watches live file changes while the process is running:
+  code changes trigger a code-only graph rebuild, and non-code changes write
+  `graphify-out/needs_update`.
+- Do not assume `graphify watch .` is already running. Check before relying on
+  live graph freshness, and avoid starting duplicate watchers in the same repo.
+- If `graphify-out/needs_update` exists, run `graphify . --update` before
+  relying on docs/media/image relationships. This semantic update can spend LLM
+  tokens.
+- Treat Git hooks and `graphify watch .` as freshness helpers. When report
+  quality matters, prefer a full `graphify . --update`.
