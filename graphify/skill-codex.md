@@ -8,6 +8,71 @@ trigger: /graphify
 
 Turn any folder of files into a navigable knowledge graph with community detection, an honest audit trail, and three outputs: interactive HTML, GraphRAG-ready JSON, and a plain-language GRAPH_REPORT.md.
 
+## Purpose
+Graphify turns a folder into a knowledge graph with extracted nodes,
+community clustering, and audit-friendly outputs.
+
+Graphify is not specific to Second Brain. Treat it as a repo or corpus analysis
+layer that can be applied to bounded targets. Treat `graphify-out/` as derived
+evidence, not canonical project state, durable memory, or an automatic input to
+Second Brain reflection.
+
+## When To Use
+Use Graphify when you need to understand a repo, paper stack, note corpus, or
+mixed folder before changing it, or when you want a persistent graph for later
+questioning.
+
+## Inputs
+- A path to a folder, defaulting to `.`.
+- Optional flags such as `--mode deep`, `--update`, `--cluster-only`,
+  `--no-viz`, `--obsidian`, `--svg`, `--graphml`, `--neo4j`, and `--watch`.
+- Optional subcommands for adding URLs, querying the graph, finding paths, and
+  explaining nodes.
+
+## Preconditions
+- `graphifyy` must be installed and available as the `graphify` CLI.
+- In this Codex setup, the active CLI is installed from Mase's fork at
+  `/Users/mase/Codebase/Personal-Projects/graphify` on `mase/local-fixes`.
+- Choose a bounded repo or corpus root rather than a broad top-level folder.
+- Review sensitive or generated paths before graphing.
+- Do not run repo activation inside `/Users/mase/.codex`.
+
+## Procedure
+1. Detect supported files.
+2. Extract structural and semantic relationships.
+3. Build `graphify-out/` outputs.
+4. Label communities and verify the report.
+5. Optionally generate Obsidian or other exports.
+
+## Verify Commands
+- `uv tool list`
+- `graphify --help`
+- `graphify explain "SomeKnownNode" --graph graphify-out/graph.json`
+- `graphify query "what are the core abstractions" --graph graphify-out/graph.json`
+
+## Failure Modes
+- No supported files found in the target root.
+- The corpus is too large and needs to be split into a smaller subfolder.
+- Semantic extraction can fail if worker responses are missing or invalid,
+  or if the parent agent does not write validated chunk JSON files.
+- Graph build can be empty if all files were skipped or extraction failed.
+- Video/audio corpora need transcription support or the media will be skipped.
+
+## Examples
+- `/graphify .`
+- `/graphify path/to/repo --mode deep`
+- `/graphify query "auth flow" --graph graphify-out/graph.json`
+
+## Provenance
+- Canonical source: `/Users/mase/Codebase/Personal-Projects/graphify/graphify/skill-codex.md`
+  is the canonical Codex skill source for Mase's Graphify fork.
+- Installed global copy: `/Users/mase/.codex/skills/graphify/SKILL.md`.
+- Operating notes: `/Users/mase/.codex/docs/reference/graphify.md`.
+- Propagation should flow from fork source to installed global copy only after
+  validation and explicit approval.
+- Local patch preserved from upstream: create `graphify-out/` before
+  interpreter metadata and write both `.graphify_python` locations.
+
 ## Usage
 
 ```
@@ -37,11 +102,6 @@ Turn any folder of files into a navigable knowledge graph with community detecti
 ## What graphify is for
 
 graphify is built around Andrej Karpathy's /raw folder workflow: drop anything into a folder - papers, tweets, screenshots, code, notes - and get a structured knowledge graph that shows you what you didn't know was connected.
-
-Graphify is not specific to Second Brain. Treat it as a repo or corpus analysis
-layer that can be applied to bounded targets. Treat `graphify-out/` as derived
-evidence, not canonical project state, durable memory, or an automatic input to
-Second Brain reflection.
 
 Three things it does that your AI assistant alone cannot:
 1. **Persistent graph** - relationships are stored in `graphify-out/graph.json` and survive across sessions. Ask questions weeks later without re-reading everything.
@@ -418,30 +478,36 @@ Wait for all subagents. For each result:
 If more than half the chunks failed, stop and tell the user semantic extraction failed before continuing. Do not silently downgrade to AST-only unless the user explicitly approves an AST-only fallback.
 
 Merge all parent-written chunk files into `.graphify_semantic_new.json`. Then run:
+
 ```bash
-$(cat graphify-out/.graphify_python) -c "
-import json, glob
+$(cat .graphify_python) -c "
+import glob, json
 from pathlib import Path
 
-chunks = sorted(glob.glob('graphify-out/.graphify_chunk_*.json'))
-all_nodes, all_edges, all_hyperedges = [], [], []
-total_in, total_out = 0, 0
-for c in chunks:
-    d = json.loads(Path(c).read_text())
-    all_nodes += d.get('nodes', [])
-    all_edges += d.get('edges', [])
-    all_hyperedges += d.get('hyperedges', [])
-    total_in += d.get('input_tokens', 0)
-    total_out += d.get('output_tokens', 0)
-Path('graphify-out/.graphify_semantic_new.json').write_text(json.dumps({
-    'nodes': all_nodes, 'edges': all_edges, 'hyperedges': all_hyperedges,
-    'input_tokens': total_in, 'output_tokens': total_out,
-}, indent=2))
-Path('.graphify_semantic_new.json').write_text(json.dumps({
-    'nodes': all_nodes, 'edges': all_edges, 'hyperedges': all_hyperedges,
-    'input_tokens': total_in, 'output_tokens': total_out,
-}, indent=2))
-print(f'Merged {len(chunks)} chunks: {total_in:,} in / {total_out:,} out tokens')
+nodes, edges, hyperedges = [], [], []
+input_tokens = output_tokens = 0
+for path in sorted(glob.glob('graphify-out/.graphify_chunk_*.json')):
+    try:
+        chunk = json.loads(Path(path).read_text())
+    except Exception as exc:
+        print(f'Warning: skipping invalid chunk {path}: {exc}')
+        continue
+    nodes.extend(chunk.get('nodes', []))
+    edges.extend(chunk.get('edges', []))
+    hyperedges.extend(chunk.get('hyperedges', []))
+    input_tokens += int(chunk.get('input_tokens', 0) or 0)
+    output_tokens += int(chunk.get('output_tokens', 0) or 0)
+
+payload = {
+    'nodes': nodes,
+    'edges': edges,
+    'hyperedges': hyperedges,
+    'input_tokens': input_tokens,
+    'output_tokens': output_tokens,
+}
+Path('.graphify_semantic_new.json').write_text(json.dumps(payload, indent=2))
+Path('graphify-out/.graphify_semantic_new.json').write_text(json.dumps(payload, indent=2))
+print(f'Merged {len(nodes)} nodes, {len(edges)} edges, {len(hyperedges)} hyperedges from chunk files')
 "
 ```
 
