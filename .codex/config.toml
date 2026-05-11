@@ -143,3 +143,11 @@ config_file = "/Users/mase/Codebase/Personal-Projects/graphify/.codex/agents/gsd
 [[hooks.SessionStart.hooks]]
 type = "command"
 command = "\"/opt/homebrew/bin/node\" \"/Users/mase/Codebase/Personal-Projects/graphify/.codex/hooks/gsd-check-update.js\""
+
+# Graphify Hooks
+[[hooks.PreToolUse]]
+matcher = "Bash"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "/Users/mase/.local/bin/graphify hook-check"
