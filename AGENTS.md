@@ -133,8 +133,8 @@ Prefer tests in `tests/test_watch.py`, `tests/test_transcribe.py`, and
 `tests/test_hooks.py` for these patches.
 
 <!-- gsd-routing-start -->
-<!-- template-version: 2026-05-10.1 -->
-<!-- template-sha256: 509be25dc58b97a74007131f466a850f098bab4c15e5ccf8ea633f0e42dd5797 -->
+<!-- template-version: 2026-05-11.1 -->
+<!-- template-sha256: a268dee324e539b5e9c735b0eb34e95b479eaa6e531df938174b87d5d15a6022 -->
 
 ## GSD Routing
 
@@ -146,6 +146,8 @@ inside this project.
 
 Default routing:
 - Use `gsd-progress` or `gsd-health` to inspect project/workflow state.
+- Use `gsd-map-codebase` then `gsd-new-project` for first-time setup in an
+  existing codebase.
 - Use `gsd-discuss-phase`, `gsd-spec-phase`, or `gsd-plan-phase` when work
   needs clarification, specification, or planning.
 - Use `gsd-execute-phase`, `gsd-quick`, or `gsd-fast` for implementation work,
@@ -156,6 +158,17 @@ Default routing:
   gates after implementation.
 - Use `gsd-docs-update` for verified project documentation updates.
 - Use `gsd-ship` only when preparing verified work for PR or release.
+
+First-run onboarding for an existing codebase:
+- Restart or open Codex in this repository after local GSD installation so
+  repo-local `.codex/skills/gsd-*` and `.codex/agents/gsd-*` are loaded.
+- For an existing project, use `gsd-map-codebase` before `gsd-new-project`.
+  The map step builds repo-grounded context; the new-project step uses that
+  context to create or refresh `.planning/`.
+- Prefer invoking installed GSD skills directly, such as `gsd-map-codebase`
+  and `gsd-new-project`. Inspect workflow files under
+  `.codex/get-shit-done/workflows/` only as fallback/debug evidence, not as
+  the normal entrypoint.
 
 Do not use this repo's project workflow skills to update the GSD framework
 itself.
