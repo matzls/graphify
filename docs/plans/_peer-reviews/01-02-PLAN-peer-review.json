@@ -1,0 +1,253 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-28c3be9bb3cc",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/.planning/phases/01-read-only-status-harness/01-02-PLAN.md",
+  "plan_sha256": "f393822346d85bcfe8db8a8fb541a140f54b1100c208db691c550965710b1d29",
+  "mode": "workflow-plan-gate",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews",
+  "engine": "Claude",
+  "requested_engine": "opposite",
+  "origin_runtime": "codex",
+  "engine_policy": "opposite_preferred",
+  "resolved_primary_engine": "claude",
+  "preferred_engine": "claude",
+  "fallback_engine": null,
+  "final_engine": "claude",
+  "reviewer_match": "opposite",
+  "gate_quality": "preferred",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews/01-02-PLAN-peer-review.json",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "attempt_chain": [
+    {
+      "engine": "claude",
+      "phase": "primary",
+      "attempt": 1,
+      "timeout_seconds": 300,
+      "result": "completed",
+      "elapsed_seconds": 168.686,
+      "returncode": 0
+    }
+  ],
+  "review_round": 2,
+  "max_rounds": 3,
+  "prior_review_id": "peer-review-48108b13ee2f",
+  "caller_disposition_summary": "",
+  "addressed_issues": [],
+  "deferred_issues": [],
+  "recheck_requests": [],
+  "model": "claude-opus-4-6",
+  "verdict": "Sound-with-issues",
+  "stance": null,
+  "issues_count": 1,
+  "ran_at": "2026-05-11T10:13:02.158438+00:00",
+  "raw_review_excerpt": "Plan 02 is freeze-ready. The four prior-round focus areas (summary filename, uv-managed Python invocation, target read-only baseline, and script/report behavior) are all resolved in the current artifact. Summary filename `01-02-SUMMARY.md` matches the workflow convention. All `uv run` commands are preceded by `uv sync --group dev`. Task 3 captures target `git status` and `HEAD` before and after the harness run, with acceptance criteria requiring both unchanged and no files created under the target repo. Generation gating is doubly enforced (default-off, explicit flag, temp-only workdir). One minor NOTE: `--print-json` is declared in Task 1's argparse list but has no corresponding behavior test or acceptance criterion. This does not block freeze.\n\nIssues:\n- 1. [NOTE] --print-json flag declared but untested",
+  "error": null,
+  "closure_verification": "All four prior-round focus items verified resolved against the current artifact. No prior-round claims required downgrade or remained unproven.",
+  "prior_round_closure": [
+    {
+      "title": "Summary filename convention",
+      "severity": "WARN",
+      "caller_claim": "Summary filename should match workflow convention",
+      "verification_status": "resolved",
+      "verification_notes": "Plan 02 <output> section specifies `01-02-SUMMARY.md` which matches the `{phase}-{plan}-SUMMARY.md` convention from execute-plan.md."
+    },
+    {
+      "title": "uv-managed Python invocation",
+      "severity": "WARN",
+      "caller_claim": "Verify commands should use correct uv invocation pattern",
+      "verification_status": "resolved",
+      "verification_notes": "All verify blocks use `uv sync --group dev` then `uv run --group dev ...` consistently. The `depends_on: [01-01]` ensures the dev group exists before Plan 02 runs."
+    },
+    {
+      "title": "Target read-only baseline",
+      "severity": "WARN",
+      "caller_claim": "Task 3 must prove target repo is not modified",
+      "verification_status": "resolved",
+      "verification_notes": "Task 3 action captures git status and HEAD before/after. Acceptance criteria require both unchanged. Verify block includes `git -C ... status --short --branch`. Acceptance criterion explicitly states 'No files are created or modified under /Users/mase/Codebase/Personal-Projects/my-second-brain-build'."
+    },
+    {
+      "title": "Script/report behavior",
+      "severity": "WARN",
+      "caller_claim": "Script and report behavior must be well-specified",
+      "verification_status": "resolved",
+      "verification_notes": "Tasks 1-2 have specific behavior tests and acceptance criteria for report persistence, JSON source-of-truth, exit codes, default output directory, and generation gating. Markdown and JSON are both verified as produced from one invocation."
+    }
+  ],
+  "rerun_recommendation": "stop",
+  "review": {
+    "mode": "workflow-plan-gate",
+    "summary": "Plan 02 is freeze-ready. The four prior-round focus areas (summary filename, uv-managed Python invocation, target read-only baseline, and script/report behavior) are all resolved in the current artifact. Summary filename `01-02-SUMMARY.md` matches the workflow convention. All `uv run` commands are preceded by `uv sync --group dev`. Task 3 captures target `git status` and `HEAD` before and after the harness run, with acceptance criteria requiring both unchanged and no files created under the target repo. Generation gating is doubly enforced (default-off, explicit flag, temp-only workdir). One minor NOTE: `--print-json` is declared in Task 1's argparse list but has no corresponding behavior test or acceptance criterion. This does not block freeze.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "Plan frontmatter, interfaces, verification, acceptance_criteria",
+        "claim": "All load-bearing claims (read-only guarantee, generation gating, uv invocation pattern, summary filename, dependency on Plan 01) are anchored to directly inspected artifact text.",
+        "evidence": "Plan 02 output section says `01-02-SUMMARY.md` (line from <output> tag). Task 3 action captures `git status --short --branch` and `git rev-parse HEAD` before/after. Verification block includes `git -C ... status --short --branch`. Acceptance criteria demand unchanged target. `depends_on: [01-01]` declares Plan 01 prerequisite. `uv sync --group dev` precedes every `uv run --group dev` command.",
+        "disposition": "Sound \u2014 all load-bearing claims trace to artifact text."
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "Artifact sections, prior-round focus areas, campaign scope",
+        "claim": "Artifact evidence is present for all four prior-round focus items. No conversation-only claims remain unverified. Campaign coverage is partial (Plan 02 only, not full Phase 1).",
+        "evidence": "Summary filename: <output> tag says 01-02-SUMMARY.md (present). uv invocation: every verify block uses `uv sync --group dev` then `uv run --group dev` (present). Read-only baseline: Task 3 action and acceptance criteria capture before/after git state (present). Script/report behavior: Tasks 1-2 acceptance criteria cover report persistence, JSON source-of-truth, exit codes (present).",
+        "disposition": "All four focus items are present in the artifact."
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "Plan 02 artifact only",
+        "claim": "This review covers only Plan 02 (01-02-PLAN.md) for freeze readiness. Plan 01 execution status, full Phase 1 campaign coverage, and cross-plan integration are not assessed.",
+        "evidence": "Plan 01 dependency files (status_harness.py, status_profiles.py) do not yet exist on disk, confirming Plan 01 has not been executed. Review scope is limited to Plan 02 artifact correctness and executability assuming Plan 01 completes successfully.",
+        "disposition": "Slice-only review. Plan 01 execution and full-phase integration are out of scope."
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "summary filename, uv invocation, read-only baseline, script/report behavior, generation gating, dependency declaration",
+          "--print-json test gap (NOTE)",
+          "(none)"
+        ],
+        [
+          "prior-round focus items confirmed against artifact",
+          "(none)",
+          "(none)"
+        ],
+        [
+          "(none)",
+          "Plan 02 only; Plan 01 not executed",
+          "Plan 01 execution state, cross-plan integration"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": true,
+      "sources": [
+        "Prior-round focus list: summary filename, uv-managed Python invocation, target read-only baseline, script/report behavior"
+      ],
+      "summary": "Prior round raised four focus areas. Each was verified against the current artifact text and found resolved. No conversation-only claims were used as authoritative evidence.",
+      "gaps": [
+        "No prior-round packet content was available beyond the focus list summary and review ID."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "Plan 02 (01-02-PLAN.md) freeze readiness",
+        "Summary filename convention",
+        "uv invocation correctness",
+        "Target read-only guarantee",
+        "Script/report persistence behavior",
+        "Generation check gating"
+      ],
+      "missing": [
+        "Plan 01 execution state",
+        "Cross-plan integration after Plan 01 completes",
+        "Full Phase 1 campaign end-to-end"
+      ],
+      "gaps": [
+        "Plan 01 artifacts (status_harness.py, status_profiles.py) do not exist on disk yet \u2014 Plan 02 executability depends entirely on Plan 01 completing the interfaces block."
+      ]
+    },
+    "issues": [
+      {
+        "title": "--print-json flag declared but untested",
+        "details": "Task 1 action lists --print-json as an argparse argument, but no <behavior> test or acceptance criterion exercises this flag. The flag is low-risk (stdout JSON output) and does not affect the core contract.",
+        "suggested_fix": "Optionally add a behavior test asserting --print-json writes valid JSON to stdout without saving files. Not required for freeze.",
+        "severity": "NOTE"
+      }
+    ],
+    "verification_gaps": [
+      "Task 3 verification block includes `git -C ... status --short --branch` but does not separately list `git rev-parse HEAD` as a verify command; however, the acceptance criteria require the HEAD comparison, so the executor must capture it during action. This is a gap in verify-block completeness but not in acceptance criteria."
+    ],
+    "recommended_fixes": [],
+    "evidence_sources": [
+      "01-02-PLAN.md (current artifact, full text embedded in prompt)",
+      "01-01-PLAN.md (inspected lines 1-361 via Read tool)",
+      "pyproject.toml (inspected lines 1-86 via Read tool)",
+      "STATE.md (inspected lines 1-80 via Read tool)",
+      "REQUIREMENTS.md (inspected lines 1-101 via Read tool)",
+      "01-CONTEXT.md (inspected lines 1-80 via Read tool)",
+      "01-RESEARCH.md (inspected lines 1-160 via Read tool)",
+      "ROADMAP.md (inspected lines 1-80 via Read tool)",
+      "graphify/__main__.py (inspected lines 1-30 via Read tool)",
+      "execute-plan.md workflow (embedded in prompt)",
+      "summary.md template (embedded in prompt)"
+    ],
+    "error": null,
+    "verdict": "Sound-with-issues",
+    "workflow_compliance": [
+      "Plan output section specifies `01-02-SUMMARY.md` which matches the workflow convention `{phase}-{plan}-SUMMARY.md`.",
+      "Verification commands use `uv sync --group dev` followed by `uv run --group dev` consistently.",
+      "Plan declares `depends_on: [01-01]` and `autonomous: true` \u2014 correct sequencing metadata.",
+      "Frontmatter `requirements` array lists all Phase 1 requirement IDs \u2014 supports SUMMARY requirements-completed propagation.",
+      "Execution context references execute-plan.md and summary.md template correctly."
+    ],
+    "technical_reality": [
+      "pyproject.toml does not currently have a dev dependency group; Plan 01 Task 1 is responsible for creating it \u2014 Plan 02 correctly depends on Plan 01.",
+      "graphify/status_harness.py and graphify/status_profiles.py do not exist on disk \u2014 confirming Plan 01 has not executed and Plan 02's `depends_on` is load-bearing.",
+      "scripts/graphify_status_harness.py does not exist yet \u2014 this is the primary artifact Plan 02 creates.",
+      "uv run --group dev python scripts/... is the correct invocation pattern for running a script with uv dev dependencies.",
+      "graphify/__main__.py has no status-harness routing \u2014 consistent with D-01 no-public-CLI boundary."
+    ],
+    "assumptions_to_verify": [
+      "Plan 01 will create graphify/status_harness.py with the exact exports listed in the <interfaces> block (run_status_harness, render_markdown_summary, write_reports, and generation gating).",
+      "Plan 01 will create graphify/status_profiles.py with get_profile, TargetProfile, and PROFILES exports.",
+      "Plan 01 will add a [dependency-groups] dev = ['pytest>=8'] section to pyproject.toml and sync uv.lock.",
+      "The Second Brain target repo at /Users/mase/Codebase/Personal-Projects/my-second-brain-build will be accessible and have a graphify-out/ directory when Task 3 runs."
+    ],
+    "verification_sufficiency": [
+      "Task 1 and 2 verify commands run both test_status_harness.py and test_status_harness_script.py \u2014 sufficient for script-level coverage.",
+      "Task 3 verify commands include the actual harness run plus git status check \u2014 sufficient for read-only proof.",
+      "Acceptance criteria are testable and specific across all three tasks.",
+      "Generation gating is verified both by test absence in default mode and by explicit test presence in gated mode."
+    ],
+    "downstream_risks": [
+      "If Plan 01 changes the generation-check API shape (e.g., separate function vs. keyword argument), Plan 02 Task 1's argparse wiring may need adjustment \u2014 but the plan accounts for this with 'or equivalent' hedging in the interfaces block."
+    ],
+    "freeze_recommendation": "Safe to freeze. Carry the remaining WARN/NOTE items as explicit follow-ups or implementation-time checks.",
+    "prior_round_closure": [
+      {
+        "title": "Summary filename convention",
+        "severity": "WARN",
+        "caller_claim": "Summary filename should match workflow convention",
+        "verification_status": "resolved",
+        "verification_notes": "Plan 02 <output> section specifies `01-02-SUMMARY.md` which matches the `{phase}-{plan}-SUMMARY.md` convention from execute-plan.md."
+      },
+      {
+        "title": "uv-managed Python invocation",
+        "severity": "WARN",
+        "caller_claim": "Verify commands should use correct uv invocation pattern",
+        "verification_status": "resolved",
+        "verification_notes": "All verify blocks use `uv sync --group dev` then `uv run --group dev ...` consistently. The `depends_on: [01-01]` ensures the dev group exists before Plan 02 runs."
+      },
+      {
+        "title": "Target read-only baseline",
+        "severity": "WARN",
+        "caller_claim": "Task 3 must prove target repo is not modified",
+        "verification_status": "resolved",
+        "verification_notes": "Task 3 action captures git status and HEAD before/after. Acceptance criteria require both unchanged. Verify block includes `git -C ... status --short --branch`. Acceptance criterion explicitly states 'No files are created or modified under /Users/mase/Codebase/Personal-Projects/my-second-brain-build'."
+      },
+      {
+        "title": "Script/report behavior",
+        "severity": "WARN",
+        "caller_claim": "Script and report behavior must be well-specified",
+        "verification_status": "resolved",
+        "verification_notes": "Tasks 1-2 have specific behavior tests and acceptance criteria for report persistence, JSON source-of-truth, exit codes, default output directory, and generation gating. Markdown and JSON are both verified as produced from one invocation."
+      }
+    ],
+    "closure_verification": "All four prior-round focus items verified resolved against the current artifact. No prior-round claims required downgrade or remained unproven.",
+    "rerun_recommendation": "stop"
+  }
+}
