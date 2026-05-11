@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "source": "mase-fork",
+  "fork_path": "/Users/mase/Codebase/Personal-Projects/get-shit-done",
+  "branch": "mase/local-fixes",
+  "commit": "1c99a9afb20b37f26e8951d0cfa3dd43bcbb1cb7",
+  "runtime": "codex",
+  "scope": "local",
+  "target_path": "/Users/mase/Codebase/Personal-Projects/graphify",
+  "config_dir": "/Users/mase/Codebase/Personal-Projects/graphify/.codex",
+  "mode": "full",
+  "installed_at": "2026-05-11T08:48:41Z",
+  "installer": "scripts/mase-install-fork.sh"
+}

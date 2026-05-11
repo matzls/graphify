@@ -131,3 +131,48 @@ Current local fixes should stay small and upstream-friendly:
 
 Prefer tests in `tests/test_watch.py`, `tests/test_transcribe.py`, and
 `tests/test_hooks.py` for these patches.
+
+<!-- gsd-routing-start -->
+<!-- template-version: 2026-05-10.1 -->
+<!-- template-sha256: 509be25dc58b97a74007131f466a850f098bab4c15e5ccf8ea633f0e42dd5797 -->
+
+## GSD Routing
+
+GSD is installed locally in this repo.
+
+Use this repo's `.codex/skills/gsd-*` skills when the task is about managing,
+planning, implementing, debugging, validating, documenting, or shipping work
+inside this project.
+
+Default routing:
+- Use `gsd-progress` or `gsd-health` to inspect project/workflow state.
+- Use `gsd-discuss-phase`, `gsd-spec-phase`, or `gsd-plan-phase` when work
+  needs clarification, specification, or planning.
+- Use `gsd-execute-phase`, `gsd-quick`, or `gsd-fast` for implementation work,
+  depending on scope.
+- Use `gsd-debug` for bugs, regressions, failing checks, or unexplained runtime
+  behavior.
+- Use `gsd-code-review`, `gsd-validate-phase`, or `gsd-verify-work` for quality
+  gates after implementation.
+- Use `gsd-docs-update` for verified project documentation updates.
+- Use `gsd-ship` only when preparing verified work for PR or release.
+
+Do not use this repo's project workflow skills to update the GSD framework
+itself.
+
+For GSD framework updates, install inventory, stale install checks,
+propagation dry-runs, or confirmed propagation, use Mase's local GSD fork:
+
+the local fork propagation skill (`.codex/skills/gsd-fork-propagate/SKILL.md` in the fork checkout)
+
+Do not use `/gsd-update`, `npx get-shit-done-cc@latest`, public npm update
+flows, or upstream install flows unless Mase explicitly asks to replace the
+fork-managed setup with upstream.
+
+Safety rules:
+- Always dry-run propagation before apply.
+- Report selected targets, skipped targets, and exact commands before apply.
+- Do not update dirty target repos unless Mase explicitly confirms.
+- Do not update global installs unless Mase explicitly confirms.
+- Do not update unknown-source installs unless Mase explicitly confirms.
+<!-- gsd-routing-end -->
