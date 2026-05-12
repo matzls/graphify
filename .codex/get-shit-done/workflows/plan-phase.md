@@ -22,6 +22,80 @@ Valid GSD subagent types (use exact names — do not fall back to 'general-purpo
 
 <process>
 
+## 0a. Live-Stalled Agent Recovery
+
+Use this shared recovery contract for every `Agent(...)` spawn in this workflow:
+researcher, pattern mapper, planner, chunked outline planner, chunked
+single-plan planner, checker, and planner revision.
+
+A spawned agent is **live-stalled** only when all of these are true:
+- The agent is still reported as running.
+- The orchestrator has waited through at least two consecutive wait timeouts
+  without a terminal result or recognized completion marker.
+- At least 10 minutes have elapsed since spawn, unless the local runtime has a
+  stricter configured wait budget.
+- Expected disk artifacts for that step either have not appeared or have had no
+  size / mtime change across two checks at least 10 seconds apart.
+
+Do not treat a slow but actively updating agent as stalled. If expected artifacts
+are still changing, continue waiting or ask the user whether to keep waiting.
+This path is only for agents that are still running; if `Agent()` has already
+returned without a recognized marker, use the existing return fallback for that
+step, such as step 9a or step 11a.
+
+**Artifact-first recovery order:**
+
+1. Identify the expected artifact for the current step:
+   - Researcher: `${PHASE_DIR}/${PADDED_PHASE}-RESEARCH.md` containing
+     `## RESEARCH COMPLETE` or `## RESEARCH BLOCKED`.
+   - Pattern mapper: `${PHASE_DIR}/${PADDED_PHASE}-PATTERNS.md`.
+   - Planner: one or more `${PHASE_DIR}/*-PLAN.md` files with valid YAML
+     frontmatter and required plan sections.
+   - Chunked outline planner: `${PHASE_DIR}/${PADDED_PHASE}-PLAN-OUTLINE.md`
+     containing `## OUTLINE COMPLETE`.
+   - Chunked single-plan planner: the exact `${PHASE_DIR}/{plan_id}-PLAN.md`
+     file requested by the prompt.
+   - Checker: terminal output is the primary artifact. If no checker output is
+     available, use the narrowest local plan checks available, such as
+     `plan-artifacts-ok`, `state-ok`, valid PLAN frontmatter, required plan
+     sections, requirements coverage, and decision coverage.
+2. If an expected disk artifact exists, check size and mtime, wait at least 10
+   seconds, and check again. If it changed, do not close the agent yet.
+3. Once the artifact is stable, close the stalled agent and immediately re-check
+   size / mtime before trusting it. If it changed during close, validate the
+   post-close version and treat any uncertainty as a blocker.
+4. Validate with the narrowest available check for that step. Shape-only checks
+   are insufficient when a semantic check exists.
+5. If validation passes, continue from the validated disk artifact and record a
+   recovery note for the final status.
+6. If validation fails or no artifact exists, offer a bounded choice: retry the
+   same agent once, stop, or perform inline fallback only when the fallback bounds
+   below are satisfied.
+
+**Inline fallback bounds:** Inline fallback may only complete the specific
+artifact the stalled agent was producing for the current step. It must use only
+the files already listed in that step's `<files_to_read>` block plus artifacts
+already written in `${PHASE_DIR}`. It must not spawn additional agents, edit
+source code, broaden phase scope, or perform unrelated research. After inline
+fallback, run the same validation expected for a recovered disk artifact.
+
+**Scenario checks before using this path:**
+- Researcher stall: stable `RESEARCH.md` with `## RESEARCH COMPLETE` validates,
+  then planning may continue. Missing or unstable research requires retry, stop,
+  or bounded inline research into that exact file.
+- Planner stall: stable `*-PLAN.md` files with valid frontmatter and required
+  sections validate, then checker may run. Missing or invalid plans require
+  retry, stop, or bounded inline repair of those exact plan artifacts.
+- Checker stall: if no checker marker returns, run local plan artifact and state
+  checks where available. Treat passing `plan-artifacts-ok` and `state-ok` as
+  sufficient to continue; otherwise retry, stop, or perform a bounded inline
+  checker pass that emits the same `## VERIFICATION PASSED` / `## ISSUES FOUND`
+  conclusion shape.
+
+Any use of this recovery path must be surfaced in the final status under
+`Recovery notes:`. For each recovered agent, include the agent name, artifact(s)
+accepted or repaired, validation performed, and whether inline fallback was used.
+
 ## 0. Git Branch Invariant
 
 **Do not create, rename, or switch git branches during plan-phase.** Branch identity is established at discuss-phase and is owned by the user's git workflow. A phase rename in ROADMAP.md is a plan-level change only — it does not mutate git branch names. If `phase_slug` in the init JSON differs from the current branch name, that is expected and correct; leave the branch unchanged.
@@ -466,6 +540,7 @@ Agent(
 ```
 
 > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+> If this researcher becomes live-stalled, use step 0a before doing any inline recovery or accepting disk artifacts.
 
 ### Handle Researcher Return
 
@@ -780,6 +855,7 @@ Agent(
 ```
 
 > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+> If this pattern mapper becomes live-stalled, use step 0a before continuing without patterns or accepting disk artifacts.
 
 **Handle return:**
 - **`## PATTERN MAPPING COMPLETE`:** Update `PATTERNS_PATH` to the created file path, continue to step 8.
@@ -923,6 +999,7 @@ Agent(
 ```
 
 > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+> If this planner becomes live-stalled, use step 0a before applying the filesystem fallback in step 9a.
 
 **If `CHUNKED_MODE` is `true`:** Skip the Agent() call above — proceed to step 8.5 instead.
 
@@ -979,6 +1056,7 @@ Agent(
 ```
 
 > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+> If this outline planner becomes live-stalled, use step 0a before accepting or retrying the outline artifact.
 
 Handle return:
 - **`## OUTLINE COMPLETE`:** Read `PLAN-OUTLINE.md`, extract plan list. Continue to 8.5.2.
@@ -1023,6 +1101,7 @@ For each plan entry extracted from `PLAN-OUTLINE.md`:
    ```
 
    > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+   > If this single-plan writer becomes live-stalled, use step 0a before accepting or repairing the per-plan artifact.
 
 4. **Verify disk:** Check `${PHASE_DIR}/{plan_id}-PLAN.md` exists. If missing: offer 1) Retry, 2) Stop.
 
@@ -1181,6 +1260,7 @@ Agent(
 ```
 
 > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+> If this checker becomes live-stalled, use step 0a before applying the filesystem fallback in step 11a or completing checking inline.
 
 ## 11. Handle Checker Return
 
@@ -1296,6 +1376,7 @@ Agent(
 ```
 
 > **ORCHESTRATOR RULE — CODEX RUNTIME**: After calling Agent() above, stop working on this task immediately. Do not read more files, edit code, or run tests related to this task while the subagent is active. Wait for the subagent to return its result. This prevents duplicate work, conflicting edits, and wasted context. Only resume when the subagent result is available.
+> If this revision planner becomes live-stalled, use step 0a before accepting revised plans or rerunning the checker.
 
 After planner returns -> spawn checker again (step 10), increment iteration_count.
 
@@ -1674,11 +1755,15 @@ The `--no-transition` flag tells execute-phase to return status after verificati
 
   Auto-advance pipeline finished.
 
+  Recovery notes: {None | For each recovered agent: agent name, accepted/repaired artifact, validation run, inline fallback used yes/no}
+
   Next: $gsd-discuss-phase ${NEXT_PHASE} --auto ${GSD_WS}
   ```
 - **GAPS FOUND / VERIFICATION FAILED** → Display result, stop chain:
   ```
   Auto-advance stopped: Execution needs review.
+
+  Recovery notes: {None | For each recovered agent: agent name, accepted/repaired artifact, validation run, inline fallback used yes/no}
 
   Review the output above and continue manually:
   $gsd-execute-phase ${PHASE} ${GSD_WS}
@@ -1709,6 +1794,8 @@ Verification: {Passed | Passed with override | Skipped}
 Created/updated:
 - [PLAN.md filename](/absolute/path/to/generated-PLAN.md)
 - [BRIEF.md filename](/absolute/path/to/generated-BRIEF.md)
+
+Recovery notes: {None | For each recovered agent: agent name, accepted/repaired artifact, validation run, inline fallback used yes/no}
 
 ───────────────────────────────────────────────────────────────
 
@@ -1766,6 +1853,7 @@ $gsd-plan-phase N --skip-research
 - [ ] Plans created (PLANNING COMPLETE or CHECKPOINT handled)
 - [ ] gsd-plan-checker spawned with CONTEXT.md
 - [ ] Verification passed OR user override OR max iterations with user decision
+- [ ] Any live-stalled agent recovery recorded with artifact and validation notes
 - [ ] User sees status between agent spawns
 - [ ] User knows next steps
 </success_criteria>

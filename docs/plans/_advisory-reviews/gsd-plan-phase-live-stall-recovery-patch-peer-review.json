@@ -1,0 +1,178 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-befd503ee683",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/gsd-plan-phase-live-stall-recovery-patch.md",
+  "plan_sha256": "39cd754c6573f990759123c9b83d7d0d53f950189008835a2be57ad7141d70b8",
+  "mode": "advisory-challenge",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_advisory-reviews",
+  "engine": "Claude",
+  "requested_engine": "auto",
+  "origin_runtime": "codex",
+  "engine_policy": "auto",
+  "resolved_primary_engine": "claude",
+  "preferred_engine": "claude",
+  "fallback_engine": "codex",
+  "final_engine": "claude",
+  "reviewer_match": "opposite",
+  "gate_quality": "preferred",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_advisory-reviews/gsd-plan-phase-live-stall-recovery-patch-peer-review.json",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "attempt_chain": [
+    {
+      "engine": "claude",
+      "phase": "primary",
+      "attempt": 1,
+      "timeout_seconds": 300,
+      "result": "completed",
+      "elapsed_seconds": 176.59,
+      "returncode": 0
+    }
+  ],
+  "model": "claude-opus-4-6",
+  "verdict": null,
+  "stance": "supportive",
+  "issues_count": 2,
+  "ran_at": "2026-05-12T17:12:32.363852+00:00",
+  "raw_review_excerpt": "The patch plan and its implementation in plan-phase.md are internally consistent and ready. All three focus items \u2014 auto-advance recovery notes, the 0a vs 9a/11a disambiguation, and seven-spawn-site wording \u2014 are verified present. One WARN about singular recovery-notes templating for multi-agent stall scenarios; no blockers.\n\nIssues:\n- 1. [WARN] Recovery notes template is singular but multi-agent stall is a known scenario\n- 2. [NOTE] Implementation scope is broader than plan's deviation-note requirement",
+  "error": null,
+  "closure_verification": "",
+  "prior_round_closure": [],
+  "rerun_recommendation": null,
+  "review": {
+    "mode": "advisory-challenge",
+    "summary": "The patch plan and its implementation in plan-phase.md are internally consistent and ready. All three focus items \u2014 auto-advance recovery notes, the 0a vs 9a/11a disambiguation, and seven-spawn-site wording \u2014 are verified present. One WARN about singular recovery-notes templating for multi-agent stall scenarios; no blockers.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "Plan claims vs implementation",
+        "claim": "Plan promises seven spawn sites, artifact-first recovery, 0a/9a/11a disambiguation, recovery notes in closeout, and scenario walkthroughs for researcher/planner/checker.",
+        "evidence": "All seven spawn sites carry 'use step 0a' references (plan-phase.md lines 543, 858, 1002, 1059, 1104, 1263, 1379). Step 0a lines 43-44 explicitly disambiguate: 'if Agent() has already returned without a recognized marker, use the existing return fallback for that step, such as step 9a or step 11a.' Recovery notes appear in auto-advance success (l.1758), auto-advance stop (l.1766), offer_next (l.1798), and success_criteria (l.1856). Scenario walkthroughs for researcher, planner, and checker are in step 0a lines 83-93.",
+        "disposition": "present \u2014 all load-bearing claims from the plan are implemented"
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "Evidence coverage",
+        "claim": "Artifact, conversation, and campaign evidence all assessed.",
+        "evidence": "Artifact (plan-phase.md) fully read in six sequential chunks covering lines 1-1860. Plan doc read in full (89 lines). No conversation thread or broader campaign context was provided beyond the plan doc itself.",
+        "disposition": "artifact: fully inspected; conversation: not provided; campaign: single-plan scope only"
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "Review boundary",
+        "claim": "Review covered the full plan document and the full implementation file.",
+        "evidence": "Plan doc: 89 lines read completely. Implementation file: ~1860 lines read in six chunks covering all process steps, success criteria, offer_next, and auto-advance. Every Agent() spawn site and every exit path with Recovery notes was verified.",
+        "disposition": "full artifact coverage; no campaign or thread context to assess"
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "7 spawn refs, 0a contract, disambiguation, recovery notes, scenarios",
+          "\u2014",
+          "\u2014"
+        ],
+        [
+          "\u2014",
+          "\u2014",
+          "no conversation thread provided"
+        ],
+        [
+          "\u2014",
+          "\u2014",
+          "single plan; no broader campaign inspected"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": false,
+      "sources": [],
+      "summary": "No conversation thread was provided with this review request. All evidence comes from the plan document and the implementation file.",
+      "gaps": [
+        "No conversation thread or prior-round packet to cross-check against"
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "gsd-plan-phase-live-stall-recovery-patch.md plan document",
+        "plan-phase.md implementation (full file)"
+      ],
+      "missing": [
+        "Other GSD workflow files that might reference stall recovery",
+        "agent-contracts.md referenced in required_reading",
+        "Any prior review rounds or conversation context"
+      ],
+      "gaps": [
+        "Cannot confirm whether other workflows (execute-phase, discuss-phase) need analogous recovery contracts"
+      ]
+    },
+    "issues": [
+      {
+        "title": "Recovery notes template is singular but multi-agent stall is a known scenario",
+        "details": "The plan's Problem section describes recovering two stalled agents in one run (researcher + checker). The Recovery notes template in offer_next, auto-advance, and step 0a all use singular phrasing ('the stalled agent name', 'agent name, accepted/repaired artifact'). An operator recovering two agents would need to improvise the format.",
+        "suggested_fix": "Pluralize the template hint: 'Recovery notes: {None | For each recovered agent: agent name, artifact accepted/repaired, validation performed, inline fallback used yes/no}' \u2014 or add a brief note that recovery notes repeat per recovered agent.",
+        "severity": "WARN"
+      },
+      {
+        "title": "Implementation scope is broader than plan's deviation-note requirement",
+        "details": "The plan says 'Require an explicit deviation note...whenever recovery uses inline completion or accepts disk artifacts without a marker.' The implementation in step 0a says 'Any use of this recovery path must be surfaced' \u2014 which includes scenarios where the marker was found in a stable disk artifact (no inline, no missing marker). This is a safe widening, not a contradiction.",
+        "suggested_fix": "No fix needed. The broader requirement is strictly safer. Optionally update the plan's Proposed Patch bullet to match ('whenever the recovery path is used' instead of the narrower condition).",
+        "severity": "NOTE"
+      }
+    ],
+    "verification_gaps": [
+      "Multi-agent recovery format is not exercised by any scenario walkthrough",
+      "Other GSD workflows (execute-phase) were not checked for analogous stall-recovery needs",
+      "Pattern mapper and chunked-planner stall scenarios are covered by the generic contract but lack dedicated walkthroughs (accepted per peer review)"
+    ],
+    "recommended_fixes": [
+      "Pluralize the Recovery notes template to support multi-agent recovery in a single run",
+      "Optionally align the plan doc's deviation-note language with the implementation's broader 'any use' wording"
+    ],
+    "evidence_sources": [
+      "plan-phase.md lines 23-97 (step 0a recovery contract)",
+      "plan-phase.md lines 534-543 (researcher spawn + 0a reference)",
+      "plan-phase.md lines 850-858 (pattern mapper spawn + 0a reference)",
+      "plan-phase.md lines 990-1002 (planner spawn + 0a reference)",
+      "plan-phase.md lines 1042-1059 (chunked outline spawn + 0a reference)",
+      "plan-phase.md lines 1085-1104 (chunked single-plan spawn + 0a reference)",
+      "plan-phase.md lines 1254-1263 (checker spawn + 0a reference)",
+      "plan-phase.md lines 1370-1379 (revision planner spawn + 0a reference)",
+      "plan-phase.md lines 1758, 1766, 1798 (Recovery notes in exit paths)",
+      "plan-phase.md line 1856 (success_criteria checkbox)",
+      "gsd-plan-phase-live-stall-recovery-patch.md lines 1-89 (full plan document)"
+    ],
+    "error": null,
+    "stance": "supportive",
+    "best_case": "The patch plan and implementation are aligned and ready to ship. All three focus items are verified present. The recovery contract is generic enough to cover all seven spawn sites while providing concrete scenario guidance for the three most likely stall types. The 0a/9a/11a disambiguation prevents operators from confusing live-stalled agents with returned-without-marker agents.",
+    "strongest_objections": [
+      "The Recovery notes template uses singular phrasing despite the motivating incident involving two stalled agents \u2014 an operator hitting the same scenario would have to improvise multi-entry formatting",
+      "The plan doc's Proposed Patch bullet describes a narrower deviation-note trigger than what the implementation actually enforces, creating minor drift between plan and implementation",
+      "Pattern mapper and chunked-planner stall scenarios rely entirely on the generic contract without dedicated walkthroughs, though this was an accepted peer-review decision"
+    ],
+    "hidden_assumptions": [
+      "The 10-minute default wait budget is assumed reasonable for all agent types and all model speeds \u2014 a very fast model or a very slow research task could make this threshold wrong",
+      "The stable-size/mtime check (two checks 10 seconds apart) assumes the filesystem clock resolution is fine enough to detect changes \u2014 network-mounted filesystems with coarse timestamps could miss writes",
+      "The inline fallback bounds assume the orchestrator can reliably scope itself to 'current artifact only' without accidentally broadening phase scope in practice"
+    ],
+    "what_would_change_my_mind": "If an actual multi-agent stall recovery attempt showed that the singular Recovery notes template caused the operator to drop one agent's recovery from the closeout, that would upgrade the WARN to a blocker. If the 10-minute wait budget proved systematically wrong for a common model/task combination, the trigger definition would need parameterization beyond 'unless the local runtime has a stricter configured wait budget.'",
+    "next_checks": [
+      "Promote plan status from draft to active if shipping",
+      "Test a live multi-agent stall scenario to validate the Recovery notes format works for plural entries",
+      "Check whether execute-phase has analogous spawn sites that would benefit from the same recovery contract",
+      "Grep for any other workflow docs that reference stall or timeout handling to ensure consistency"
+    ]
+  }
+}
