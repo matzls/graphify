@@ -10,7 +10,7 @@ Milestone v1.1 makes Graphify Codex activation idempotent and safe to propagate.
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions marked as INSERTED
 
-- [ ] **Phase 5: TOML-First Graphify Hook Installer** - Make Graphify Codex install converge hook files safely and idempotently.
+- [x] **Phase 5: TOML-First Graphify Hook Installer** - Make Graphify Codex install converge hook files safely and idempotently. (completed 2026-05-12)
 - [ ] **Phase 6: Propagation Hygiene Audit** - Teach the OSS fork manager to detect Graphify hook drift and delegate cleanup.
 - [ ] **Phase 7: Guidance And Skill Alignment** - Update fork docs, global guidance, and skill text to match the new hook model.
 - [ ] **Phase 8: Pilot Verification And Rollout Readiness** - Prove the cleaned install flow in a pilot repo before broad rollout.
@@ -40,8 +40,8 @@ Milestone v1.1 makes Graphify Codex activation idempotent and safe to propagate.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: Design TOML hook ownership, migration, and uninstall behavior.
-- [ ] 05-02: Implement installer migration and regression tests.
+- [x] 05-01: Design TOML hook ownership, migration, and uninstall behavior.
+- [x] 05-02: Implement installer migration and regression tests.
 
 ### Phase 6: Propagation Hygiene Audit
 **Goal**: The OSS fork manager reports Graphify hook hygiene drift and delegates cleanup to the Graphify installer during propagation.
@@ -107,7 +107,7 @@ Phases execute in numeric order: 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 5. TOML-First Graphify Hook Installer | 0/2 | Not started | - |
+| 5. TOML-First Graphify Hook Installer | 2/2 | Complete   | 2026-05-12 |
 | 6. Propagation Hygiene Audit | 0/1 | Not started | - |
 | 7. Guidance And Skill Alignment | 0/1 | Not started | - |
 | 8. Pilot Verification And Rollout Readiness | 0/1 | Not started | - |

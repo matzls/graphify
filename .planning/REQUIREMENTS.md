@@ -7,17 +7,17 @@
 
 ### Hook Source Hygiene
 
-- [ ] **HOOK-01**: `graphify codex install` writes Graphify Codex hooks to repo-local `.codex/config.toml` as the preferred active representation.
-- [ ] **HOOK-02**: `graphify codex install` does not recreate Graphify-managed `.codex/hooks.json` entries when equivalent TOML hooks exist.
-- [ ] **HOOK-03**: Graphify migration removes only Graphify-managed duplicate entries from `.codex/hooks.json`.
-- [ ] **HOOK-04**: Graphify migration preserves unrelated or ambiguous `.codex/hooks.json` entries and reports them for manual consolidation.
-- [ ] **HOOK-05**: Graphify install dedupes duplicate Graphify `SessionStart` entries inside `.codex/config.toml`.
+- [x] **HOOK-01**: `graphify codex install` writes Graphify Codex hooks to repo-local `.codex/config.toml` as the preferred active representation.
+- [x] **HOOK-02**: `graphify codex install` does not recreate Graphify-managed `.codex/hooks.json` entries when equivalent TOML hooks exist.
+- [x] **HOOK-03**: Graphify migration removes only Graphify-managed duplicate entries from `.codex/hooks.json`.
+- [x] **HOOK-04**: Graphify migration preserves unrelated or ambiguous `.codex/hooks.json` entries and reports them for manual consolidation.
+- [x] **HOOK-05**: Graphify install dedupes duplicate Graphify `SessionStart` entries inside `.codex/config.toml`.
 
 ### Startup Context
 
-- [ ] **START-01**: The Graphify `SessionStart` hook emits valid Codex JSON in all success, missing-tool, timeout, and error cases.
-- [ ] **START-02**: The startup context tells the main Codex agent when `graphify-out/needs_update` exists and recommends `/graphify . --update` before relying on semantic relationships.
-- [ ] **START-03**: Code-only refresh does not clear semantic refresh markers.
+- [x] **START-01**: The Graphify `SessionStart` hook emits valid Codex JSON in all success, missing-tool, timeout, and error cases.
+- [x] **START-02**: The startup context tells the main Codex agent when `graphify-out/needs_update` exists and recommends `/graphify . --update` before relying on semantic relationships.
+- [x] **START-03**: Code-only refresh does not clear semantic refresh markers.
 
 ### Propagation Automation
 
@@ -34,11 +34,11 @@
 
 ### Tests And Pilot
 
-- [ ] **TEST-01**: Tests cover config-only Graphify Codex hook installation.
-- [ ] **TEST-02**: Tests cover legacy hooks-json-only migration.
-- [ ] **TEST-03**: Tests cover both-present duplicate cleanup.
-- [ ] **TEST-04**: Tests cover both-present mixed user/project hooks preservation.
-- [ ] **TEST-05**: Tests cover duplicate Graphify `SessionStart` dedupe.
+- [x] **TEST-01**: Tests cover config-only Graphify Codex hook installation.
+- [x] **TEST-02**: Tests cover legacy hooks-json-only migration.
+- [x] **TEST-03**: Tests cover both-present duplicate cleanup.
+- [x] **TEST-04**: Tests cover both-present mixed user/project hooks preservation.
+- [x] **TEST-05**: Tests cover duplicate Graphify `SessionStart` dedupe.
 - [ ] **PILOT-01**: A pilot repo verifies no Codex duplicate-source warning after cleanup.
 - [ ] **PILOT-02**: A pilot repo verifies `graphify codex-session-start <repo>` still returns valid startup JSON.
 
@@ -62,14 +62,14 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HOOK-01 | Phase 5 | Pending |
-| HOOK-02 | Phase 5 | Pending |
-| HOOK-03 | Phase 5 | Pending |
-| HOOK-04 | Phase 5 | Pending |
-| HOOK-05 | Phase 5 | Pending |
-| START-01 | Phase 5 | Pending |
-| START-02 | Phase 5 | Pending |
-| START-03 | Phase 5 | Pending |
+| HOOK-01 | Phase 5 | Complete |
+| HOOK-02 | Phase 5 | Complete |
+| HOOK-03 | Phase 5 | Complete |
+| HOOK-04 | Phase 5 | Complete |
+| HOOK-05 | Phase 5 | Complete |
+| START-01 | Phase 5 | Complete |
+| START-02 | Phase 5 | Complete |
+| START-03 | Phase 5 | Complete |
 | PROP-01 | Phase 6 | Pending |
 | PROP-02 | Phase 6 | Pending |
 | PROP-03 | Phase 6 | Pending |
@@ -77,11 +77,11 @@
 | DOC-01 | Phase 7 | Pending |
 | DOC-02 | Phase 7 | Pending |
 | DOC-03 | Phase 7 | Pending |
-| TEST-01 | Phase 5 | Pending |
-| TEST-02 | Phase 5 | Pending |
-| TEST-03 | Phase 5 | Pending |
-| TEST-04 | Phase 5 | Pending |
-| TEST-05 | Phase 5 | Pending |
+| TEST-01 | Phase 5 | Complete |
+| TEST-02 | Phase 5 | Complete |
+| TEST-03 | Phase 5 | Complete |
+| TEST-04 | Phase 5 | Complete |
+| TEST-05 | Phase 5 | Complete |
 | PILOT-01 | Phase 8 | Pending |
 | PILOT-02 | Phase 8 | Pending |
 
