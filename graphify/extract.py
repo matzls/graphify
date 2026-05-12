@@ -5512,27 +5512,28 @@ def _extract_single_file(args: tuple) -> tuple[int, dict]:
     ProcessPoolExecutor.
 
     Args:
-        args: (index, path_str, cache_root_str) tuple
+        args: (index, path_str, cache_root_str, use_cache) tuple
 
     Returns:
         (index, result_dict) so results can be placed back in order.
     """
-    idx, path_str, cache_root_str = args
+    idx, path_str, cache_root_str, use_cache = args
     path = Path(path_str)
     cache_root = Path(cache_root_str)
     _raise_recursion_limit()
 
     # Check cache first (avoid re-extraction)
-    cached = load_cached(path, cache_root)
-    if cached is not None:
-        return idx, cached
+    if use_cache:
+        cached = load_cached(path, cache_root)
+        if cached is not None:
+            return idx, cached
 
     extractor = _get_extractor(path)
     if extractor is None:
         return idx, {"nodes": [], "edges": []}
 
     result = _safe_extract(extractor, path)
-    if "error" not in result:
+    if use_cache and "error" not in result:
         save_cached(path, result, cache_root)
     return idx, result
 
@@ -5543,6 +5544,7 @@ def _extract_parallel(
     effective_root: Path,
     max_workers: int | None,
     total_files: int,
+    use_cache: bool = True,
 ) -> bool:
     """Extract uncached files in parallel using ProcessPoolExecutor.
 
@@ -5572,7 +5574,7 @@ def _extract_parallel(
         max_workers = min(cpu_cap, len(uncached_work))
 
     root_str = str(effective_root)
-    work_items = [(idx, str(path), root_str) for idx, path in uncached_work]
+    work_items = [(idx, str(path), root_str, use_cache) for idx, path in uncached_work]
 
     done_count = 0
     _PROGRESS_INTERVAL = 100
@@ -5621,6 +5623,7 @@ def _extract_sequential(
     per_file: list[dict | None],
     effective_root: Path,
     total_files: int,
+    use_cache: bool = True,
 ) -> None:
     """Extract uncached files sequentially (fallback for small batches)."""
     _PROGRESS_INTERVAL = 100
@@ -5639,7 +5642,7 @@ def _extract_sequential(
             per_file[idx] = {"nodes": [], "edges": []}
             continue
         result = _safe_extract(extractor, path)
-        if "error" not in result:
+        if use_cache and "error" not in result:
             save_cached(path, result, effective_root)
         per_file[idx] = result
     if total_files >= _PROGRESS_INTERVAL:
@@ -5656,6 +5659,7 @@ def extract(
     root: Path | None = None,
     parallel: bool = True,
     max_workers: int | None = None,
+    use_cache: bool = True,
 ) -> dict:
     """Extract AST nodes and edges from a list of code files.
 
@@ -5676,6 +5680,8 @@ def extract(
             use ProcessPoolExecutor for multi-core extraction.
         max_workers: max subprocess count. Defaults to cpu_count (or the
             value of GRAPHIFY_MAX_WORKERS if set), bounded by len(uncached_work).
+        use_cache: if False, skip AST cache reads and writes. Code-only hook
+            rebuilds use this to avoid leaving generated cache files in Git status.
     """
     _check_tree_sitter_version()
     _raise_recursion_limit()
@@ -5714,21 +5720,30 @@ def extract(
         if _get_extractor(path) is None:
             per_file[i] = {"nodes": [], "edges": []}
             continue
-        cached = load_cached(path, effective_root)
-        if cached is not None:
-            per_file[i] = cached
-            continue
+        if use_cache:
+            cached = load_cached(path, effective_root)
+            if cached is not None:
+                per_file[i] = cached
+                continue
         uncached_work.append((i, path))
 
     # Phase 2: extract uncached files (parallel or sequential)
     if uncached_work:
         ran_parallel = False
         if parallel and len(uncached_work) >= _PARALLEL_THRESHOLD:
-            ran_parallel = _extract_parallel(
-                uncached_work, per_file, effective_root, max_workers, total
-            )
+            if use_cache:
+                ran_parallel = _extract_parallel(
+                    uncached_work, per_file, effective_root, max_workers, total
+                )
+            else:
+                ran_parallel = _extract_parallel(
+                    uncached_work, per_file, effective_root, max_workers, total, use_cache
+                )
         if not ran_parallel:
-            _extract_sequential(uncached_work, per_file, effective_root, total)
+            if use_cache:
+                _extract_sequential(uncached_work, per_file, effective_root, total)
+            else:
+                _extract_sequential(uncached_work, per_file, effective_root, total, use_cache)
 
     # Fill any remaining None slots (shouldn't happen, but defensive)
     for i in range(total):

@@ -181,6 +181,18 @@ Main modules:
 - `transcribe.py`: local faster-whisper transcription for media inputs.
 - `ingest.py` and `security.py`: URL ingestion and local security guards.
 
+Tracked graph outputs:
+
+- Treat `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md`,
+  `graphify-out/manifest.json`, `graphify-out/community_labels.json`, and
+  `graphify-out/.graphify_analysis.json` as durable Graphify outputs when a
+  consumer repo tracks `graphify-out/`.
+- Treat `graphify-out/cache/**`, lock files, and `graphify-out/needs_update` as
+  local/runtime state unless a repo explicitly documents a different policy.
+- `graphify-out/.graphify_analysis.json` is intentionally tracked: export/wiki
+  flows use it as structured analysis, while `GRAPH_REPORT.md` is the
+  human/agent-readable summary.
+
 Graph outputs are derived evidence, not source of truth. For exact edits, read
 the real source files even when graph context is available.
 

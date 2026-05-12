@@ -1,115 +1,95 @@
-# Requirements: Graphify Local Fork Evaluation Harness
+# Requirements: Graphify Codex Hook Rollout Hygiene
 
-**Defined:** 2026-05-11
-**Core Value:** Graphify status must be observable before we mutate consumer repos.
+**Defined:** 2026-05-12
+**Core Value:** Graphify activation must converge repos to a single, clean Codex hook representation while preserving unrelated project hooks and making stale semantic graph state visible to the main Codex agent.
 
-## v1 Requirements
+## v1.1 Requirements
 
-### Status Harness
+### Hook Source Hygiene
 
-- [ ] **HARNESS-01**: The harness can run against a target repo without modifying files.
-- [ ] **HARNESS-02**: The harness emits machine-readable JSON status.
-- [ ] **HARNESS-03**: The harness emits a compact Markdown summary for operator review.
-- [ ] **HARNESS-04**: The harness reports a clear diagnosis category: fork bug, install/skill drift, consumer config gap, stale graph artifacts, or refresh/runtime issue.
+- [ ] **HOOK-01**: `graphify codex install` writes Graphify Codex hooks to repo-local `.codex/config.toml` as the preferred active representation.
+- [ ] **HOOK-02**: `graphify codex install` does not recreate Graphify-managed `.codex/hooks.json` entries when equivalent TOML hooks exist.
+- [ ] **HOOK-03**: Graphify migration removes only Graphify-managed duplicate entries from `.codex/hooks.json`.
+- [ ] **HOOK-04**: Graphify migration preserves unrelated or ambiguous `.codex/hooks.json` entries and reports them for manual consolidation.
+- [ ] **HOOK-05**: Graphify install dedupes duplicate Graphify `SessionStart` entries inside `.codex/config.toml`.
 
-### Fork And Install Health
+### Startup Context
 
-- [ ] **FORK-01**: The harness reports Graphify fork branch state, dirty state, and local-vs-origin status.
-- [ ] **FORK-02**: The harness verifies active CLI source with `graphify doctor --require-source`.
-- [ ] **FORK-03**: The harness compares packaged Codex skill guidance with the installed global Graphify skill.
-- [ ] **FORK-04**: The harness reports Graphify version and active module path.
+- [ ] **START-01**: The Graphify `SessionStart` hook emits valid Codex JSON in all success, missing-tool, timeout, and error cases.
+- [ ] **START-02**: The startup context tells the main Codex agent when `graphify-out/needs_update` exists and recommends `/graphify . --update` before relying on semantic relationships.
+- [ ] **START-03**: Code-only refresh does not clear semantic refresh markers.
 
-### Consumer Activation Health
+### Propagation Automation
 
-- [ ] **CONSUMER-01**: The harness reports target repo branch, dirty state, and `HEAD`.
-- [ ] **CONSUMER-02**: The harness reports whether Graphify Git hooks are installed in the target repo.
-- [ ] **CONSUMER-03**: The harness reports whether target `AGENTS.md` contains Graphify guidance.
-- [ ] **CONSUMER-04**: The harness reports `.graphifyignore` and `.graphifyinclude` presence and highlights expected hidden-path coverage gaps.
+- [ ] **PROP-01**: The OSS fork manager detects Graphify repo-local hook drift when both `.codex/config.toml` and `.codex/hooks.json` contain Graphify-owned hooks.
+- [ ] **PROP-02**: The OSS fork manager reports per-target cleanup actions during dry-run propagation.
+- [ ] **PROP-03**: The OSS fork manager delegates cleanup to Graphify-owned install/migration commands instead of hardcoding Graphify hook templates.
+- [ ] **PROP-04**: Propagation blocks or reports dirty target repos before mutating hook/config files.
 
-### Consumer Graph Health
+### Documentation And Skill Guidance
 
-- [ ] **GRAPH-01**: The harness compares graph built commit against target repo `HEAD`.
-- [ ] **GRAPH-02**: The harness reports `graphify-out/needs_update` presence.
-- [ ] **GRAPH-03**: The harness reports manifest file count and whether expected paths are present.
-- [ ] **GRAPH-04**: The harness reports root semantic cache count.
-- [ ] **GRAPH-05**: The harness can run read-only `query` and `explain` smoke checks against an existing graph.
+- [ ] **DOC-01**: `docs/mase-fork-operating-model.md` describes the TOML-first hook model and safe legacy JSON cleanup.
+- [ ] **DOC-02**: `/Users/mase/.codex/docs/reference/graphify.md` describes the current `SessionStart` startup-context behavior.
+- [ ] **DOC-03**: Packaged and installed Graphify Codex skill guidance describe the single-source hook expectation.
 
-### Ollama And Refresh Readiness
+### Tests And Pilot
 
-- [ ] **OLLAMA-01**: The harness reports detected semantic backend.
-- [ ] **OLLAMA-02**: The harness reports local Ollama availability and available model names without requiring API keys.
-- [ ] **OLLAMA-03**: The harness distinguishes zero API cost from runtime risk.
-- [ ] **REFRESH-01**: A controlled refresh command or procedure can force local Ollama, use a lock, capture logs, and avoid duplicate concurrent refreshes.
-- [ ] **REFRESH-02**: Refresh automation remains opt-in until a manual refresh proves stable on Second Brain.
+- [ ] **TEST-01**: Tests cover config-only Graphify Codex hook installation.
+- [ ] **TEST-02**: Tests cover legacy hooks-json-only migration.
+- [ ] **TEST-03**: Tests cover both-present duplicate cleanup.
+- [ ] **TEST-04**: Tests cover both-present mixed user/project hooks preservation.
+- [ ] **TEST-05**: Tests cover duplicate Graphify `SessionStart` dedupe.
+- [ ] **PILOT-01**: A pilot repo verifies no Codex duplicate-source warning after cleanup.
+- [ ] **PILOT-02**: A pilot repo verifies `graphify codex-session-start <repo>` still returns valid startup JSON.
 
-### Regression Coverage
+## Future Requirements
 
-- [ ] **TEST-01**: Tests cover `.graphifyinclude` including `.claude/scripts/**/*.py` without including `.claude/data/`.
-- [ ] **TEST-02**: Tests cover stale built-commit detection.
-- [ ] **TEST-03**: Tests cover missing root semantic cache detection.
-- [ ] **TEST-04**: Tests cover hooks-installed-but-graph-stale diagnosis.
-- [ ] **TEST-05**: Tests cover local Ollama zero-cost/readiness reporting with mocked backend availability.
-
-## v2 Requirements
-
-### Automation
-
-- **AUTO-01**: A recurring read-only check can run against Second Brain and record status history.
-- **AUTO-02**: A recurring refresh can run only when stale, only with lock/timeout/status sidecars, and only after manual refresh validation.
-- **AUTO-03**: Git hooks can queue semantic refresh work without blocking commits or silently mutating generated artifacts post-commit.
-
-### Reporting
-
-- **REPORT-01**: Harness history can show trend lines for graph freshness, cache health, and recurring acceptance failures.
-- **REPORT-02**: Harness output can support more than one consumer repo.
+- **AUTO-01**: Broad rollout can update all Graphify-enabled repos after pilot verification.
+- **AUTO-02**: A recurring read-only check can report stale semantic markers across selected repos.
+- **AUTO-03**: A recurring refresh can run only when stale, only with lock/timeout/status sidecars, and only after manual refresh validation.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Direct post-commit semantic refresh in v1 | Too much runtime and generated-artifact risk before refresh stability is proven. |
-| Hosted dashboard | CLI/file reports are enough to validate the workflow first. |
+| Direct post-commit semantic refresh | Too much runtime and generated-artifact risk before refresh stability is proven. |
+| Broad rollout before pilot cleanup passes | The hook hygiene fix should prove itself in one repo first. |
 | Automatic pushes or PRs | Fork and consumer repo sync should remain explicit. |
-| Broad workspace scanning | Evaluation should target bounded repos only. |
-| Treating Second Brain as the only test suite | It is acceptance evidence; fork tests still carry source-level correctness. |
+| Deleting non-Graphify hooks | Mixed or ambiguous hooks must be preserved and reported. |
+| Mutating `$CODEX_HOME/config.toml` trust-state | Local evidence suggests repo-local duplicate hook files are the active issue. |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HARNESS-01 | Phase 1 | Pending |
-| HARNESS-02 | Phase 1 | Pending |
-| HARNESS-03 | Phase 1 | Pending |
-| HARNESS-04 | Phase 1 | Pending |
-| FORK-01 | Phase 1 | Pending |
-| FORK-02 | Phase 1 | Pending |
-| FORK-03 | Phase 1 | Pending |
-| FORK-04 | Phase 1 | Pending |
-| CONSUMER-01 | Phase 1 | Pending |
-| CONSUMER-02 | Phase 1 | Pending |
-| CONSUMER-03 | Phase 1 | Pending |
-| CONSUMER-04 | Phase 1 baseline reporting; Phase 2 coverage fix | Pending |
-| GRAPH-01 | Phase 1 | Pending |
-| GRAPH-02 | Phase 1 | Pending |
-| GRAPH-03 | Phase 1 | Pending |
-| GRAPH-04 | Phase 1 | Pending |
-| GRAPH-05 | Phase 2 | Pending |
-| OLLAMA-01 | Phase 1 | Pending |
-| OLLAMA-02 | Phase 1 | Pending |
-| OLLAMA-03 | Phase 1 | Pending |
-| REFRESH-01 | Phase 4 | Pending |
-| REFRESH-02 | Phase 4 | Pending |
-| TEST-01 | Phase 3 | Pending |
-| TEST-02 | Phase 3 | Pending |
-| TEST-03 | Phase 3 | Pending |
-| TEST-04 | Phase 3 | Pending |
-| TEST-05 | Phase 3 | Pending |
+| HOOK-01 | Phase 5 | Pending |
+| HOOK-02 | Phase 5 | Pending |
+| HOOK-03 | Phase 5 | Pending |
+| HOOK-04 | Phase 5 | Pending |
+| HOOK-05 | Phase 5 | Pending |
+| START-01 | Phase 5 | Pending |
+| START-02 | Phase 5 | Pending |
+| START-03 | Phase 5 | Pending |
+| PROP-01 | Phase 6 | Pending |
+| PROP-02 | Phase 6 | Pending |
+| PROP-03 | Phase 6 | Pending |
+| PROP-04 | Phase 6 | Pending |
+| DOC-01 | Phase 7 | Pending |
+| DOC-02 | Phase 7 | Pending |
+| DOC-03 | Phase 7 | Pending |
+| TEST-01 | Phase 5 | Pending |
+| TEST-02 | Phase 5 | Pending |
+| TEST-03 | Phase 5 | Pending |
+| TEST-04 | Phase 5 | Pending |
+| TEST-05 | Phase 5 | Pending |
+| PILOT-01 | Phase 8 | Pending |
+| PILOT-02 | Phase 8 | Pending |
 
 **Coverage:**
-- v1 requirements: 26 total
-- Mapped to phases: 26
+- v1.1 requirements: 22 total
+- Mapped to phases: 22
 - Unmapped: 0
 
 ---
-*Requirements defined: 2026-05-11*
-*Last updated: 2026-05-11 after GSD project initialization*
+*Requirements defined: 2026-05-12*
+*Last updated: 2026-05-12 after starting milestone v1.1*

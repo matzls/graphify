@@ -28,6 +28,42 @@ def test_install_creates_hook(tmp_path):
     assert "installed" in result
 
 
+def test_install_supports_git_worktree(tmp_path):
+    repo = tmp_path / "repo"
+    worktree = tmp_path / "repo-wt"
+    subprocess.run(["git", "init", str(repo)], check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Graphify Test",
+            "-c",
+            "user.email=graphify@example.test",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "init",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "add", str(worktree)],
+        check=True,
+        capture_output=True,
+    )
+
+    result = install(worktree)
+
+    assert (worktree / ".git").is_file()
+    hook = repo / ".git" / "hooks" / "post-commit"
+    assert hook.exists()
+    assert _HOOK_MARKER in hook.read_text()
+    assert "post-commit" in result
+
+
 def test_install_is_executable(tmp_path):
     repo = _make_git_repo(tmp_path)
     install(repo)
@@ -204,3 +240,44 @@ def test_hook_check_no_additionalContext(tmp_path):
     assert result.returncode == 0
     assert result.stdout == ""
     assert result.stderr == ""
+
+
+def test_codex_session_start_outputs_json(tmp_path):
+    """Codex SessionStart command must emit valid JSON even when graph is fresh."""
+    import json
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex-session-start", str(tmp_path)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert payload["hookSpecificOutput"]["additionalContext"] == ""
+
+
+def test_codex_session_start_outputs_pending_context(tmp_path):
+    """Codex SessionStart command injects refresh context when needs_update exists."""
+    import json
+    import sys
+
+    flag = tmp_path / "graphify-out" / "needs_update"
+    flag.parent.mkdir(parents=True)
+    flag.write_text("1", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex-session-start", str(tmp_path)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    context = payload["hookSpecificOutput"]["additionalContext"]
+    assert "Graphify graph refresh is pending" in context
+    assert "/graphify . --update" in context

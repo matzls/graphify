@@ -192,11 +192,12 @@ Safety rules:
 
 ## graphify
 
-This project has a graphify knowledge graph at graphify-out/.
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
 Rules:
-- Before answering architecture or codebase questions, read
-  `graphify-out/GRAPH_REPORT.md` for god nodes and community structure.
+- ALWAYS read `graphify-out/GRAPH_REPORT.md` before reading source files,
+  running grep/glob searches, or answering architecture/codebase questions.
+  The graph is your primary map of the codebase.
 - If `graphify-out/wiki/index.md` exists, navigate it before reading raw files.
 - For cross-module "how does X relate to Y" questions, prefer
   `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or

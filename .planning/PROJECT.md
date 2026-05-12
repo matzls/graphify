@@ -2,13 +2,25 @@
 
 ## What This Is
 
-This project is Mase's local Graphify fork and active CLI/skill source. The immediate project goal is to add a reliable evaluation harness that tells us whether Graphify fork updates, installed CLI/skill propagation, repo activation, and real consumer graphs are working as expected.
+This project is Mase's local Graphify fork and active CLI/skill source. The immediate project goal is to make Graphify activation and rollout behavior observable, idempotent, and safe across consumer repositories.
 
-The main reference consumer is `/Users/mase/Codebase/Personal-Projects/my-second-brain-build`, because it is actively used and exposes real Graphify behavior over time: hooks, `.graphifyignore`, hidden `.claude/scripts/` coverage, local Ollama semantic extraction, stale graph output, semantic cache, and query/explain usefulness.
+The current reference consumers are the Graphify fork itself, `/Users/mase/Codebase/Astral-Code/astral-sora-proto`, and `/Users/mase/Codebase/Personal-Projects/my-second-brain-build`, because they expose real Codex hook activation, worktree hook behavior, stale semantic graph markers, and rollout hygiene issues.
 
 ## Core Value
 
-Graphify status must be observable before we mutate consumer repos: the harness should separate fork bugs, install/skill propagation drift, consumer configuration gaps, and stale generated graph artifacts.
+Graphify activation must converge repos to a single, clean Codex hook representation while preserving unrelated project hooks and making stale semantic graph state visible to the main Codex agent.
+
+## Current Milestone: v1.1 Graphify Codex Hook Rollout Hygiene
+
+**Goal:** Make `graphify codex install` idempotent, TOML-first, and safe to propagate across Graphify-enabled repos.
+
+**Target features:**
+- Prefer repo-local `.codex/config.toml` as the single active Graphify Codex hook source.
+- Migrate or remove only Graphify-managed duplicate `.codex/hooks.json` entries when equivalent TOML hooks exist.
+- Dedupe duplicate Graphify `SessionStart` entries inside `.codex/config.toml`.
+- Preserve unrelated user/project hooks and report ambiguous hook ownership instead of deleting it.
+- Teach the OSS fork manager to detect rollout hook hygiene drift and delegate cleanup through Graphify-owned installers.
+- Update Graphify docs, global guidance, skill text, and tests to describe the expected single-source hook shape.
 
 ## Requirements
 
@@ -24,13 +36,13 @@ Graphify status must be observable before we mutate consumer repos: the harness 
 
 ### Active
 
-- [ ] Build a read-only Graphify status/evaluation harness in this fork.
-- [ ] Use My Second Brain build as the first recurring consumer acceptance target.
-- [ ] Report status across four layers: fork health, installed CLI/skill health, consumer activation health, and consumer graph health.
-- [ ] Detect local Ollama availability and whether semantic refresh can run with zero API cost.
-- [ ] Detect stale or partial graph output, including built commit vs `HEAD`, semantic cache presence, `needs_update`, and hidden-path coverage.
-- [ ] Add regression tests for the status checks and Graphify behaviors exposed by Second Brain.
-- [ ] Iterate Second Brain activation/configuration only after a baseline harness report exists.
+- [ ] Make Graphify Codex activation TOML-first and idempotent.
+- [ ] Add safe migration/cleanup for Graphify-managed legacy `.codex/hooks.json` entries.
+- [ ] Preserve and report unrelated or ambiguous hooks during cleanup.
+- [ ] Add regression tests for config-only, hooks-json-only, duplicate both-present, mixed user hooks, and duplicate `SessionStart` cases.
+- [ ] Update global Graphify guidance and packaged/installed skill text for the new hook model.
+- [ ] Update OSS fork manager propagation checks so rollout reports hook hygiene drift and delegates cleanup to Graphify.
+- [ ] Verify the cleaned install flow end-to-end in a pilot repo before broad rollout.
 
 ### Out of Scope
 
@@ -79,6 +91,9 @@ Current Second Brain findings to preserve:
 | Treat local Ollama as zero API cost but not zero risk | Runtime time, model quality, JSON failures, and generated-file churn still need guardrails. | — Pending |
 | Do not put semantic refresh directly in Git hooks initially | Hooks should flag or queue semantic work until refresh reliability is proven. | — Pending |
 | Keep Graphify fork tests and consumer acceptance checks separate | Fork regressions and consumer configuration drift need different diagnoses. | — Pending |
+| Prefer `.codex/config.toml` for Graphify Codex hooks | Codex loads both TOML and JSON hook sources when both exist in a layer, causing duplicate hooks and startup warnings. | Accepted for v1.1 |
+| Graphify owns hook cleanup behavior | `graphify codex install` creates activation state, so the fork should own idempotent install and safe migration logic. | Accepted for v1.1 |
+| OSS fork manager should audit, not duplicate Graphify migration logic | Propagation should detect drift and delegate cleanup to the project-owned installer instead of hardcoding Graphify hook templates. | Accepted for v1.1 |
 
 ## Evolution
 
@@ -98,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-11 after GSD codebase mapping and project initialization*
+*Last updated: 2026-05-12 after starting milestone v1.1 for Graphify Codex hook rollout hygiene*

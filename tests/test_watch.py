@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from graphify.watch import (
+    _rebuild_lock,
     _load_community_labels,
     _notify_only,
     _parse_report_community_labels,
@@ -86,6 +87,26 @@ def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
     assert "graphify --update" in out
 
 
+def test_codex_session_start_notice_with_flag(tmp_path):
+    """Codex SessionStart notice is explicit and agent-facing when flag exists."""
+    from graphify.watch import codex_session_start_notice
+    flag = tmp_path / "graphify-out" / "needs_update"
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.write_text("1")
+
+    notice = codex_session_start_notice(tmp_path)
+
+    assert "Graphify graph refresh is pending" in notice
+    assert "/graphify . --update" in notice
+    assert "graphify update ." in notice
+
+
+def test_codex_session_start_notice_without_flag_is_empty(tmp_path):
+    """Codex SessionStart hook should not inject context when graph is fresh."""
+    from graphify.watch import codex_session_start_notice
+    assert codex_session_start_notice(tmp_path) == ""
+
+
 def test_check_update_does_not_clear_flag(tmp_path):
     """check_update never removes the needs_update flag (clearing is LLM's job)."""
     from graphify.watch import check_update
@@ -94,6 +115,19 @@ def test_check_update_does_not_clear_flag(tmp_path):
     flag.write_text("1")
     check_update(tmp_path)
     assert flag.exists()
+
+
+def test_rebuild_lock_uses_external_lock_dir(tmp_path, monkeypatch):
+    """Rebuild lock should not create Git-visible files under graphify-out."""
+    lock_dir = tmp_path / "locks"
+    graph_out = tmp_path / "repo" / "graphify-out"
+    monkeypatch.setenv("GRAPHIFY_LOCK_DIR", str(lock_dir))
+
+    with _rebuild_lock(graph_out) as acquired:
+        assert acquired is True
+
+    assert not (graph_out / ".rebuild.lock").exists()
+    assert any(lock_dir.iterdir())
 
 
 def test_watch_raises_without_watchdog(tmp_path, monkeypatch):

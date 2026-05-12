@@ -2,6 +2,7 @@
 from __future__ import annotations
 import configparser
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -229,9 +230,13 @@ def _git_root(path: Path) -> Path | None:
 
 def _hooks_dir(root: Path) -> Path:
     """Return the git hooks directory, respecting core.hooksPath if set (e.g. Husky)."""
+    git_dir = root / ".git"
     try:
         cfg = configparser.RawConfigParser()
-        cfg.read(root / ".git" / "config", encoding="utf-8")
+        if git_dir.is_dir():
+            cfg.read(git_dir / "config", encoding="utf-8")
+        else:
+            cfg.read([], encoding="utf-8")
         # configparser lowercases option names; git's hooksPath becomes hookspath
         custom = cfg.get("core", "hookspath", fallback="").strip()
         if custom:
@@ -257,8 +262,27 @@ def _hooks_dir(root: Path) -> Path:
             f"{root / '.git' / 'config'}: {exc}",
             file=sys.stderr,
         )
-    d = root / ".git" / "hooks"
-    d.mkdir(exist_ok=True)
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--git-path", "hooks"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            d = Path(result.stdout.strip())
+            if not d.is_absolute():
+                d = root / d
+            d.mkdir(parents=True, exist_ok=True)
+            return d
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"[graphify hooks] git hook path lookup failed in {root}: {exc}", file=sys.stderr)
+
+    if git_dir.is_file():
+        raise RuntimeError(f"Cannot resolve Git hooks directory for worktree at {root}")
+    d = git_dir / "hooks"
+    d.mkdir(parents=True, exist_ok=True)
     return d
 
 

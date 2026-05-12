@@ -1,6 +1,7 @@
 # monitor a folder and auto-trigger --update when files change
 from __future__ import annotations
 import contextlib
+import hashlib
 import json
 import os
 import re
@@ -27,8 +28,15 @@ def _rebuild_lock(out_dir: Path, *, blocking: bool = False):
         yield True
         return
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = out_dir / ".rebuild.lock"
+    lock_base_raw = os.environ.get("GRAPHIFY_LOCK_DIR")
+    lock_base = (
+        Path(lock_base_raw).expanduser()
+        if lock_base_raw
+        else Path.home() / ".cache" / "graphify" / "locks"
+    )
+    lock_base.mkdir(parents=True, exist_ok=True)
+    lock_key = hashlib.sha256(str(out_dir.resolve()).encode("utf-8")).hexdigest()
+    lock_path = lock_base / f"{lock_key}.lock"
     fh = open(lock_path, "a", encoding="utf-8")
     try:
         flags = fcntl.LOCK_EX if blocking else (fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -264,7 +272,12 @@ def _rebuild_code(
             extract_targets = code_files
 
         commit = _git_head()
-        result = extract(extract_targets, cache_root=watch_root, root=watch_root) if extract_targets else {
+        result = extract(
+            extract_targets,
+            cache_root=watch_root,
+            root=watch_root,
+            use_cache=False,
+        ) if extract_targets else {
             "nodes": [], "edges": [], "hyperedges": [],
             "input_tokens": 0, "output_tokens": 0,
         }
@@ -377,11 +390,6 @@ def _rebuild_code(
             except Exception as cf_err:
                 print(f"[graphify watch] callflow HTML update skipped: {cf_err}")
 
-        # clear stale needs_update flag if present
-        flag = out / "needs_update"
-        if flag.exists():
-            flag.unlink()
-
         print(f"[graphify watch] Rebuilt: {G.number_of_nodes()} nodes, "
               f"{G.number_of_edges()} edges, {len(communities)} communities")
         products = "graph.json" + (", graph.html" if html_written else "") + " and GRAPH_REPORT.md"
@@ -395,6 +403,37 @@ def _rebuild_code(
         return False
 
 
+def semantic_update_notice(watch_path: Path) -> str:
+    """Return the human notice for a pending semantic refresh, or empty string."""
+    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
+    if not flag.exists():
+        return ""
+    return "\n".join(
+        [
+            f"[graphify check-update] Pending non-code changes in {watch_path}.",
+            "[graphify check-update] Run `/graphify --update` to apply semantic re-extraction.",
+        ]
+    )
+
+
+def codex_session_start_notice(watch_path: Path) -> str:
+    """Return Codex SessionStart context for pending semantic refresh work."""
+    raw_notice = semantic_update_notice(watch_path)
+    if not raw_notice:
+        return ""
+    return "\n".join(
+        [
+            "Graphify graph refresh is pending for this repo.",
+            "",
+            raw_notice,
+            "",
+            "Action: tell the user this repo has pending Graphify semantic refresh work.",
+            "Offer to run `/graphify . --update` before relying on doc/media/image relationships.",
+            "Code-only refresh is cheaper and can be run with `graphify update .`, but it will not clear semantic refresh needs.",
+        ]
+    )
+
+
 def check_update(watch_path: Path) -> bool:
     """Check for pending semantic update flag and notify the user if set.
 
@@ -403,10 +442,9 @@ def check_update(watch_path: Path) -> bool:
     re-extraction via `/graphify --update` — this function only signals
     that the update is needed.
     """
-    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
-    if flag.exists():
-        print(f"[graphify check-update] Pending non-code changes in {watch_path}.")
-        print("[graphify check-update] Run `/graphify --update` to apply semantic re-extraction.")
+    notice = semantic_update_notice(watch_path)
+    if notice:
+        print(notice)
     return True
 
 

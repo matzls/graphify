@@ -4,6 +4,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import sys
 import urllib.parse
@@ -861,6 +862,9 @@ _CODEX_HOOK = {
     }
 }
 
+_CODEX_SESSION_START_MARKER = "# graphify-session-start-hook-start"
+_CODEX_SESSION_START_MARKER_END = "# graphify-session-start-hook-end"
+
 
 def _resolve_graphify_exe() -> str:
     """Return the absolute path to the graphify executable.
@@ -883,7 +887,7 @@ def _resolve_graphify_exe() -> str:
 
 
 def _install_codex_hook(project_dir: Path) -> None:
-    """Add graphify PreToolUse hook to .codex/hooks.json."""
+    """Add graphify Codex hooks for reminders and startup freshness checks."""
     hooks_path = project_dir / ".codex" / "hooks.json"
     hooks_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -913,6 +917,36 @@ def _install_codex_hook(project_dir: Path) -> None:
     hooks_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
     print(f"  .codex/hooks.json  ->  PreToolUse hook registered ({graphify_exe} hook-check)")
 
+    config_path = project_dir / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    command = f"{shlex.quote(graphify_exe)} codex-session-start {shlex.quote(str(project_dir.resolve()))}"
+    block = "\n".join(
+        [
+            _CODEX_SESSION_START_MARKER,
+            "[[hooks.SessionStart]]",
+            "",
+            "[[hooks.SessionStart.hooks]]",
+            'type = "command"',
+            f"command = {json.dumps(command)}",
+            _CODEX_SESSION_START_MARKER_END,
+            "",
+        ]
+    )
+    if config_path.exists():
+        content = config_path.read_text(encoding="utf-8")
+    else:
+        content = ""
+    pattern = (
+        rf"\n?{re.escape(_CODEX_SESSION_START_MARKER)}\n"
+        rf".*?{re.escape(_CODEX_SESSION_START_MARKER_END)}\n?"
+    )
+    if _CODEX_SESSION_START_MARKER in content:
+        updated = re.sub(pattern, "\n" + block, content, count=1, flags=re.DOTALL)
+    else:
+        updated = content.rstrip() + "\n\n" + block if content.strip() else block
+    config_path.write_text(updated.rstrip() + "\n", encoding="utf-8")
+    print(f"  .codex/config.toml ->  SessionStart hook registered ({graphify_exe} codex-session-start)")
+
 
 def _install_git_hooks_if_possible(project_dir: Path) -> None:
     """Install repo-local Git refresh hooks when running inside a Git repo."""
@@ -941,19 +975,33 @@ def _uninstall_git_hooks_if_possible(project_dir: Path) -> None:
 
 
 def _uninstall_codex_hook(project_dir: Path) -> None:
-    """Remove graphify PreToolUse hook from .codex/hooks.json."""
+    """Remove graphify Codex hooks."""
     hooks_path = project_dir / ".codex" / "hooks.json"
-    if not hooks_path.exists():
+    if hooks_path.exists():
+        try:
+            existing = json.loads(hooks_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            existing = None
+        if existing is not None:
+            pre_tool = existing.get("hooks", {}).get("PreToolUse", [])
+            filtered = [h for h in pre_tool if "graphify" not in str(h)]
+            existing["hooks"]["PreToolUse"] = filtered
+            hooks_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+            print(f"  .codex/hooks.json  ->  PreToolUse hook removed")
+
+    config_path = project_dir / ".codex" / "config.toml"
+    if not config_path.exists():
         return
-    try:
-        existing = json.loads(hooks_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+    content = config_path.read_text(encoding="utf-8")
+    if _CODEX_SESSION_START_MARKER not in content:
         return
-    pre_tool = existing.get("hooks", {}).get("PreToolUse", [])
-    filtered = [h for h in pre_tool if "graphify" not in str(h)]
-    existing["hooks"]["PreToolUse"] = filtered
-    hooks_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
-    print(f"  .codex/hooks.json  ->  PreToolUse hook removed")
+    pattern = (
+        rf"\n?{re.escape(_CODEX_SESSION_START_MARKER)}\n"
+        rf".*?{re.escape(_CODEX_SESSION_START_MARKER_END)}\n?"
+    )
+    updated = re.sub(pattern, "\n", content, count=1, flags=re.DOTALL).strip()
+    config_path.write_text((updated + "\n") if updated else "", encoding="utf-8")
+    print(f"  .codex/config.toml ->  SessionStart hook removed")
 
 
 def _agents_install(project_dir: Path, platform: str) -> None:
@@ -1220,7 +1268,8 @@ def main() -> None:
     # Check all known skill install locations for a stale version stamp.
     # Skip during install/uninstall (hook writes trigger a fresh check anyway).
     # Deduplicate paths so platforms sharing the same install dir don't warn twice.
-    if not any(arg in ("install", "uninstall") for arg in sys.argv):
+    skip_skill_check_commands = {"install", "uninstall", "codex-session-start"}
+    if len(sys.argv) < 2 or sys.argv[1] not in skip_skill_check_commands:
         for skill_dst in {Path.home() / cfg["skill_dst"] for cfg in _PLATFORM_CONFIG.values()}:
             _check_skill_version(skill_dst)
 
@@ -1266,6 +1315,7 @@ def main() -> None:
         print("    --nodes N1 N2 ...       source node labels cited in the answer")
         print("    --memory-dir DIR        memory directory (default: graphify-out/memory)")
         print("  check-update <path>     check needs_update flag and notify if semantic re-extraction is pending (cron-safe)")
+        print("  codex-session-start <path>  emit Codex SessionStart JSON for pending semantic refresh")
         print("  tree                    emit a D3 v7 collapsible-tree HTML for graph.json")
         print("    --graph PATH            path to graph.json (default graphify-out/graph.json)")
         print("    --output HTML           output path (default graphify-out/GRAPH_TREE.html)")
@@ -1863,6 +1913,26 @@ def main() -> None:
             sys.exit(1)
         from graphify.watch import check_update
         check_update(Path(sys.argv[2]).resolve())
+        sys.exit(0)
+    elif cmd == "codex-session-start":
+        watch_path = Path(sys.argv[2]).resolve() if len(sys.argv) >= 3 else Path(".").resolve()
+        try:
+            from graphify.watch import codex_session_start_notice
+            additional_context = codex_session_start_notice(watch_path)
+            payload = {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": additional_context,
+                }
+            }
+        except Exception as exc:
+            payload = {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": f"Graphify startup check skipped: {exc}",
+                }
+            }
+        json.dump(payload, sys.stdout)
         sys.exit(0)
     elif cmd == "tree":
         # Emit a D3 v7 collapsible-tree HTML view of graph.json:
@@ -2592,6 +2662,7 @@ def main() -> None:
         }
         sem_cache_hits = 0
         sem_cache_misses = 0
+        semantic_extraction_failed = False
         if semantic_files:
             sem_paths_str = [str(p) for p in semantic_files]
             cached_nodes, cached_edges, cached_hyperedges, uncached_paths = (
@@ -2656,6 +2727,7 @@ def main() -> None:
                         f"[graphify extract] semantic extraction failed: {exc}",
                         file=sys.stderr,
                     )
+                    semantic_extraction_failed = True
                     fresh = {"nodes": [], "edges": [], "hyperedges": [], "input_tokens": 0, "output_tokens": 0}
                 try:
                     _save_semantic_cache(
@@ -2724,6 +2796,11 @@ def main() -> None:
                               f"(+{result['nodes_added']} nodes, -{result['nodes_removed']} pruned).")
                 except Exception as exc:
                     print(f"[graphify global] warning: failed to merge into global graph: {exc}", file=sys.stderr)
+            if not semantic_extraction_failed:
+                flag = graphify_out / "needs_update"
+                if flag.exists():
+                    flag.unlink()
+                    print(f"[graphify extract] cleared {flag}")
             sys.exit(0)
 
         # Build graph + cluster + score + write.
@@ -2818,6 +2895,11 @@ def main() -> None:
                 f"{merged['output_tokens']:,} out, "
                 f"est. cost (~{backend}): ${cost:.4f}"
             )
+        if not semantic_extraction_failed:
+            flag = graphify_out / "needs_update"
+            if flag.exists():
+                flag.unlink()
+                print(f"[graphify extract] cleared {flag}")
 
     else:
         print(f"error: unknown command '{cmd}'", file=sys.stderr)

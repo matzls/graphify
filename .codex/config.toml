@@ -151,3 +151,11 @@ matcher = "Bash"
 [[hooks.PreToolUse.hooks]]
 type = "command"
 command = "/Users/mase/.local/bin/graphify hook-check"
+
+# graphify-session-start-hook-start
+[[hooks.SessionStart]]
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "/Users/mase/.local/bin/graphify codex-session-start /Users/mase/Codebase/Personal-Projects/graphify"
+# graphify-session-start-hook-end

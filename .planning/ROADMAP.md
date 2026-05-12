@@ -1,8 +1,8 @@
-# Roadmap: Graphify Local Fork Evaluation Harness
+# Roadmap: Graphify Codex Hook Rollout Hygiene
 
 ## Overview
 
-The first milestone makes Graphify's local fork behavior measurable before changing consumer repos. Work starts with a read-only harness that captures the current state of the fork, installed CLI/skill, consumer activation, graph freshness, semantic cache, and local Ollama readiness. Only after the baseline is trustworthy do we patch the Second Brain target, add regression coverage, and evaluate controlled refresh automation.
+Milestone v1.1 makes Graphify Codex activation idempotent and safe to propagate. The core target is a TOML-first repo-local hook model: `graphify codex install` should converge a repo to one active Graphify hook representation, remove only Graphify-managed legacy duplicates, preserve unrelated hooks, and provide enough propagation checks to roll the behavior out deliberately.
 
 ## Phases
 
@@ -10,111 +10,104 @@ The first milestone makes Graphify's local fork behavior measurable before chang
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions marked as INSERTED
 
-- [ ] **Phase 1: Read-Only Status Harness** - Build the baseline evaluator without mutating target repos.
-- [ ] **Phase 2: Second Brain Baseline And Coverage Fix** - Use the harness to capture baseline, then repair target coverage configuration.
-- [ ] **Phase 3: Regression Coverage For Exposed Failure Modes** - Lock the harness and fork behaviors into tests.
-- [ ] **Phase 4: Controlled Local-Ollama Refresh Path** - Prove manual refresh safety before any recurring automation.
+- [ ] **Phase 5: TOML-First Graphify Hook Installer** - Make Graphify Codex install converge hook files safely and idempotently.
+- [ ] **Phase 6: Propagation Hygiene Audit** - Teach the OSS fork manager to detect Graphify hook drift and delegate cleanup.
+- [ ] **Phase 7: Guidance And Skill Alignment** - Update fork docs, global guidance, and skill text to match the new hook model.
+- [ ] **Phase 8: Pilot Verification And Rollout Readiness** - Prove the cleaned install flow in a pilot repo before broad rollout.
 
 ## Phase Details
 
-### Phase 1: Read-Only Status Harness
-**Goal**: A read-only harness can inspect Graphify fork health, installed CLI/skill health, target repo activation, target graph freshness, and Ollama readiness without changing the target repo.
-**Depends on**: Nothing (first phase)
-**Requirements**: [HARNESS-01, HARNESS-02, HARNESS-03, HARNESS-04, FORK-01, FORK-02, FORK-03, FORK-04, CONSUMER-01, CONSUMER-02, CONSUMER-03, CONSUMER-04, GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, OLLAMA-01, OLLAMA-02, OLLAMA-03]
+### Phase 5: TOML-First Graphify Hook Installer
+**Goal**: `graphify codex install` writes, migrates, dedupes, and uninstalls Graphify Codex hooks using `.codex/config.toml` as the preferred repo-local hook source.
+**Depends on**: Nothing in this milestone
+**Requirements**: [HOOK-01, HOOK-02, HOOK-03, HOOK-04, HOOK-05, START-01, START-02, START-03, TEST-01, TEST-02, TEST-03, TEST-04, TEST-05]
 **Canonical refs**:
 - `.planning/PROJECT.md`
 - `.planning/REQUIREMENTS.md`
-- `.planning/codebase/ARCHITECTURE.md`
-- `.planning/codebase/CONCERNS.md`
+- `.planning/research/SUMMARY.md`
 - `docs/mase-fork-operating-model.md`
-- `/Users/mase/.codex/docs/reference/graphify.md`
-**Success Criteria** (what must be TRUE):
-  1. Running the harness against `/Users/mase/Codebase/Personal-Projects/my-second-brain-build` does not modify that repo.
-  2. Harness JSON includes all four status layers: fork, installed CLI/skill, consumer activation, consumer graph.
-  3. Harness Markdown summary clearly says whether the target is current, stale, misconfigured, or refresh-ready.
-  4. Harness detects local Ollama availability and reports zero API cost separately from runtime risk.
-  5. Harness identifies the current Second Brain root graph as stale or partial when run before any refresh.
-**Plans**: 2 plans
-
-Plans:
-- [ ] 01-01-PLAN.md — Design status schema and read-only probes.
-- [ ] 01-02-PLAN.md — Implement private script harness and baseline Second Brain report.
-
-### Phase 2: Second Brain Baseline And Coverage Fix
-**Goal**: Use the harness output to safely configure Second Brain coverage, especially hidden `.claude/scripts/`, without running semantic refresh yet.
-**Depends on**: Phase 1
-**Requirements**: [CONSUMER-04, GRAPH-05]
-**Canonical refs**:
-- `.planning/PROJECT.md`
-- `.planning/REQUIREMENTS.md`
-- `.planning/codebase/STRUCTURE.md`
-- `/Users/mase/Codebase/Personal-Projects/my-second-brain-build/AGENTS.md`
-- `/Users/mase/Codebase/Personal-Projects/my-second-brain-build/.graphifyignore`
-**Success Criteria** (what must be TRUE):
-  1. A saved baseline report exists before any Second Brain config edits.
-  2. Second Brain has a narrow `.graphifyinclude` for expected hidden source paths.
-  3. Runtime/private/generated paths remain excluded by `.graphifyignore`.
-  4. A post-config harness run changes diagnosis from coverage gap to configured-but-stale until refresh occurs.
-  5. Existing graph query/explain smoke checks are either useful or explicitly reported as blocked by stale artifacts.
-**Plans**: 2 plans
-
-Plans:
-- [ ] 02-01: Capture immutable baseline and decide target coverage expectations.
-- [ ] 02-02: Patch Second Brain `.graphifyinclude` and rerun harness.
-
-### Phase 3: Regression Coverage For Exposed Failure Modes
-**Goal**: Add fork-level tests so the Second Brain findings become durable regression coverage rather than one-off observations.
-**Depends on**: Phase 1
-**Requirements**: [TEST-01, TEST-02, TEST-03, TEST-04, TEST-05]
-**Canonical refs**:
-- `.planning/codebase/TESTING.md`
-- `.planning/codebase/CONCERNS.md`
-- `tests/test_detect.py`
-- `tests/test_watch.py`
-- `tests/test_ollama.py`
-- `tests/test_incremental.py`
-**Success Criteria** (what must be TRUE):
-  1. Tests prove `.graphifyinclude` can include `.claude/scripts/**/*.py` without including `.claude/data/`.
-  2. Tests prove stale built-commit status is reported.
-  3. Tests prove missing root semantic cache status is reported.
-  4. Tests prove hooks-installed-but-stale-graph is not treated as healthy.
-  5. Tests prove local Ollama readiness and zero-cost reporting can be determined without a live paid backend.
-**Plans**: 2 plans
-
-Plans:
-- [ ] 03-01: Add harness unit tests and fixtures.
-- [ ] 03-02: Add integration-style status checks around existing Graphify artifacts.
-
-### Phase 4: Controlled Local-Ollama Refresh Path
-**Goal**: Prove a guarded local-Ollama semantic refresh can update Second Brain graph artifacts safely before considering recurring automation.
-**Depends on**: Phase 2 and Phase 3
-**Requirements**: [REFRESH-01, REFRESH-02]
-**Canonical refs**:
-- `.planning/codebase/CONCERNS.md`
-- `graphify/llm.py`
 - `graphify/__main__.py`
 - `graphify/watch.py`
-- `/Users/mase/Codebase/Personal-Projects/my-second-brain-build/graphify-out/GRAPH_REPORT.md`
+- `tests/test_install.py`
+- `tests/test_hooks.py`
 **Success Criteria** (what must be TRUE):
-  1. A refresh command/procedure can force backend `ollama`.
-  2. Refresh uses a lock or equivalent duplicate-run guard.
-  3. Refresh logs enough status to diagnose timeout, malformed JSON, partial semantic extraction, and cache behavior.
-  4. After one approved refresh, harness confirms built commit matches target `HEAD`, `.claude/scripts/` is represented, and root semantic cache exists where expected.
-  5. Recurring refresh remains disabled until the manual refresh evidence is reviewed.
+  1. A fresh config-only install creates Graphify `SessionStart` and PreToolUse/Bash hooks in `.codex/config.toml`.
+  2. A legacy hooks-json-only repo is migrated without losing Graphify behavior.
+  3. A repo with both TOML and JSON Graphify hooks ends with only the preferred Graphify representation.
+  4. Mixed user/project JSON hooks are preserved and reported, not deleted.
+  5. Duplicate Graphify `SessionStart` entries are deduped.
+  6. `graphify codex-session-start <repo>` still emits parseable Codex JSON.
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Add controlled refresh procedure and runbook/status sidecar.
-- [ ] 04-02: Run approved Second Brain refresh and decide recurring check vs recurring refresh.
+- [ ] 05-01: Design TOML hook ownership, migration, and uninstall behavior.
+- [ ] 05-02: Implement installer migration and regression tests.
+
+### Phase 6: Propagation Hygiene Audit
+**Goal**: The OSS fork manager reports Graphify hook hygiene drift and delegates cleanup to the Graphify installer during propagation.
+**Depends on**: Phase 5
+**Requirements**: [PROP-01, PROP-02, PROP-03, PROP-04]
+**Canonical refs**:
+- `/Users/mase/.codex/skills/my-oss-fork-manager/SKILL.md`
+- `/Users/mase/.codex/skills/my-oss-fork-manager/references/adapter-contract.md`
+- `/Users/mase/.codex/skills/my-oss-fork-manager/scripts/adapters/base.py`
+- `/Users/mase/.codex/skills/my-oss-fork-manager/scripts/lib/hooks.py`
+**Success Criteria** (what must be TRUE):
+  1. Dry-run propagation reports per-target Graphify hook drift when both hook sources exist.
+  2. The adapter distinguishes Graphify-owned duplicates from mixed or ambiguous user/project hooks.
+  3. Approved propagation delegates cleanup through `graphify codex install`.
+  4. Dirty target repos are blocked or reported before mutation.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 06-01: Update OSS fork manager Graphify hook hygiene checks.
+
+### Phase 7: Guidance And Skill Alignment
+**Goal**: All Graphify operating guidance describes the current TOML-first hook model and startup-context behavior.
+**Depends on**: Phase 5
+**Requirements**: [DOC-01, DOC-02, DOC-03]
+**Canonical refs**:
+- `docs/mase-fork-operating-model.md`
+- `/Users/mase/.codex/docs/reference/graphify.md`
+- `graphify/skill-codex.md`
+- `/Users/mase/.codex/skills/graphify/SKILL.md`
+**Success Criteria** (what must be TRUE):
+  1. Fork operating docs no longer describe the Codex hook as passive/no-op.
+  2. Global Graphify guidance names `.codex/config.toml` as the preferred active hook source.
+  3. Packaged and installed skill text match the new installer behavior.
+  4. Guidance says legacy JSON cleanup removes only Graphify-managed entries.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 07-01: Align fork docs, global guide, and Graphify skill text.
+
+### Phase 8: Pilot Verification And Rollout Readiness
+**Goal**: A pilot repo proves duplicate-source warnings are gone and startup context still works before broad rollout.
+**Depends on**: Phase 5, Phase 6, Phase 7
+**Requirements**: [PILOT-01, PILOT-02]
+**Canonical refs**:
+- `/Users/mase/Codebase/Astral-Code/astral-sora-proto`
+- `/Users/mase/Codebase/Personal-Projects/my-second-brain-build`
+- `.planning/research/SUMMARY.md`
+**Success Criteria** (what must be TRUE):
+  1. Pilot repo has one active Graphify Codex hook representation in `.codex/config.toml`.
+  2. No Graphify-managed duplicate remains in `.codex/hooks.json`.
+  3. Unrelated hooks, if present, are preserved.
+  4. Startup JSON is valid with and without `graphify-out/needs_update`.
+  5. Rollout report lists remaining Graphify-enabled repos and their hook hygiene status.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 08-01: Run pilot cleanup verification and prepare broad rollout decision.
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4
+Phases execute in numeric order: 5 -> 6 -> 7 -> 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Read-Only Status Harness | 0/2 | Not started | - |
-| 2. Second Brain Baseline And Coverage Fix | 0/2 | Not started | - |
-| 3. Regression Coverage For Exposed Failure Modes | 0/2 | Not started | - |
-| 4. Controlled Local-Ollama Refresh Path | 0/2 | Not started | - |
+| 5. TOML-First Graphify Hook Installer | 0/2 | Not started | - |
+| 6. Propagation Hygiene Audit | 0/1 | Not started | - |
+| 7. Guidance And Skill Alignment | 0/1 | Not started | - |
+| 8. Pilot Verification And Rollout Readiness | 0/1 | Not started | - |

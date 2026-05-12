@@ -72,6 +72,18 @@ def test_extract_partial_nested_file_preserves_project_relative_source_file(tmp_
     assert any(n["id"] == "tests_test_example_py" for n in result["nodes"])
 
 
+def test_extract_can_skip_ast_cache_writes(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = repo / "example.py"
+    source.write_text("def example():\n    return 1\n", encoding="utf-8")
+
+    result = extract([source], cache_root=repo, root=repo, parallel=False, use_cache=False)
+
+    assert result["nodes"]
+    assert not (repo / "graphify-out" / "cache").exists()
+
+
 def test_collect_files_from_dir():
     from graphify.extract import _DISPATCH
     files = collect_files(FIXTURES)

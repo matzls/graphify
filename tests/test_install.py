@@ -192,6 +192,18 @@ def test_codex_agents_install_installs_git_hooks_in_repo(tmp_path):
     assert "# graphify-checkout-hook-start" in post_checkout.read_text(encoding="utf-8")
 
 
+def test_codex_agents_install_registers_session_start_hook(tmp_path):
+    _agents_install(tmp_path, "codex")
+
+    config = tmp_path / ".codex" / "config.toml"
+    content = config.read_text(encoding="utf-8")
+
+    assert "# graphify-session-start-hook-start" in content
+    assert "[[hooks.SessionStart]]" in content
+    assert "codex-session-start" in content
+    assert str(tmp_path) in content
+
+
 def test_codex_agents_uninstall_removes_git_hooks_in_repo(tmp_path):
     subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
     _agents_install(tmp_path, "codex")
@@ -204,6 +216,17 @@ def test_codex_agents_uninstall_removes_git_hooks_in_repo(tmp_path):
 
     assert not (tmp_path / ".git" / "hooks" / "post-commit").exists()
     assert not (tmp_path / ".git" / "hooks" / "post-checkout").exists()
+
+
+def test_codex_agents_uninstall_removes_session_start_hook(tmp_path):
+    _agents_install(tmp_path, "codex")
+
+    from graphify.__main__ import _uninstall_codex_hook
+
+    _uninstall_codex_hook(tmp_path)
+
+    config = tmp_path / ".codex" / "config.toml"
+    assert "# graphify-session-start-hook-start" not in config.read_text(encoding="utf-8")
 
 
 def test_opencode_agents_install_writes_agents_md(tmp_path):
@@ -221,7 +244,9 @@ def test_agents_install_idempotent(tmp_path):
     _agents_install(tmp_path, "codex")
     _agents_install(tmp_path, "codex")
     content = (tmp_path / "AGENTS.md").read_text()
+    config = (tmp_path / ".codex" / "config.toml").read_text()
     assert content.count("## graphify") == 1
+    assert config.count("# graphify-session-start-hook-start") == 1
 
 
 def test_agents_install_updates_existing_graphify_section(tmp_path):
