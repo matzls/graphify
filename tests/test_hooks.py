@@ -281,3 +281,5 @@ def test_codex_session_start_outputs_pending_context(tmp_path):
     context = payload["hookSpecificOutput"]["additionalContext"]
     assert "Graphify graph refresh is pending" in context
     assert "/graphify . --update" in context
+    assert "graphify update ." in context
+    assert "will not clear semantic refresh needs" in context
