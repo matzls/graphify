@@ -864,6 +864,18 @@ _CODEX_HOOK = {
 
 _CODEX_SESSION_START_MARKER = "# graphify-session-start-hook-start"
 _CODEX_SESSION_START_MARKER_END = "# graphify-session-start-hook-end"
+_CODEX_PRE_TOOL_USE_MARKER = "# graphify-pre-tool-use-hook-start"
+_CODEX_PRE_TOOL_USE_MARKER_END = "# graphify-pre-tool-use-hook-end"
+
+_CODEX_GRAPHIFY_OWNERSHIP_EVIDENCE = (
+    "graphify hook-check",
+    "graphify codex-session-start",
+    "codex-session-start",
+    _CODEX_SESSION_START_MARKER,
+    _CODEX_SESSION_START_MARKER_END,
+    _CODEX_PRE_TOOL_USE_MARKER,
+    _CODEX_PRE_TOOL_USE_MARKER_END,
+)
 
 
 def _resolve_graphify_exe() -> str:
@@ -886,41 +898,31 @@ def _resolve_graphify_exe() -> str:
     return "graphify"
 
 
-def _install_codex_hook(project_dir: Path) -> None:
-    """Add graphify Codex hooks for reminders and startup freshness checks."""
-    hooks_path = project_dir / ".codex" / "hooks.json"
-    hooks_path.parent.mkdir(parents=True, exist_ok=True)
+def _is_graphify_owned_hook(value: object) -> bool:
+    """Return true only when a hook contains strict Graphify ownership evidence."""
+    if isinstance(value, dict):
+        return any(_is_graphify_owned_hook(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_is_graphify_owned_hook(v) for v in value)
+    if not isinstance(value, str):
+        return False
+    return any(evidence in value for evidence in _CODEX_GRAPHIFY_OWNERSHIP_EVIDENCE)
 
-    if hooks_path.exists():
-        try:
-            existing = json.loads(hooks_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            existing = {}
-    else:
-        existing = {}
 
-    graphify_exe = _resolve_graphify_exe()
-    hook_entry = {
-        "hooks": {
-            "PreToolUse": [
-                {
-                    "matcher": "Bash",
-                    "hooks": [{"type": "command", "command": f"{graphify_exe} hook-check"}],
-                }
-            ]
-        }
-    }
+def _is_empty_hook_config(value: object) -> bool:
+    """Return true when a decoded hooks.json object has no remaining hook entries."""
+    if value in ({}, [], None):
+        return True
+    if isinstance(value, dict):
+        return all(_is_empty_hook_config(v) for v in value.values())
+    if isinstance(value, list):
+        return all(_is_empty_hook_config(v) for v in value)
+    return False
 
-    pre_tool = existing.setdefault("hooks", {}).setdefault("PreToolUse", [])
-    existing["hooks"]["PreToolUse"] = [h for h in pre_tool if "graphify" not in str(h)]
-    existing["hooks"]["PreToolUse"].extend(hook_entry["hooks"]["PreToolUse"])
-    hooks_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
-    print(f"  .codex/hooks.json  ->  PreToolUse hook registered ({graphify_exe} hook-check)")
 
-    config_path = project_dir / ".codex" / "config.toml"
-    config_path.parent.mkdir(parents=True, exist_ok=True)
+def _render_codex_session_start_block(graphify_exe: str, project_dir: Path) -> str:
     command = f"{shlex.quote(graphify_exe)} codex-session-start {shlex.quote(str(project_dir.resolve()))}"
-    block = "\n".join(
+    return "\n".join(
         [
             _CODEX_SESSION_START_MARKER,
             "[[hooks.SessionStart]]",
@@ -932,20 +934,113 @@ def _install_codex_hook(project_dir: Path) -> None:
             "",
         ]
     )
-    if config_path.exists():
-        content = config_path.read_text(encoding="utf-8")
-    else:
-        content = ""
-    pattern = (
-        rf"\n?{re.escape(_CODEX_SESSION_START_MARKER)}\n"
-        rf".*?{re.escape(_CODEX_SESSION_START_MARKER_END)}\n?"
+
+
+def _render_codex_pre_tool_use_block(graphify_exe: str) -> str:
+    command = f"{shlex.quote(graphify_exe)} hook-check"
+    return "\n".join(
+        [
+            _CODEX_PRE_TOOL_USE_MARKER,
+            "[[hooks.PreToolUse]]",
+            'matcher = "Bash"',
+            "",
+            "[[hooks.PreToolUse.hooks]]",
+            'type = "command"',
+            f"command = {json.dumps(command)}",
+            _CODEX_PRE_TOOL_USE_MARKER_END,
+            "",
+        ]
     )
-    if _CODEX_SESSION_START_MARKER in content:
-        updated = re.sub(pattern, "\n" + block, content, count=1, flags=re.DOTALL)
-    else:
-        updated = content.rstrip() + "\n\n" + block if content.strip() else block
+
+
+def _remove_codex_marker_blocks(content: str, marker: str, marker_end: str) -> tuple[str, int]:
+    pattern = rf"\n?{re.escape(marker)}\n.*?{re.escape(marker_end)}\n?"
+    return re.subn(pattern, "\n", content, flags=re.DOTALL)
+
+
+def _write_codex_toml_hooks(project_dir: Path, graphify_exe: str) -> tuple[int, int]:
+    config_path = project_dir / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    content = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+
+    content, removed_session = _remove_codex_marker_blocks(
+        content,
+        _CODEX_SESSION_START_MARKER,
+        _CODEX_SESSION_START_MARKER_END,
+    )
+    content, removed_pre_tool = _remove_codex_marker_blocks(
+        content,
+        _CODEX_PRE_TOOL_USE_MARKER,
+        _CODEX_PRE_TOOL_USE_MARKER_END,
+    )
+
+    blocks = [
+        _render_codex_session_start_block(graphify_exe, project_dir),
+        _render_codex_pre_tool_use_block(graphify_exe),
+    ]
+    prefix = content.rstrip()
+    updated = prefix + "\n\n" + "\n".join(blocks) if prefix else "\n".join(blocks)
     config_path.write_text(updated.rstrip() + "\n", encoding="utf-8")
-    print(f"  .codex/config.toml ->  SessionStart hook registered ({graphify_exe} codex-session-start)")
+    return removed_session, removed_pre_tool
+
+
+def _clean_legacy_codex_hooks_json(project_dir: Path) -> tuple[int, int, bool, bool]:
+    hooks_path = project_dir / ".codex" / "hooks.json"
+    if not hooks_path.exists():
+        return 0, 0, False, False
+
+    try:
+        existing = json.loads(hooks_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        print("  .codex/hooks.json  ->  manual review required (invalid JSON)")
+        return 0, 0, False, True
+
+    hooks = existing.get("hooks")
+    if not isinstance(hooks, dict):
+        return 0, 0, False, False
+
+    migrated = 0
+    preserved = 0
+    for event, entries in list(hooks.items()):
+        if not isinstance(entries, list):
+            continue
+        kept = []
+        for entry in entries:
+            if _is_graphify_owned_hook(entry):
+                migrated += 1
+            else:
+                kept.append(entry)
+                preserved += 1
+        if kept:
+            hooks[event] = kept
+        else:
+            hooks.pop(event, None)
+
+    if _is_empty_hook_config(existing):
+        hooks_path.unlink()
+        return migrated, preserved, True, False
+
+    hooks_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+    return migrated, preserved, False, False
+
+
+def _install_codex_hook(project_dir: Path) -> None:
+    """Add graphify Codex hooks for reminders and startup freshness checks."""
+    graphify_exe = _resolve_graphify_exe()
+    removed_session, removed_pre_tool = _write_codex_toml_hooks(project_dir, graphify_exe)
+    migrated, preserved, deleted, invalid = _clean_legacy_codex_hooks_json(project_dir)
+
+    deduped = max(0, removed_session - 1) + max(0, removed_pre_tool - 1)
+    print(f"  .codex/config.toml ->  Graphify hooks registered ({graphify_exe})")
+    if migrated or preserved or deleted or invalid:
+        print(
+            "  .codex/hooks.json  ->  "
+            f"migrated {migrated} Graphify hook(s), preserved {preserved} non-Graphify hook(s)"
+        )
+    if deduped:
+        print(f"  .codex/config.toml ->  deduped {deduped} Graphify hook block(s)")
+    if deleted:
+        print("  .codex/hooks.json  ->  deleted empty legacy file")
 
 
 def _install_git_hooks_if_possible(project_dir: Path) -> None:
@@ -976,32 +1071,35 @@ def _uninstall_git_hooks_if_possible(project_dir: Path) -> None:
 
 def _uninstall_codex_hook(project_dir: Path) -> None:
     """Remove graphify Codex hooks."""
-    hooks_path = project_dir / ".codex" / "hooks.json"
-    if hooks_path.exists():
-        try:
-            existing = json.loads(hooks_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            existing = None
-        if existing is not None:
-            pre_tool = existing.get("hooks", {}).get("PreToolUse", [])
-            filtered = [h for h in pre_tool if "graphify" not in str(h)]
-            existing["hooks"]["PreToolUse"] = filtered
-            hooks_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
-            print(f"  .codex/hooks.json  ->  PreToolUse hook removed")
+    migrated, preserved, deleted, invalid = _clean_legacy_codex_hooks_json(project_dir)
+    if migrated or preserved or deleted or invalid:
+        print(
+            "  .codex/hooks.json  ->  "
+            f"removed {migrated} Graphify hook(s), preserved {preserved} non-Graphify hook(s)"
+        )
+    if deleted:
+        print("  .codex/hooks.json  ->  deleted empty legacy file")
 
     config_path = project_dir / ".codex" / "config.toml"
     if not config_path.exists():
         return
     content = config_path.read_text(encoding="utf-8")
-    if _CODEX_SESSION_START_MARKER not in content:
+    if _CODEX_SESSION_START_MARKER not in content and _CODEX_PRE_TOOL_USE_MARKER not in content:
         return
-    pattern = (
-        rf"\n?{re.escape(_CODEX_SESSION_START_MARKER)}\n"
-        rf".*?{re.escape(_CODEX_SESSION_START_MARKER_END)}\n?"
+    updated, removed_session = _remove_codex_marker_blocks(
+        content,
+        _CODEX_SESSION_START_MARKER,
+        _CODEX_SESSION_START_MARKER_END,
     )
-    updated = re.sub(pattern, "\n", content, count=1, flags=re.DOTALL).strip()
+    updated, removed_pre_tool = _remove_codex_marker_blocks(
+        updated,
+        _CODEX_PRE_TOOL_USE_MARKER,
+        _CODEX_PRE_TOOL_USE_MARKER_END,
+    )
+    updated = updated.strip()
     config_path.write_text((updated + "\n") if updated else "", encoding="utf-8")
-    print(f"  .codex/config.toml ->  SessionStart hook removed")
+    removed = removed_session + removed_pre_tool
+    print(f"  .codex/config.toml ->  removed {removed} Graphify hook block(s)")
 
 
 def _agents_install(project_dir: Path, platform: str) -> None:
