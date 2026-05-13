@@ -318,6 +318,10 @@ def _rebuild_code(
                 preserved_edges = [
                     e for e in existing.get("links", existing.get("edges", []))
                     if e.get("source") in all_ids and e.get("target") in all_ids
+                    and (
+                        changed_paths is None
+                        or e.get("source_file") not in evict_sources
+                    )
                 ]
                 result = {
                     "nodes": result["nodes"] + preserved_nodes,
