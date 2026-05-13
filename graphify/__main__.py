@@ -958,11 +958,24 @@ def _remove_codex_marker_blocks(content: str, marker: str, marker_end: str) -> t
     return re.subn(pattern, "\n", content, flags=re.DOTALL)
 
 
+def _remove_legacy_codex_toml_graphify_blocks(content: str) -> tuple[str, int]:
+    pattern = (
+        r"\n?# Graphify Hooks\n"
+        r"\[\[hooks\.PreToolUse\]\]\n"
+        r"matcher = \"Bash\"\n\n"
+        r"\[\[hooks\.PreToolUse\.hooks\]\]\n"
+        r"type = \"command\"\n"
+        r"command = \"[^\"]*graphify hook-check\"\n?"
+    )
+    return re.subn(pattern, "\n", content)
+
+
 def _write_codex_toml_hooks(project_dir: Path, graphify_exe: str) -> tuple[int, int]:
     config_path = project_dir / ".codex" / "config.toml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     content = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
 
+    content, removed_legacy_pre_tool = _remove_legacy_codex_toml_graphify_blocks(content)
     content, removed_session = _remove_codex_marker_blocks(
         content,
         _CODEX_SESSION_START_MARKER,
@@ -981,7 +994,7 @@ def _write_codex_toml_hooks(project_dir: Path, graphify_exe: str) -> tuple[int, 
     prefix = content.rstrip()
     updated = prefix + "\n\n" + "\n".join(blocks) if prefix else "\n".join(blocks)
     config_path.write_text(updated.rstrip() + "\n", encoding="utf-8")
-    return removed_session, removed_pre_tool
+    return removed_session, removed_pre_tool + removed_legacy_pre_tool
 
 
 def _clean_legacy_codex_hooks_json(project_dir: Path) -> tuple[int, int, bool, bool]:

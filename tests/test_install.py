@@ -312,6 +312,52 @@ def test_codex_agents_install_removes_json_duplicate_when_toml_exists(tmp_path):
     assert not hooks_path.exists()
 
 
+def test_codex_agents_install_replaces_legacy_unmarked_toml_hook(tmp_path):
+    config_path = tmp_path / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '\n'.join(
+            [
+                '# Graphify Hooks',
+                '[[hooks.PreToolUse]]',
+                'matcher = "Bash"',
+                '',
+                '[[hooks.PreToolUse.hooks]]',
+                'type = "command"',
+                'command = "/Users/mase/.local/bin/graphify hook-check"',
+                '',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {"type": "command", "command": "graphify hook-check"}
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+
+    config = config_path.read_text(encoding="utf-8")
+    assert "# Graphify Hooks" not in config
+    assert config.count("hook-check") == 1
+    assert config.count("# graphify-pre-tool-use-hook-start") == 1
+    assert not hooks_path.exists()
+
+
 def test_codex_agents_install_collapses_duplicate_toml_blocks(tmp_path):
     _agents_install(tmp_path, "codex")
     config_path = tmp_path / ".codex" / "config.toml"
