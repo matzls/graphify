@@ -145,6 +145,22 @@ def test_rebuild_code_smoke_generates_outputs(tmp_path, monkeypatch):
     assert (tmp_path / "graphify-out" / "GRAPH_REPORT.md").exists()
 
 
+def test_rebuild_code_writes_manifest_to_watched_graph_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("GRAPHIFY_LOCK_DIR", str(tmp_path / "locks"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "app.py").write_text("def hello():\n    return 'hello'\n", encoding="utf-8")
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+
+    assert _rebuild_code(repo, block_on_lock=True) is True
+
+    assert (repo / "graphify-out" / "manifest.json").exists()
+    assert not (outside / "graphify-out" / "manifest.json").exists()
+
+
 def test_rebuild_code_changed_paths_keep_project_relative_sources(tmp_path, monkeypatch):
     import json
 

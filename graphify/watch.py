@@ -351,7 +351,7 @@ def _rebuild_code(
 
         try:
             from graphify.detect import save_manifest
-            save_manifest(detected["files"])
+            save_manifest(detected["files"], manifest_path=str(out / "manifest.json"))
         except Exception:
             pass
 

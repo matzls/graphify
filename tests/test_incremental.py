@@ -74,6 +74,8 @@ def test_code_only_extract_does_not_require_llm_key(tmp_path):
     assert r.returncode == 0, r.stderr
     assert "no LLM API key" not in r.stderr
     assert (src / "graphify-out" / "graph.json").exists()
+    assert (src / "graphify-out" / "GRAPH_REPORT.md").exists()
+    assert (src / "graphify-out" / ".graphify_labels.json").exists()
 
 
 def test_incremental_extract_prunes_changed_code_source(tmp_path):

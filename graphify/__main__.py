@@ -2924,7 +2924,12 @@ def main() -> None:
         )
         from graphify.cluster import cluster as _cluster, score_all as _score_all
         from graphify.export import to_json as _to_json
-        from graphify.analyze import god_nodes as _god_nodes, surprising_connections as _surprising
+        from graphify.analyze import (
+            god_nodes as _god_nodes,
+            surprising_connections as _surprising,
+            suggest_questions as _suggest_questions,
+        )
+        from graphify.report import generate as _generate_report
         dedup_backend = backend if dedup_llm else None
         if incremental_mode:
             changed_sources = list(deleted_files)
@@ -2963,6 +2968,8 @@ def main() -> None:
             surprises = _surprising(G, communities)
         except Exception:
             surprises = []
+        labels = {cid: f"Community {cid}" for cid in communities}
+        questions = _suggest_questions(G, communities, labels)
 
         _to_json(G, communities, str(graph_json_path), force=True)
         if global_merge:
@@ -2988,6 +2995,21 @@ def main() -> None:
             },
         }
         analysis_path.write_text(json.dumps(analysis, indent=2), encoding="utf-8")
+        labels_path = graphify_out / ".graphify_labels.json"
+        labels_path.write_text(json.dumps({str(k): v for k, v in labels.items()}, ensure_ascii=False), encoding="utf-8")
+        report = _generate_report(
+            G,
+            communities,
+            cohesion,
+            labels,
+            gods,
+            surprises,
+            detection,
+            {"input": merged["input_tokens"], "output": merged["output_tokens"]},
+            str(target),
+            suggested_questions=questions,
+        )
+        (graphify_out / "GRAPH_REPORT.md").write_text(report, encoding="utf-8")
         try:
             _save_manifest(files_by_type, manifest_path=str(manifest_path))
         except Exception as exc:
@@ -3000,6 +3022,7 @@ def main() -> None:
             f"{len(communities)} communities"
         )
         print(f"[graphify extract] wrote {analysis_path}")
+        print(f"[graphify extract] wrote {graphify_out / 'GRAPH_REPORT.md'}")
         if incremental_mode:
             print(
                 f"[graphify extract] incremental summary: "
