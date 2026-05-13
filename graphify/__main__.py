@@ -2716,11 +2716,14 @@ def main() -> None:
                     sys.exit(1)
             return resolved
 
-        # Resolve output dir. The user-facing contract is "<out>/graphify-out/"
-        # so a fresh checkout writes graphify-out/ at the project root, matching
-        # the skill.md pipeline.
+        # Resolve output dir. `--out DIR` writes DIR/graphify-out/ for backward
+        # compatibility; otherwise GRAPHIFY_OUT selects the graph output dir.
         out_root = (out_dir.resolve() if out_dir else target)
-        graphify_out = out_root / "graphify-out"
+        graphify_out = (
+            out_root / "graphify-out"
+            if out_dir
+            else (Path(_GRAPHIFY_OUT) if Path(_GRAPHIFY_OUT).is_absolute() else target / _GRAPHIFY_OUT)
+        )
         graphify_out.mkdir(parents=True, exist_ok=True)
 
         from graphify.detect import (

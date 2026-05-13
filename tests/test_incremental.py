@@ -79,6 +79,23 @@ def test_code_only_extract_does_not_require_llm_key(tmp_path):
     assert (src / "graphify-out" / ".graphify_labels.json").exists()
 
 
+def test_extract_honors_graphify_out_env(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text("def hello():\n    return 'hello'\n")
+    env = {
+        k: v for k, v in os.environ.items()
+        if not k.endswith("_API_KEY") and k not in {"GEMINI_API_KEY", "GOOGLE_API_KEY"}
+    }
+    env["GRAPHIFY_OUT"] = "graphify-out-feature"
+
+    r = _run(["extract", str(src)], tmp_path, env=env)
+
+    assert r.returncode == 0, r.stderr
+    assert (src / "graphify-out-feature" / "graph.json").exists()
+    assert not (src / "graphify-out" / "graph.json").exists()
+
+
 def test_extract_transcribes_video_files_for_semantic_extraction(tmp_path, monkeypatch):
     from graphify.__main__ import main
 
