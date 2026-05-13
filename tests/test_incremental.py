@@ -183,6 +183,90 @@ def test_incremental_extract_forces_changed_video_retranscription(tmp_path, monk
     assert calls["force"] is True
 
 
+def test_incremental_extract_uses_project_root_for_subset_ast(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    app = src / "app.py"
+    app.write_text("def old_func():\n    return 1\n", encoding="utf-8")
+    env = {
+        k: v for k, v in os.environ.items()
+        if not k.endswith("_API_KEY") and k not in {"GEMINI_API_KEY", "GOOGLE_API_KEY"}
+    }
+    first = _run(["extract", str(tmp_path)], tmp_path, env=env)
+    assert first.returncode == 0, first.stderr
+
+    app.write_text("def new_func():\n    return 2\n", encoding="utf-8")
+    second = _run(["extract", str(tmp_path)], tmp_path, env=env)
+    assert second.returncode == 0, second.stderr
+
+    graph = json.loads((tmp_path / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
+    app_nodes = [n for n in graph["nodes"] if n.get("label") == "app.py"]
+    assert app_nodes
+    assert {n.get("source_file") for n in app_nodes} == {"src/app.py"}
+    assert "app.py" not in {n.get("source_file") for n in graph["nodes"]}
+    assert "new_func()" in {n.get("label") for n in graph["nodes"]}
+
+
+def test_incremental_extract_prunes_changed_transcript_sources(tmp_path, monkeypatch):
+    from graphify.__main__ import main
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    video = corpus / "lecture.mp4"
+    video.write_bytes(b"v1")
+    transcript = corpus / "graphify-out" / "transcripts" / "lecture.txt"
+    out = corpus / "graphify-out"
+    out.mkdir(parents=True)
+    (out / "manifest.json").write_text(json.dumps({
+        "version": 1,
+        "files": {
+            "video": [
+                {
+                    "path": str(video),
+                    "mtime": 0,
+                    "size": 0,
+                    "hash": "old",
+                }
+            ]
+        },
+    }), encoding="utf-8")
+    (out / "graph.json").write_text(json.dumps({
+        "nodes": [
+            {"id": "stale", "label": "Stale", "source_file": str(transcript)},
+            {"id": "keep", "label": "Keep", "source_file": "notes.md"},
+        ],
+        "links": [],
+    }), encoding="utf-8")
+
+    def fake_transcribe_all(video_files, output_dir=None, initial_prompt=None, force=False):
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        transcript.write_text("Fresh transcript.", encoding="utf-8")
+        return [str(transcript)]
+
+    def fake_extract_corpus_parallel(paths, **kwargs):
+        return {
+            "nodes": [{"id": "fresh", "label": "Fresh", "source_file": str(transcript)}],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+        }
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["graphify", "extract", str(corpus), "--backend", "gemini"])
+
+    with patch("graphify.transcribe.transcribe_all", side_effect=fake_transcribe_all), \
+         patch("graphify.llm.extract_corpus_parallel", side_effect=fake_extract_corpus_parallel):
+        main()
+
+    graph = json.loads((out / "graph.json").read_text(encoding="utf-8"))
+    labels = {n.get("label") for n in graph["nodes"]}
+    assert "Fresh" in labels
+    assert "Keep" in labels
+    assert "Stale" not in labels
+
+
 def test_incremental_no_cluster_preserves_unchanged_graph_data(tmp_path, monkeypatch):
     from graphify.__main__ import main
 

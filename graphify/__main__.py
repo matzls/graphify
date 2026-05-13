@@ -2794,7 +2794,7 @@ def main() -> None:
         ast_result: dict = {"nodes": [], "edges": [], "input_tokens": 0, "output_tokens": 0}
         if code_files:
             from graphify.extract import extract as _ast_extract
-            ast_kwargs: dict = {"cache_root": target}
+            ast_kwargs: dict = {"cache_root": target, "root": target}
             if cli_max_workers is not None:
                 ast_kwargs["max_workers"] = cli_max_workers
             print(f"[graphify extract] AST extraction on {len(code_files)} code files...")
@@ -3005,7 +3005,7 @@ def main() -> None:
         dedup_backend = backend if dedup_llm else None
         if incremental_mode:
             changed_sources = list(deleted_files)
-            for p in code_files + doc_files + paper_files + image_files:
+            for p in code_files + doc_files + paper_files + image_files + video_files + transcript_files:
                 changed_sources.append(str(p))
                 try:
                     changed_sources.append(str(p.resolve().relative_to(target.resolve())))
