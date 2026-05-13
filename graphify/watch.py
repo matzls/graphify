@@ -283,12 +283,14 @@ def _rebuild_code(
 
         # Preserve semantic nodes/edges from a previous full run.
         # AST-only rebuild replaces nodes for changed files; everything else is kept.
-        # Filter by node ID membership in the new AST output, not by file_type —
-        # INFERRED/AMBIGUOUS nodes extracted from code files also carry file_type="code"
-        # and would be wrongly dropped by a file_type-based filter.
+        # Incremental rebuilds filter by node ID membership in the new AST output,
+        # not by file_type: INFERRED/AMBIGUOUS nodes extracted from code files
+        # also carry file_type="code" and would be wrongly dropped.
         # When the caller supplied changed_paths, also evict preserved nodes whose
         # source_file matches a path that was changed (re-extracted) or deleted —
         # otherwise the old nodes for those files would survive forever.
+        # Full code rebuilds have no change list, so preserve only non-code
+        # semantic nodes and let the fresh AST become the complete code truth.
         existing_graph = out / "graph.json"
         if existing_graph.exists():
             try:
@@ -301,11 +303,17 @@ def _rebuild_code(
                             evict_sources.add(str(p.relative_to(project_root)))
                         except ValueError:
                             evict_sources.add(str(p))
-                preserved_nodes = [
-                    n for n in existing.get("nodes", [])
-                    if n["id"] not in new_ast_ids
-                    and (not evict_sources or n.get("source_file") not in evict_sources)
-                ]
+                if changed_paths is None:
+                    preserved_nodes = [
+                        n for n in existing.get("nodes", [])
+                        if n["id"] not in new_ast_ids and n.get("file_type") != "code"
+                    ]
+                else:
+                    preserved_nodes = [
+                        n for n in existing.get("nodes", [])
+                        if n["id"] not in new_ast_ids
+                        and n.get("source_file") not in evict_sources
+                    ]
                 all_ids = new_ast_ids | {n["id"] for n in preserved_nodes}
                 preserved_edges = [
                     e for e in existing.get("links", existing.get("edges", []))
@@ -345,7 +353,13 @@ def _rebuild_code(
         (out / ".graphify_root").write_text(str(watch_root), encoding="utf-8")
         _save_community_labels(out, labels)
 
-        json_written = to_json(G, communities, str(out / "graph.json"), force=force, built_at_commit=commit)
+        json_written = to_json(
+            G,
+            communities,
+            str(out / "graph.json"),
+            force=force or existing_graph.exists(),
+            built_at_commit=commit,
+        )
         if not json_written:
             return False
 

@@ -185,6 +185,28 @@ def test_rebuild_code_changed_paths_keep_project_relative_sources(tmp_path, monk
     assert "app.py" not in {n.get("source_file") for n in graph["nodes"]}
 
 
+def test_rebuild_code_full_rebuild_drops_deleted_code_nodes(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GRAPHIFY_LOCK_DIR", str(tmp_path / "locks"))
+    (tmp_path / "app.py").write_text("def keep_func():\n    return 1\n", encoding="utf-8")
+    stale = tmp_path / "stale.py"
+    stale.write_text("def stale_func():\n    return 2\n", encoding="utf-8")
+
+    assert _rebuild_code(Path("."), block_on_lock=True) is True
+    stale.unlink()
+
+    assert _rebuild_code(Path("."), block_on_lock=True) is True
+
+    graph = json.loads((tmp_path / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
+    labels = {n.get("label") for n in graph["nodes"]}
+    source_files = {n.get("source_file") for n in graph["nodes"]}
+    assert "keep_func()" in labels
+    assert "stale_func()" not in labels
+    assert "stale.py" not in source_files
+
+
 def test_watch_raises_without_watchdog(tmp_path, monkeypatch):
     import builtins
     real_import = builtins.__import__
