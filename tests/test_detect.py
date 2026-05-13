@@ -67,6 +67,31 @@ def test_detect_skips_sensitive_parent_directories(tmp_path):
     assert any("secrets" in f for f in result["skipped_sensitive"])
 
 
+def test_detect_skips_underscore_delimited_secret_names(tmp_path):
+    (tmp_path / "app.py").write_text("print('safe')\n")
+    (tmp_path / "api_token.py").write_text("TOKEN = 'do-not-read'\n")
+    (tmp_path / "aws_secret_key.yaml").write_text("secret: do-not-read\n")
+
+    result = detect(tmp_path)
+
+    code_files = result["files"]["code"]
+    doc_files = result["files"]["document"]
+    scanned = code_files + doc_files
+    assert any("app.py" in f for f in code_files)
+    assert not any("api_token.py" in f for f in scanned)
+    assert not any("aws_secret_key.yaml" in f for f in scanned)
+    assert any("api_token.py" in f for f in result["skipped_sensitive"])
+    assert any("aws_secret_key.yaml" in f for f in result["skipped_sensitive"])
+
+
+def test_detect_does_not_skip_secret_substrings_without_delimiters(tmp_path):
+    (tmp_path / "tokenizer.py").write_text("def tokenize():\n    return []\n")
+
+    result = detect(tmp_path)
+
+    assert any("tokenizer.py" in f for f in result["files"]["code"])
+
+
 def test_detect_skips_configured_graphify_output_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("GRAPHIFY_OUT", "graphify-out-feature")
     (tmp_path / "src.py").write_text("x = 1")

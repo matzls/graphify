@@ -36,10 +36,17 @@ CORPUS_UPPER_THRESHOLD = 500_000  # words - above this, warn about token cost
 FILE_COUNT_UPPER = 200             # files - above this, warn about token cost
 
 # Files that may contain secrets - skip silently
+_SECRET_BOUNDARY = r'(^|[\\/._-])'
+_SECRET_END = r'(?=$|[\\/._-])'
 _SENSITIVE_PATTERNS = [
     re.compile(r'(^|[\\/])\.(env|envrc)(\.|$)', re.IGNORECASE),
     re.compile(r'\.(pem|key|p12|pfx|cert|crt|der|p8)$', re.IGNORECASE),
-    re.compile(r'\b(credential|secret|passwd|password|token|private_key)s?\b', re.IGNORECASE),
+    re.compile(
+        _SECRET_BOUNDARY
+        + r'(credential|secret|passwd|password|token|private_key|secret_key)s?'
+        + _SECRET_END,
+        re.IGNORECASE,
+    ),
     re.compile(r'(id_rsa|id_dsa|id_ecdsa|id_ed25519)(\.pub)?$'),
     re.compile(r'(\.netrc|\.pgpass|\.htpasswd)$', re.IGNORECASE),
     re.compile(r'(aws_credentials|gcloud_credentials|service.account)', re.IGNORECASE),

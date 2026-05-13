@@ -64,7 +64,7 @@ def test_install_supports_git_worktree(tmp_path):
     assert "post-commit" in result
 
 
-def test_install_ignores_external_core_hooks_path(tmp_path):
+def test_install_rejects_external_core_hooks_path(tmp_path):
     repo = _make_git_repo(tmp_path / "repo")
     external_hooks = tmp_path / "external-hooks"
     external_hooks.mkdir()
@@ -74,12 +74,12 @@ def test_install_ignores_external_core_hooks_path(tmp_path):
         capture_output=True,
     )
 
-    install(repo)
+    with pytest.raises(RuntimeError, match="Refusing to install Graphify hooks into external core\\.hooksPath"):
+        install(repo)
 
     assert not (external_hooks / "post-commit").exists()
     hook = repo / ".git" / "hooks" / "post-commit"
-    assert hook.exists()
-    assert _HOOK_MARKER in hook.read_text()
+    assert not hook.exists()
 
 
 def test_install_respects_safe_relative_core_hooks_path(tmp_path):

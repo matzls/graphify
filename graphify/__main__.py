@@ -2748,6 +2748,7 @@ def main() -> None:
             doc_files = [Path(p) for p in new_by_type.get("document", [])]
             paper_files = [Path(p) for p in new_by_type.get("paper", [])]
             image_files = [Path(p) for p in new_by_type.get("image", [])]
+            video_files = [Path(p) for p in new_by_type.get("video", [])]
             deleted_files = list(detection.get("deleted_files", []))
             unchanged_total = sum(len(v) for v in detection.get("unchanged_files", {}).values())
         else:
@@ -2755,21 +2756,34 @@ def main() -> None:
             doc_files = [Path(p) for p in files_by_type.get("document", [])]
             paper_files = [Path(p) for p in files_by_type.get("paper", [])]
             image_files = [Path(p) for p in files_by_type.get("image", [])]
+            video_files = [Path(p) for p in files_by_type.get("video", [])]
             deleted_files = []
             unchanged_total = 0
 
+        transcript_files: list[Path] = []
+        if video_files:
+            from graphify.transcribe import transcribe_all as _transcribe_all
+            print(f"[graphify extract] transcribing {len(video_files)} video/audio files...")
+            transcript_paths = _transcribe_all(
+                [str(p) for p in video_files],
+                output_dir=graphify_out / "transcripts",
+            )
+            transcript_files = [Path(p) for p in transcript_paths]
+
         semantic_files = doc_files + paper_files + image_files
+        semantic_files.extend(transcript_files)
         if incremental_mode:
             print(
                 f"[graphify extract] {len(code_files)} code, {len(doc_files)} docs, "
-                f"{len(paper_files)} papers, {len(image_files)} images changed; "
+                f"{len(paper_files)} papers, {len(image_files)} images, "
+                f"{len(video_files)} videos changed; "
                 f"{unchanged_total} unchanged; {len(deleted_files)} deleted"
             )
         else:
             print(
                 f"[graphify extract] found {len(code_files)} code, "
                 f"{len(doc_files)} docs, {len(paper_files)} papers, "
-                f"{len(image_files)} images"
+                f"{len(image_files)} images, {len(video_files)} videos"
             )
 
         # AST extraction on code files. Empty code list (docs-only corpus) is

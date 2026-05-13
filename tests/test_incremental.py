@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -76,6 +77,54 @@ def test_code_only_extract_does_not_require_llm_key(tmp_path):
     assert (src / "graphify-out" / "graph.json").exists()
     assert (src / "graphify-out" / "GRAPH_REPORT.md").exists()
     assert (src / "graphify-out" / ".graphify_labels.json").exists()
+
+
+def test_extract_transcribes_video_files_for_semantic_extraction(tmp_path, monkeypatch):
+    from graphify.__main__ import main
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    video = corpus / "lecture.mp4"
+    video.write_bytes(b"fake video")
+    transcript = corpus / "graphify-out" / "transcripts" / "lecture.txt"
+    calls: dict[str, object] = {}
+
+    def fake_transcribe_all(video_files, output_dir=None, initial_prompt=None):
+        calls["video_files"] = video_files
+        calls["output_dir"] = output_dir
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        transcript.write_text("Transcript content.", encoding="utf-8")
+        return [str(transcript)]
+
+    def fake_extract_corpus_parallel(paths, **kwargs):
+        calls["semantic_paths"] = [str(p) for p in paths]
+        return {
+            "nodes": [
+                {
+                    "id": "lecture_transcript",
+                    "label": "Lecture Transcript",
+                    "file_type": "document",
+                    "source_file": str(transcript),
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 10,
+            "output_tokens": 5,
+        }
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["graphify", "extract", str(corpus), "--backend", "gemini"])
+
+    with patch("graphify.transcribe.transcribe_all", side_effect=fake_transcribe_all), \
+         patch("graphify.llm.extract_corpus_parallel", side_effect=fake_extract_corpus_parallel):
+        main()
+
+    assert calls["video_files"] == [str(video)]
+    assert calls["output_dir"] == corpus / "graphify-out" / "transcripts"
+    assert calls["semantic_paths"] == [str(transcript)]
+    assert (corpus / "graphify-out" / "graph.json").exists()
 
 
 def test_incremental_extract_prunes_changed_code_source(tmp_path):
