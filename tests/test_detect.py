@@ -67,6 +67,22 @@ def test_detect_skips_sensitive_parent_directories(tmp_path):
     assert any("secrets" in f for f in result["skipped_sensitive"])
 
 
+def test_detect_skips_configured_graphify_output_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("GRAPHIFY_OUT", "graphify-out-feature")
+    (tmp_path / "src.py").write_text("x = 1")
+    out = tmp_path / "graphify-out-feature"
+    out.mkdir()
+    (out / "derived.py").write_text("y = 2")
+    (out / "GRAPH_REPORT.md").write_text("# derived")
+
+    result = detect(tmp_path)
+
+    code_files = result["files"]["code"]
+    doc_files = result["files"]["document"]
+    assert any(f.endswith("src.py") for f in code_files)
+    assert not any("graphify-out-feature" in f for f in code_files + doc_files)
+
+
 def test_classify_md_paper_by_signals(tmp_path):
     """A .md file with enough paper signals should classify as PAPER."""
     paper = tmp_path / "paper.md"

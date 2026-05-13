@@ -145,6 +145,30 @@ def test_rebuild_code_smoke_generates_outputs(tmp_path, monkeypatch):
     assert (tmp_path / "graphify-out" / "GRAPH_REPORT.md").exists()
 
 
+def test_rebuild_code_changed_paths_keep_project_relative_sources(tmp_path, monkeypatch):
+    import json
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GRAPHIFY_LOCK_DIR", str(tmp_path / "locks"))
+    src = tmp_path / "src"
+    src.mkdir()
+    app = src / "app.py"
+    helper = src / "helper.py"
+    app.write_text("from helper import helper\n\ndef run():\n    return helper()\n", encoding="utf-8")
+    helper.write_text("def helper():\n    return 1\n", encoding="utf-8")
+
+    assert _rebuild_code(Path("."), block_on_lock=True) is True
+    app.write_text("from helper import helper\n\ndef run():\n    return helper() + 1\n", encoding="utf-8")
+
+    assert _rebuild_code(Path("."), changed_paths=[Path("src/app.py")], block_on_lock=True) is True
+
+    graph = json.loads((tmp_path / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
+    app_nodes = [n for n in graph["nodes"] if n.get("label") == "app.py"]
+    assert app_nodes
+    assert {n.get("source_file") for n in app_nodes} == {"src/app.py"}
+    assert "app.py" not in {n.get("source_file") for n in graph["nodes"]}
+
+
 def test_watch_raises_without_watchdog(tmp_path, monkeypatch):
     import builtins
     real_import = builtins.__import__

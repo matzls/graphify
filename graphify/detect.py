@@ -379,9 +379,17 @@ _SKIP_FILES = {
     "composer.lock", "go.sum", "go.work.sum",
 }
 
-def _is_noise_dir(part: str) -> bool:
+def _configured_graphify_out(root: Path) -> Path:
+    raw = os.environ.get("GRAPHIFY_OUT", "graphify-out")
+    out = Path(raw).expanduser()
+    if not out.is_absolute():
+        out = root / out
+    return out.resolve()
+
+
+def _is_noise_dir(part: str, extra_skip_dirs: set[str] | None = None) -> bool:
     """Return True if this directory name looks like a venv, cache, or dep dir."""
-    if part in _SKIP_DIRS:
+    if part in _SKIP_DIRS or (extra_skip_dirs and part in extra_skip_dirs):
         return True
     # Catch *_venv, *_repo/site-packages patterns
     if part.endswith("_venv") or part.endswith("_env"):
@@ -646,9 +654,11 @@ def detect(root: Path, *, follow_symlinks: bool = False, google_workspace: bool 
     skipped_sensitive: list[str] = []
     ignore_patterns = _load_graphifyignore(root)
     include_patterns = _load_graphifyinclude(root)
+    graphify_out = _configured_graphify_out(root)
+    graphify_out_names = {graphify_out.name}
 
     # Always include graphify-out/memory/ - query results filed back into the graph
-    memory_dir = root / "graphify-out" / "memory"
+    memory_dir = graphify_out / "memory"
     scan_paths = [root]
     if memory_dir.exists():
         scan_paths.append(memory_dir)
@@ -676,7 +686,7 @@ def detect(root: Path, *, follow_symlinks: bool = False, google_workspace: bool 
                 dirnames[:] = [
                     d for d in dirnames
                     if (not d.startswith(".") or _could_contain_included_path(dp / d, root, include_patterns))
-                    and not _is_noise_dir(d)
+                    and not _is_noise_dir(d, graphify_out_names)
                     and (has_negation or not _is_ignored(dp / d, root, ignore_patterns))
                 ]
             for fname in filenames:
@@ -687,7 +697,7 @@ def detect(root: Path, *, follow_symlinks: bool = False, google_workspace: bool 
                     seen.add(p)
                     all_files.append(p)
 
-    converted_dir = root / "graphify-out" / "converted"
+    converted_dir = graphify_out / "converted"
 
     for p in all_files:
         # For memory dir files, skip hidden/noise filtering

@@ -275,6 +275,7 @@ def _rebuild_code(
         result = extract(
             extract_targets,
             cache_root=watch_root,
+            root=project_root,
         ) if extract_targets else {
             "nodes": [], "edges": [], "hyperedges": [],
             "input_tokens": 0, "output_tokens": 0,
