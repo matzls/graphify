@@ -224,6 +224,49 @@ def test_incremental_extract_uses_project_root_for_subset_ast(tmp_path):
     assert "new_func()" in {n.get("label") for n in graph["nodes"]}
 
 
+def test_incremental_extract_preserves_cross_file_calls_to_unchanged_code(tmp_path):
+    src = tmp_path / "src"
+    src.mkdir()
+    helper = src / "helper.py"
+    app = src / "app.py"
+    helper.write_text("def helper():\n    return 1\n", encoding="utf-8")
+    app.write_text(
+        "from helper import helper\n\n"
+        "def run():\n"
+        "    return helper()\n",
+        encoding="utf-8",
+    )
+    env = {
+        k: v for k, v in os.environ.items()
+        if not k.endswith("_API_KEY") and k not in {"GEMINI_API_KEY", "GOOGLE_API_KEY"}
+    }
+    first = _run(["extract", str(src)], tmp_path, env=env)
+    assert first.returncode == 0, first.stderr
+
+    app.write_text(
+        "from helper import helper\n\n"
+        "def run():\n"
+        "    value = helper()\n"
+        "    return value\n",
+        encoding="utf-8",
+    )
+    second = _run(["extract", str(src)], tmp_path, env=env)
+    assert second.returncode == 0, second.stderr
+
+    graph = json.loads((src / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
+    nodes_by_label = {n.get("label"): n.get("id") for n in graph["nodes"]}
+    run_id = nodes_by_label.get("run()")
+    helper_id = nodes_by_label.get("helper()")
+    assert run_id
+    assert helper_id
+    assert any(
+        edge.get("source") == run_id
+        and edge.get("target") == helper_id
+        and edge.get("relation") == "calls"
+        for edge in graph.get("links", graph.get("edges", []))
+    )
+
+
 def test_incremental_extract_prunes_changed_transcript_sources(tmp_path, monkeypatch):
     from graphify.__main__ import main
 

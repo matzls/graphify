@@ -223,6 +223,47 @@ def test_build_merge_preserves_existing_hyperedges(tmp_path):
     ]
 
 
+def test_build_rewrites_hyperedge_nodes_after_dedup():
+    G = build([{
+        "nodes": [
+            {"id": "auth_flow_c1", "label": "Auth Flow", "source_file": "a.md"},
+            {"id": "auth_flow", "label": "Auth Flow", "source_file": "b.md"},
+            {"id": "entrypoint", "label": "Entrypoint", "source_file": "c.md"},
+        ],
+        "edges": [],
+        "hyperedges": [
+            {"id": "h1", "nodes": ["auth_flow_c1", "entrypoint"], "relation": "topic_cluster"},
+        ],
+    }])
+
+    assert "auth_flow_c1" not in G.nodes
+    assert G.graph.get("hyperedges") == [
+        {"id": "h1", "nodes": ["auth_flow", "entrypoint"], "relation": "topic_cluster"},
+    ]
+
+
+def test_build_merge_prunes_hyperedges_with_removed_nodes(tmp_path):
+    graph_path = tmp_path / "graph.json"
+    graph_path.write_text(json.dumps({
+        "nodes": [
+            {"id": "stale", "label": "Stale", "source_file": "changed.md"},
+            {"id": "keep", "label": "Keep", "source_file": "keep.md"},
+        ],
+        "links": [{"source": "stale", "target": "keep", "relation": "mentions"}],
+        "hyperedges": [
+            {"id": "stale_group", "nodes": ["stale", "keep"], "relation": "topic_cluster"},
+            {"id": "keep_group", "nodes": ["keep"], "relation": "topic_cluster"},
+        ],
+    }), encoding="utf-8")
+
+    G = build_merge([], graph_path, prune_sources=["changed.md"], dedup=False)
+
+    assert "stale" not in G.nodes
+    assert G.graph.get("hyperedges") == [
+        {"id": "keep_group", "nodes": ["keep"], "relation": "topic_cluster"},
+    ]
+
+
 # Regression tests for #796 — edge_data / edge_datas helpers must tolerate
 # MultiGraph and MultiDiGraph, which networkx's node_link_graph() produces
 # whenever the loaded JSON has multigraph: true. Plain G.edges[u, v] crashes

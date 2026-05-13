@@ -71,6 +71,62 @@ def edge_datas(G: nx.Graph, u: str, v: str) -> list[dict]:
     return [raw]
 
 
+def _rewrite_hyperedge_nodes(
+    hyperedges: list,
+    remap: dict[str, str],
+    *,
+    valid_ids: set[str] | None = None,
+) -> list:
+    """Rewrite hyperedge node references after node deduplication."""
+    if not hyperedges:
+        return hyperedges
+
+    rewritten = []
+    for hyperedge in hyperedges:
+        if not isinstance(hyperedge, dict):
+            rewritten.append(hyperedge)
+            continue
+        raw_nodes = hyperedge.get("nodes")
+        if not isinstance(raw_nodes, list):
+            rewritten.append(hyperedge)
+            continue
+        seen = set()
+        nodes = []
+        for node_id in raw_nodes:
+            mapped = remap.get(node_id, node_id)
+            if valid_ids is not None and mapped not in valid_ids:
+                continue
+            if mapped in seen:
+                continue
+            seen.add(mapped)
+            nodes.append(mapped)
+        item = dict(hyperedge)
+        item["nodes"] = nodes
+        rewritten.append(item)
+    return rewritten
+
+
+def _filter_hyperedges_for_valid_nodes(
+    hyperedges: list,
+    valid_ids: set[str],
+    *,
+    prune_sources: set[str] | None = None,
+) -> list:
+    """Drop hyperedges that point at removed nodes or pruned source files."""
+    filtered = []
+    for hyperedge in hyperedges:
+        if not isinstance(hyperedge, dict):
+            filtered.append(hyperedge)
+            continue
+        if prune_sources and hyperedge.get("source_file") in prune_sources:
+            continue
+        nodes = hyperedge.get("nodes")
+        if isinstance(nodes, list) and any(node_id not in valid_ids for node_id in nodes):
+            continue
+        filtered.append(hyperedge)
+    return filtered
+
+
 def build_from_json(extraction: dict, *, directed: bool = False) -> nx.Graph:
     """Build a NetworkX graph from an extraction dict.
 
@@ -179,9 +235,16 @@ def build(
         combined["input_tokens"] += ext.get("input_tokens", 0)
         combined["output_tokens"] += ext.get("output_tokens", 0)
     if dedup and combined["nodes"]:
-        combined["nodes"], combined["edges"] = deduplicate_entities(
+        combined["nodes"], combined["edges"], remap = deduplicate_entities(
             combined["nodes"], combined["edges"], communities={},
             dedup_llm_backend=dedup_llm_backend,
+            return_remap=True,
+        )
+        valid_ids = {n.get("id") for n in combined["nodes"] if n.get("id")}
+        combined["hyperedges"] = _rewrite_hyperedge_nodes(
+            combined["hyperedges"],
+            remap,
+            valid_ids=valid_ids,
         )
     return build_from_json(combined, directed=directed)
 
@@ -277,6 +340,12 @@ def build_merge(
                     e for e in existing_edges
                     if e.get("source") not in pruned_ids and e.get("target") not in pruned_ids
                 ]
+                valid_ids = {n.get("id") for n in existing_nodes if n.get("id")}
+                existing_hyperedges = _filter_hyperedges_for_valid_nodes(
+                    existing_hyperedges,
+                    valid_ids,
+                    prune_sources=set(prune_sources),
+                )
                 print(
                     f"[graphify] Pruned {len(pruned_ids)} existing node(s) "
                     f"from {len(prune_sources)} changed/deleted source file(s).",

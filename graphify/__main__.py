@@ -2801,14 +2801,17 @@ def main() -> None:
         # AST extraction on code files. Empty code list (docs-only corpus) is
         # the issue #698 case — skip cleanly instead of crashing inside extract().
         ast_result: dict = {"nodes": [], "edges": [], "input_tokens": 0, "output_tokens": 0}
-        if code_files:
+        ast_code_files = code_files
+        if incremental_mode and code_files:
+            ast_code_files = [Path(p) for p in files_by_type.get("code", [])]
+        if ast_code_files:
             from graphify.extract import extract as _ast_extract
             ast_kwargs: dict = {"cache_root": target, "root": target}
             if cli_max_workers is not None:
                 ast_kwargs["max_workers"] = cli_max_workers
-            print(f"[graphify extract] AST extraction on {len(code_files)} code files...")
+            print(f"[graphify extract] AST extraction on {len(ast_code_files)} code files...")
             try:
-                ast_result = _ast_extract(code_files, **ast_kwargs)
+                ast_result = _ast_extract(ast_code_files, **ast_kwargs)
             except Exception as exc:
                 print(f"[graphify extract] AST extraction failed: {exc}", file=sys.stderr)
                 ast_result = {"nodes": [], "edges": [], "input_tokens": 0, "output_tokens": 0}
@@ -2935,9 +2938,21 @@ def main() -> None:
             ]
             fresh_hyperedges = list(fresh.get("hyperedges", []))
             fresh_hyper_ids = {h.get("id") for h in fresh_hyperedges if isinstance(h, dict)}
+            fresh_ids = {n.get("id") for n in fresh.get("nodes", []) if isinstance(n, dict)}
+            valid_ids = fresh_ids | {n.get("id") for n in preserved_nodes if isinstance(n, dict)}
             preserved_hyperedges = [
                 h for h in existing_hyperedges
-                if not isinstance(h, dict) or h.get("id") not in fresh_hyper_ids
+                if (
+                    not isinstance(h, dict)
+                    or (
+                        h.get("id") not in fresh_hyper_ids
+                        and h.get("source_file") not in prune_set
+                        and (
+                            not isinstance(h.get("nodes"), list)
+                            or all(node_id in valid_ids for node_id in h.get("nodes", []))
+                        )
+                    )
+                )
             ]
             return {
                 "nodes": preserved_nodes + list(fresh.get("nodes", [])),
