@@ -184,6 +184,38 @@ def test_codex_install_does_not_write_claude_md(tmp_path):
     assert not (tmp_path / ".claude" / "CLAUDE.md").exists()
 
 
+def test_antigravity_install_adds_frontmatter_to_home_skill(tmp_path):
+    from graphify.__main__ import _antigravity_install
+
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(tmp_path)
+        with patch("graphify.__main__.Path.home", return_value=tmp_path):
+            _antigravity_install(tmp_path / "project")
+    finally:
+        os.chdir(old_cwd)
+
+    skill = tmp_path / ".agents" / "skills" / "graphify" / "SKILL.md"
+    assert skill.exists()
+    assert skill.read_text(encoding="utf-8").startswith("---\nname: graphify-manager\n")
+
+
+def test_antigravity_uninstall_removes_home_skill(tmp_path):
+    from graphify.__main__ import _antigravity_install, _antigravity_uninstall
+
+    project = tmp_path / "project"
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(tmp_path)
+        with patch("graphify.__main__.Path.home", return_value=tmp_path):
+            _antigravity_install(project)
+            _antigravity_uninstall(project)
+    finally:
+        os.chdir(old_cwd)
+
+    assert not (tmp_path / ".agents" / "skills" / "graphify" / "SKILL.md").exists()
+
+
 # --- always-on AGENTS.md install/uninstall tests ---
 
 def _agents_install(tmp_path, platform):

@@ -629,12 +629,14 @@ def _antigravity_install(project_dir: Path) -> None:
     install(platform="antigravity")
 
     # 1.5. Inject YAML frontmatter for native Antigravity tool discovery
-    skill_dst = _PLATFORM_CONFIG["antigravity"]["skill_dst"]
+    skill_dst = Path.home() / _PLATFORM_CONFIG["antigravity"]["skill_dst"]
     if skill_dst.exists():
         content = skill_dst.read_text(encoding="utf-8")
-        if not content.startswith("---\n"):
-            frontmatter = "---\nname: graphify-manager\ndescription: Rebuild the code graph or perform manual CLI queries when MCP server is offline.\n---\n\n"
-            skill_dst.write_text(frontmatter + content, encoding="utf-8")
+        frontmatter = "---\nname: graphify-manager\ndescription: Rebuild the code graph or perform manual CLI queries when MCP server is offline.\n---\n\n"
+        if content.startswith("---\n"):
+            _, sep, body = content[4:].partition("\n---\n")
+            content = body.lstrip() if sep else content
+        skill_dst.write_text(frontmatter + content, encoding="utf-8")
 
     # 2. Write .agents/rules/graphify.md
     rules_path = project_dir / _ANTIGRAVITY_RULES_PATH
@@ -692,7 +694,7 @@ def _antigravity_uninstall(project_dir: Path) -> None:
         print(f"graphify workflow removed from {wf_path.resolve()}")
 
     # Remove skill file
-    skill_dst = _PLATFORM_CONFIG["antigravity"]["skill_dst"]
+    skill_dst = Path.home() / _PLATFORM_CONFIG["antigravity"]["skill_dst"]
     if skill_dst.exists():
         skill_dst.unlink()
         print(f"graphify skill removed from {skill_dst}")

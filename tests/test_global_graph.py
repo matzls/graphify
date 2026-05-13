@@ -150,6 +150,41 @@ def test_global_add_two_repos_no_collision(tmp_path):
     assert G.number_of_nodes() == 2  # no silent merge
 
 
+def test_global_add_remaps_edges_to_deduplicated_external_nodes(tmp_path):
+    g1 = tmp_path / "graph1.json"
+    g2 = tmp_path / "graph2.json"
+    G1 = _make_graph(
+        [
+            {"id": "service_a", "label": "ServiceA", "source_file": "src/a.py"},
+            {"id": "requests", "label": "requests"},
+        ],
+        [{"source": "service_a", "target": "requests", "relation": "imports"}],
+    )
+    G2 = _make_graph(
+        [
+            {"id": "service_b", "label": "ServiceB", "source_file": "src/b.py"},
+            {"id": "requests", "label": "requests"},
+        ],
+        [{"source": "service_b", "target": "requests", "relation": "imports"}],
+    )
+    _graph_to_json(G1, g1)
+    _graph_to_json(G2, g2)
+
+    global_dir = tmp_path / ".graphify"
+    with patch("graphify.global_graph._GLOBAL_DIR", global_dir), \
+         patch("graphify.global_graph._GLOBAL_GRAPH", global_dir / "global-graph.json"), \
+         patch("graphify.global_graph._GLOBAL_MANIFEST", global_dir / "global-manifest.json"):
+        from graphify.global_graph import global_add, _load_global_graph
+        global_add(g1, "repoA")
+        global_add(g2, "repoB")
+        G = _load_global_graph()
+
+    assert "repoA::requests" in G.nodes
+    assert "repoB::requests" not in G.nodes
+    assert G.has_edge("repoA::service_a", "repoA::requests")
+    assert G.has_edge("repoB::service_b", "repoA::requests")
+
+
 def test_global_remove(tmp_path):
     src_graph = tmp_path / "graph.json"
     G = _make_graph([{"id": "userservice", "label": "UserService", "source_file": "src/user.py"}])
