@@ -264,6 +264,7 @@ def build_merge(
         links_key = "links" if "links" in data else "edges"
         existing_nodes = list(data.get("nodes", []))
         existing_edges = list(data.get(links_key, []))
+        existing_hyperedges = list(data.get("hyperedges", []))
         if prune_sources:
             pruned_ids = {
                 n.get("id")
@@ -287,7 +288,7 @@ def build_merge(
                     f"had no matching existing nodes in graph.",
                     file=sys.stderr,
                 )
-        base = [{"nodes": existing_nodes, "edges": existing_edges}]
+        base = [{"nodes": existing_nodes, "edges": existing_edges, "hyperedges": existing_hyperedges}]
     else:
         existing_nodes = []
         base = []

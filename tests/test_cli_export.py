@@ -70,6 +70,25 @@ def test_export_html_creates_file(tmp_path):
     assert html.stat().st_size > 0
 
 
+def test_export_html_loads_no_cluster_edges_key(tmp_path):
+    out = tmp_path / "graphify-out"
+    out.mkdir()
+    (out / "graph.json").write_text(json.dumps({
+        "nodes": [
+            {"id": "a", "label": "A"},
+            {"id": "b", "label": "B"},
+        ],
+        "edges": [
+            {"source": "a", "target": "b", "relation": "relates"},
+        ],
+    }), encoding="utf-8")
+
+    r = _run(["export", "graphml"], tmp_path)
+
+    assert r.returncode == 0, r.stderr
+    assert (out / "graph.graphml").exists()
+
+
 def test_export_html_no_viz_removes_file(tmp_path):
     out = _make_graph(tmp_path)
     (out / "graph.html").write_text("<html/>")

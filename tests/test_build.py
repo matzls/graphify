@@ -199,6 +199,30 @@ def test_build_merge_preserves_call_edge_direction(tmp_path):
     )
 
 
+def test_build_merge_preserves_existing_hyperedges(tmp_path):
+    graph_path = tmp_path / "graph.json"
+    graph_path.write_text(json.dumps({
+        "nodes": [
+            {"id": "a", "label": "A", "source_file": "a.md"},
+            {"id": "b", "label": "B", "source_file": "b.md"},
+        ],
+        "links": [{"source": "a", "target": "b", "relation": "mentions"}],
+        "hyperedges": [
+            {"id": "h1", "nodes": ["a", "b"], "relation": "topic_cluster"},
+        ],
+    }), encoding="utf-8")
+
+    G = build_merge(
+        [{"nodes": [{"id": "c", "label": "C", "source_file": "c.py"}], "edges": []}],
+        graph_path,
+        dedup=False,
+    )
+
+    assert G.graph.get("hyperedges") == [
+        {"id": "h1", "nodes": ["a", "b"], "relation": "topic_cluster"},
+    ]
+
+
 # Regression tests for #796 — edge_data / edge_datas helpers must tolerate
 # MultiGraph and MultiDiGraph, which networkx's node_link_graph() produces
 # whenever the loaded JSON has multigraph: true. Plain G.edges[u, v] crashes
