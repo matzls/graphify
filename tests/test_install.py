@@ -179,6 +179,17 @@ def test_claude_install_registers_claude_md(tmp_path):
     assert (tmp_path / ".claude" / "CLAUDE.md").exists()
 
 
+def test_claude_install_repairs_hook_when_section_exists(tmp_path):
+    from graphify.__main__ import claude_install
+
+    (tmp_path / "CLAUDE.md").write_text("## graphify\n\nExisting guidance.\n", encoding="utf-8")
+
+    claude_install(tmp_path)
+
+    settings = json.loads((tmp_path / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    assert any("graphify" in str(h) for h in settings.get("hooks", {}).get("PreToolUse", []))
+
+
 def test_codex_install_does_not_write_claude_md(tmp_path):
     _install(tmp_path, "codex")
     assert not (tmp_path / ".claude" / "CLAUDE.md").exists()
@@ -725,6 +736,20 @@ def test_gemini_uninstall_removes_hook(tmp_path):
         settings = _json.loads(settings_path.read_text())
         hooks = settings.get("hooks", {}).get("BeforeTool", [])
         assert not any("graphify" in str(h) for h in hooks)
+
+def test_gemini_uninstall_removes_hook_without_gemini_md(tmp_path):
+    import json as _json
+    from graphify.__main__ import gemini_install, gemini_uninstall
+
+    gemini_install(tmp_path)
+    (tmp_path / "GEMINI.md").unlink()
+
+    gemini_uninstall(tmp_path)
+
+    settings = _json.loads((tmp_path / ".gemini" / "settings.json").read_text())
+    hooks = settings.get("hooks", {}).get("BeforeTool", [])
+    assert not any("graphify" in str(h) for h in hooks)
+
 
 def test_gemini_uninstall_noop_if_not_installed(tmp_path):
     from graphify.__main__ import gemini_uninstall

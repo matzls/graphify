@@ -433,10 +433,12 @@ def gemini_uninstall(project_dir: Path | None = None) -> None:
     target = (project_dir or Path(".")) / "GEMINI.md"
     if not target.exists():
         print("No GEMINI.md found in current directory - nothing to do")
+        _uninstall_gemini_hook(project_dir or Path("."))
         return
     content = target.read_text(encoding="utf-8")
     if _GEMINI_MD_MARKER not in content:
         print("graphify section not found in GEMINI.md - nothing to do")
+        _uninstall_gemini_hook(project_dir or Path("."))
         return
     cleaned = re.sub(r"\n*## graphify\n.*?(?=\n## |\Z)", "", content, flags=re.DOTALL).rstrip()
     if cleaned:
@@ -1179,6 +1181,10 @@ def claude_install(project_dir: Path | None = None) -> None:
         content = target.read_text(encoding="utf-8")
         if _CLAUDE_MD_MARKER in content:
             print("graphify already configured in CLAUDE.md")
+            _install_claude_hook(project_dir or Path("."))
+            print()
+            print("Claude Code will now check the knowledge graph before answering")
+            print("codebase questions and rebuild it after code changes.")
             return
         new_content = content.rstrip() + "\n\n" + _CLAUDE_MD_SECTION
     else:
