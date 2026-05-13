@@ -115,6 +115,35 @@ def test_export_wiki_creates_articles(tmp_path):
     assert (wiki / "index.md").exists()
 
 
+def test_export_wiki_uses_analysis_next_to_explicit_graph(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    graph_out = _make_graph(project)
+    other_cwd = tmp_path / "other"
+    other_cwd.mkdir()
+
+    r = _run(["export", "wiki", "--graph", str(graph_out / "graph.json")], other_cwd)
+
+    assert r.returncode == 0, r.stderr
+    assert (graph_out / "wiki" / "index.md").exists()
+    assert not (other_cwd / "graphify-out" / "wiki").exists()
+
+
+def test_cluster_only_writes_next_to_explicit_graph(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    graph_out = _make_graph(project)
+    other_cwd = tmp_path / "other"
+    other_cwd.mkdir()
+
+    r = _run(["cluster-only", "--graph", str(graph_out / "graph.json"), "--no-viz"], other_cwd)
+
+    assert r.returncode == 0, r.stderr
+    assert (graph_out / "GRAPH_REPORT.md").exists()
+    assert (graph_out / ".graphify_labels.json").exists()
+    assert not (other_cwd / "graphify-out").exists()
+
+
 # ── graphify export graphml ──────────────────────────────────────────────────
 
 def test_export_graphml_creates_file(tmp_path):

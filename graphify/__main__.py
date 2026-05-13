@@ -4,19 +4,67 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import sys
+import urllib.parse
 from pathlib import Path
 
 try:
+    from importlib.metadata import distribution as _pkg_distribution
     from importlib.metadata import version as _pkg_version
     __version__ = _pkg_version("graphifyy")
 except Exception:
+    _pkg_distribution = None
     __version__ = "unknown"
 
 # Output directory — override with GRAPHIFY_OUT env var for worktrees or shared-output setups.
 # Accepts a relative name ("graphify-out-feature") or an absolute path ("/shared/graphify-out").
 _GRAPHIFY_OUT = os.environ.get("GRAPHIFY_OUT", "graphify-out")
+
+
+def _install_source() -> Path | str | None:
+    """Return the direct install source for graphifyy when package metadata records it."""
+    if _pkg_distribution is None:
+        return None
+    try:
+        dist = _pkg_distribution("graphifyy")
+        text = dist.read_text("direct_url.json") or "{}"
+        data = json.loads(text)
+    except Exception:
+        return None
+    url = data.get("url")
+    if not url:
+        return None
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "file":
+        return Path(urllib.parse.unquote(parsed.path)).resolve()
+    return url
+
+
+def _doctor(require_source: str | None = None) -> int:
+    """Print install diagnostics and return a process exit code."""
+    source = _install_source()
+    module_path = Path(__file__).resolve()
+    print(f"graphify version: {__version__}")
+    print(f"graphify module: {module_path}")
+    print(f"graphify install source: {source or '<unknown>'}")
+
+    if require_source:
+        expected = Path(require_source).expanduser().resolve()
+        module_under_expected = False
+        try:
+            module_path.relative_to(expected)
+            module_under_expected = True
+        except ValueError:
+            pass
+        if source != expected and not (source is None and module_under_expected):
+            print(
+                f"error: expected install source {expected}, got {source or '<unknown>'}",
+                file=sys.stderr,
+            )
+            return 1
+    return 0
 
 
 def _default_graph_path() -> str:
@@ -35,18 +83,6 @@ def _check_skill_version(skill_dst: Path) -> None:
     if installed != __version__:
         print(f"  warning: skill is from graphify {installed}, package is {__version__}. Run 'graphify install' to update.", file=sys.stderr)
 
-
-def _refresh_all_version_stamps() -> None:
-    """After a successful install, update .graphify_version in all other known skill dirs.
-
-    Prevents stale-version warnings from platforms that were installed previously
-    but not explicitly re-installed during this upgrade.
-    """
-    for cfg in _PLATFORM_CONFIG.values():
-        skill_dst = Path.home() / cfg["skill_dst"]
-        vf = skill_dst.parent / ".graphify_version"
-        if skill_dst.exists():
-            vf.write_text(__version__, encoding="utf-8")
 
 _SETTINGS_HOOK = {
     # Claude Code v2.1.117+ removed dedicated Grep/Glob tools; searches now go through Bash.
@@ -214,11 +250,7 @@ def install(platform: str = "claude") -> None:
             print(f"  CLAUDE.md        ->  created at {claude_md}")
 
     if platform == "opencode":
-        _install_opencode_plugin(Path("."))
-
-    # Refresh version stamps in all other previously-installed skill dirs so
-    # stale-version warnings don't fire for platforms not explicitly re-installed.
-    _refresh_all_version_stamps()
+        _install_opencode_plugin(Path.home())
 
     print()
     print("Done. Open your AI coding assistant and type:")
@@ -254,13 +286,30 @@ _AGENTS_MD_SECTION = """\
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
-When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
-
 Rules:
-- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files, running grep/glob searches, or answering codebase questions. The graph is your primary map of the codebase.
-- IF graphify-out/wiki/index.md EXISTS, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- ALWAYS read `graphify-out/GRAPH_REPORT.md` before reading source files,
+  running grep/glob searches, or answering architecture/codebase questions.
+  The graph is your primary map of the codebase.
+- If `graphify-out/wiki/index.md` exists, navigate it before reading raw files.
+- For cross-module "how does X relate to Y" questions, prefer
+  `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or
+  `graphify explain "<concept>"` over grep. These traverse EXTRACTED and
+  INFERRED graph edges instead of only scanning file text.
+- This repo can use repo-local Graphify Git hooks. They refresh code graph
+  outputs after commits and branch switches. After commits, docs/media/image
+  changes write `graphify-out/needs_update`; they are not semantically
+  refreshed until `graphify . --update` runs.
+- For longer active coding sessions, consider running `graphify watch .` in a
+  separate terminal. It watches live file changes while the process is running:
+  code changes trigger a code-only graph rebuild, and non-code changes write
+  `graphify-out/needs_update`.
+- Do not assume `graphify watch .` is already running. Check before relying on
+  live graph freshness, and avoid starting duplicate watchers in the same repo.
+- If `graphify-out/needs_update` exists, run `graphify . --update` before
+  relying on docs/media/image relationships. This semantic update can spend LLM
+  tokens.
+- Treat Git hooks and `graphify watch .` as freshness helpers. When report
+  quality matters, prefer a full `graphify . --update`.
 """
 
 _AGENTS_MD_MARKER = "## graphify"
@@ -797,6 +846,21 @@ _CODEX_HOOK = {
     }
 }
 
+_CODEX_SESSION_START_MARKER = "# graphify-session-start-hook-start"
+_CODEX_SESSION_START_MARKER_END = "# graphify-session-start-hook-end"
+_CODEX_PRE_TOOL_USE_MARKER = "# graphify-pre-tool-use-hook-start"
+_CODEX_PRE_TOOL_USE_MARKER_END = "# graphify-pre-tool-use-hook-end"
+
+_CODEX_GRAPHIFY_OWNERSHIP_EVIDENCE = (
+    "graphify hook-check",
+    "graphify codex-session-start",
+    "codex-session-start",
+    _CODEX_SESSION_START_MARKER,
+    _CODEX_SESSION_START_MARKER_END,
+    _CODEX_PRE_TOOL_USE_MARKER,
+    _CODEX_PRE_TOOL_USE_MARKER_END,
+)
+
 
 def _resolve_graphify_exe() -> str:
     """Return the absolute path to the graphify executable.
@@ -818,52 +882,220 @@ def _resolve_graphify_exe() -> str:
     return "graphify"
 
 
-def _install_codex_hook(project_dir: Path) -> None:
-    """Add graphify PreToolUse hook to .codex/hooks.json."""
-    hooks_path = project_dir / ".codex" / "hooks.json"
-    hooks_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if hooks_path.exists():
-        try:
-            existing = json.loads(hooks_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            existing = {}
-    else:
-        existing = {}
-
-    graphify_exe = _resolve_graphify_exe()
-    hook_entry = {
-        "hooks": {
-            "PreToolUse": [
-                {
-                    "matcher": "Bash",
-                    "hooks": [{"type": "command", "command": f"{graphify_exe} hook-check"}],
-                }
-            ]
-        }
-    }
-
-    pre_tool = existing.setdefault("hooks", {}).setdefault("PreToolUse", [])
-    existing["hooks"]["PreToolUse"] = [h for h in pre_tool if "graphify" not in str(h)]
-    existing["hooks"]["PreToolUse"].extend(hook_entry["hooks"]["PreToolUse"])
-    hooks_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
-    print(f"  .codex/hooks.json  ->  PreToolUse hook registered ({graphify_exe} hook-check)")
+def _is_graphify_owned_hook(value: object) -> bool:
+    """Return true only when a hook contains strict Graphify ownership evidence."""
+    if isinstance(value, dict):
+        return any(_is_graphify_owned_hook(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_is_graphify_owned_hook(v) for v in value)
+    if not isinstance(value, str):
+        return False
+    return any(evidence in value for evidence in _CODEX_GRAPHIFY_OWNERSHIP_EVIDENCE)
 
 
-def _uninstall_codex_hook(project_dir: Path) -> None:
-    """Remove graphify PreToolUse hook from .codex/hooks.json."""
+def _is_empty_hook_config(value: object) -> bool:
+    """Return true when a decoded hooks.json object has no remaining hook entries."""
+    if value in ({}, [], None):
+        return True
+    if isinstance(value, dict):
+        return all(_is_empty_hook_config(v) for v in value.values())
+    if isinstance(value, list):
+        return all(_is_empty_hook_config(v) for v in value)
+    return False
+
+
+def _render_codex_session_start_block(graphify_exe: str, project_dir: Path) -> str:
+    command = f"{shlex.quote(graphify_exe)} codex-session-start {shlex.quote(str(project_dir.resolve()))}"
+    return "\n".join(
+        [
+            _CODEX_SESSION_START_MARKER,
+            "[[hooks.SessionStart]]",
+            "",
+            "[[hooks.SessionStart.hooks]]",
+            'type = "command"',
+            f"command = {json.dumps(command)}",
+            _CODEX_SESSION_START_MARKER_END,
+            "",
+        ]
+    )
+
+
+def _render_codex_pre_tool_use_block(graphify_exe: str) -> str:
+    command = f"{shlex.quote(graphify_exe)} hook-check"
+    return "\n".join(
+        [
+            _CODEX_PRE_TOOL_USE_MARKER,
+            "[[hooks.PreToolUse]]",
+            'matcher = "Bash"',
+            "",
+            "[[hooks.PreToolUse.hooks]]",
+            'type = "command"',
+            f"command = {json.dumps(command)}",
+            _CODEX_PRE_TOOL_USE_MARKER_END,
+            "",
+        ]
+    )
+
+
+def _remove_codex_marker_blocks(content: str, marker: str, marker_end: str) -> tuple[str, int]:
+    pattern = rf"\n?{re.escape(marker)}\n.*?{re.escape(marker_end)}\n?"
+    return re.subn(pattern, "\n", content, flags=re.DOTALL)
+
+
+def _remove_legacy_codex_toml_graphify_blocks(content: str) -> tuple[str, int]:
+    pattern = (
+        r"\n?# Graphify Hooks\n"
+        r"\[\[hooks\.PreToolUse\]\]\n"
+        r"matcher = \"Bash\"\n\n"
+        r"\[\[hooks\.PreToolUse\.hooks\]\]\n"
+        r"type = \"command\"\n"
+        r"command = \"[^\"]*graphify hook-check\"\n?"
+    )
+    return re.subn(pattern, "\n", content)
+
+
+def _write_codex_toml_hooks(project_dir: Path, graphify_exe: str) -> tuple[int, int]:
+    config_path = project_dir / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    content = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
+
+    content, removed_legacy_pre_tool = _remove_legacy_codex_toml_graphify_blocks(content)
+    content, removed_session = _remove_codex_marker_blocks(
+        content,
+        _CODEX_SESSION_START_MARKER,
+        _CODEX_SESSION_START_MARKER_END,
+    )
+    content, removed_pre_tool = _remove_codex_marker_blocks(
+        content,
+        _CODEX_PRE_TOOL_USE_MARKER,
+        _CODEX_PRE_TOOL_USE_MARKER_END,
+    )
+
+    blocks = [
+        _render_codex_session_start_block(graphify_exe, project_dir),
+        _render_codex_pre_tool_use_block(graphify_exe),
+    ]
+    prefix = content.rstrip()
+    updated = prefix + "\n\n" + "\n".join(blocks) if prefix else "\n".join(blocks)
+    config_path.write_text(updated.rstrip() + "\n", encoding="utf-8")
+    return removed_session, removed_pre_tool + removed_legacy_pre_tool
+
+
+def _clean_legacy_codex_hooks_json(project_dir: Path) -> tuple[int, int, bool, bool]:
     hooks_path = project_dir / ".codex" / "hooks.json"
     if not hooks_path.exists():
-        return
+        return 0, 0, False, False
     try:
         existing = json.loads(hooks_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return
-    pre_tool = existing.get("hooks", {}).get("PreToolUse", [])
-    filtered = [h for h in pre_tool if "graphify" not in str(h)]
-    existing["hooks"]["PreToolUse"] = filtered
+        print("  .codex/hooks.json  ->  manual review required (invalid JSON)")
+        return 0, 0, False, True
+
+    hooks = existing.get("hooks")
+    if not isinstance(hooks, dict):
+        return 0, 0, False, False
+
+    migrated = 0
+    preserved = 0
+    for event, entries in list(hooks.items()):
+        if not isinstance(entries, list):
+            continue
+        kept = []
+        for entry in entries:
+            if _is_graphify_owned_hook(entry):
+                migrated += 1
+            else:
+                kept.append(entry)
+                preserved += 1
+        if kept:
+            hooks[event] = kept
+        else:
+            hooks.pop(event, None)
+
+    if _is_empty_hook_config(existing):
+        hooks_path.unlink()
+        return migrated, preserved, True, False
+
     hooks_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
-    print(f"  .codex/hooks.json  ->  PreToolUse hook removed")
+    return migrated, preserved, False, False
+
+
+def _install_codex_hook(project_dir: Path) -> None:
+    """Add graphify Codex hooks for reminders and startup freshness checks."""
+    graphify_exe = _resolve_graphify_exe()
+    removed_session, removed_pre_tool = _write_codex_toml_hooks(project_dir, graphify_exe)
+    migrated, preserved, deleted, invalid = _clean_legacy_codex_hooks_json(project_dir)
+
+    deduped = max(0, removed_session - 1) + max(0, removed_pre_tool - 1)
+    print(f"  .codex/config.toml ->  Graphify hooks registered ({graphify_exe})")
+    if migrated or preserved or deleted or invalid:
+        print(
+            "  .codex/hooks.json  ->  "
+            f"migrated {migrated} Graphify hook(s), preserved {preserved} non-Graphify hook(s)"
+        )
+    if deduped:
+        print(f"  .codex/config.toml ->  deduped {deduped} Graphify hook block(s)")
+    if deleted:
+        print("  .codex/hooks.json  ->  deleted empty legacy file")
+
+
+def _install_git_hooks_if_possible(project_dir: Path) -> None:
+    """Install repo-local Git refresh hooks when running inside a Git repo."""
+    try:
+        from graphify.hooks import install as hook_install
+        result = hook_install(project_dir)
+    except RuntimeError as exc:
+        print(f"  Git hooks          ->  skipped ({exc})")
+        return
+    print("  Git hooks          ->  installed")
+    for line in result.splitlines():
+        print(f"    {line}")
+
+
+def _uninstall_git_hooks_if_possible(project_dir: Path) -> None:
+    """Remove repo-local Graphify Git hooks when running inside a Git repo."""
+    try:
+        from graphify.hooks import uninstall as hook_uninstall
+        result = hook_uninstall(project_dir)
+    except RuntimeError as exc:
+        print(f"  Git hooks          ->  skipped ({exc})")
+        return
+    print("  Git hooks          ->  removed")
+    for line in result.splitlines():
+        print(f"    {line}")
+
+
+def _uninstall_codex_hook(project_dir: Path) -> None:
+    """Remove graphify Codex hooks."""
+    migrated, preserved, deleted, invalid = _clean_legacy_codex_hooks_json(project_dir)
+    if migrated or preserved or deleted or invalid:
+        print(
+            "  .codex/hooks.json  ->  "
+            f"removed {migrated} Graphify hook(s), preserved {preserved} non-Graphify hook(s)"
+        )
+    if deleted:
+        print("  .codex/hooks.json  ->  deleted empty legacy file")
+
+    config_path = project_dir / ".codex" / "config.toml"
+    if not config_path.exists():
+        return
+    content = config_path.read_text(encoding="utf-8")
+    if _CODEX_SESSION_START_MARKER not in content and _CODEX_PRE_TOOL_USE_MARKER not in content:
+        return
+    updated, removed_session = _remove_codex_marker_blocks(
+        content,
+        _CODEX_SESSION_START_MARKER,
+        _CODEX_SESSION_START_MARKER_END,
+    )
+    updated, removed_pre_tool = _remove_codex_marker_blocks(
+        updated,
+        _CODEX_PRE_TOOL_USE_MARKER,
+        _CODEX_PRE_TOOL_USE_MARKER_END,
+    )
+    updated = updated.strip()
+    config_path.write_text((updated + "\n") if updated else "", encoding="utf-8")
+    removed = removed_session + removed_pre_tool
+    print(f"  .codex/config.toml ->  removed {removed} Graphify hook block(s)")
 
 
 def _agents_install(project_dir: Path, platform: str) -> None:
@@ -873,7 +1105,18 @@ def _agents_install(project_dir: Path, platform: str) -> None:
     if target.exists():
         content = target.read_text(encoding="utf-8")
         if _AGENTS_MD_MARKER in content:
-            print(f"graphify already configured in AGENTS.md")
+            updated, count = re.subn(
+                r"## graphify\n.*?(?=\n## |\Z)",
+                _AGENTS_MD_SECTION.rstrip(),
+                content,
+                count=1,
+                flags=re.DOTALL,
+            )
+            if count:
+                target.write_text(updated.rstrip() + "\n", encoding="utf-8")
+                print(f"graphify section updated in {target.resolve()}")
+            else:
+                print("graphify already configured in AGENTS.md")
         else:
             target.write_text(content.rstrip() + "\n\n" + _AGENTS_MD_SECTION, encoding="utf-8")
             print(f"graphify section written to {target.resolve()}")
@@ -883,6 +1126,7 @@ def _agents_install(project_dir: Path, platform: str) -> None:
 
     if platform == "codex":
         _install_codex_hook(project_dir or Path("."))
+        _install_git_hooks_if_possible(project_dir or Path("."))
     elif platform == "opencode":
         _install_opencode_plugin(project_dir or Path("."))
 
@@ -1119,7 +1363,7 @@ def main() -> None:
     # Skip during install/uninstall (hook writes trigger a fresh check anyway).
     # Skip during hook-check — it runs on every editor tool use and must be silent.
     # Deduplicate paths so platforms sharing the same install dir don't warn twice.
-    _silent_cmds = {"install", "uninstall", "hook-check"}
+    _silent_cmds = {"install", "uninstall", "hook-check", "codex-session-start"}
     if not any(arg in _silent_cmds for arg in sys.argv):
         for skill_dst in {Path.home() / cfg["skill_dst"] for cfg in _PLATFORM_CONFIG.values()}:
             _check_skill_version(skill_dst)
@@ -1132,6 +1376,8 @@ def main() -> None:
         print("Usage: graphify <command>")
         print()
         print("Commands:")
+        print("  doctor                  print install diagnostics")
+        print("    --require-source DIR   fail unless package was installed from DIR")
         print("  install [--platform P]  copy skill to platform config dir (claude|windows|codex|opencode|aider|claw|droid|trae|trae-cn|gemini|cursor|antigravity|hermes|kiro|pi)")
         print("  uninstall               remove graphify from all detected platforms in one shot")
         print("    --purge                 also delete graphify-out/ directory")
@@ -1168,6 +1414,7 @@ def main() -> None:
         print("    --nodes N1 N2 ...       source node labels cited in the answer")
         print("    --memory-dir DIR        memory directory (default: graphify-out/memory)")
         print("  check-update <path>     check needs_update flag and notify if semantic re-extraction is pending (cron-safe)")
+        print("  codex-session-start <path>  emit Codex SessionStart JSON for pending semantic refresh")
         print("  tree                    emit a D3 v7 collapsible-tree HTML for graph.json")
         print("    --graph PATH            path to graph.json (default graphify-out/graph.json)")
         print("    --output HTML           output path (default graphify-out/GRAPH_TREE.html)")
@@ -1203,8 +1450,8 @@ def main() -> None:
         print("  cursor uninstall        remove .cursor/rules/graphify.mdc")
         print("  claude install          write graphify section to CLAUDE.md + PreToolUse hook (Claude Code)")
         print("  claude uninstall        remove graphify section from CLAUDE.md + PreToolUse hook")
-        print("  codex install           write graphify section to AGENTS.md (Codex)")
-        print("  codex uninstall         remove graphify section from AGENTS.md")
+        print("  codex install           write AGENTS.md + Codex reminder + Git refresh hooks")
+        print("  codex uninstall         remove AGENTS.md section + Codex reminder + Git refresh hooks")
         print("  opencode install        write graphify section to AGENTS.md + tool.execute.before plugin (OpenCode)")
         print("  opencode uninstall      remove graphify section from AGENTS.md + plugin")
         print("  aider install           write graphify section to AGENTS.md (Aider)")
@@ -1233,6 +1480,19 @@ def main() -> None:
         return
 
     cmd = sys.argv[1]
+    if cmd == "doctor":
+        args = sys.argv[2:]
+        if any(a in {"-h", "--help", "-?"} for a in args):
+            print("Usage: graphify doctor [--require-source DIR]")
+            return
+        require_source = None
+        if "--require-source" in args:
+            idx = args.index("--require-source")
+            if idx + 1 >= len(args):
+                print("Usage: graphify doctor [--require-source DIR]", file=sys.stderr)
+                sys.exit(1)
+            require_source = args[idx + 1]
+        sys.exit(_doctor(require_source=require_source))
 
     # Universal help guard: -h/--help/-? anywhere after the command shows help
     # and stops — prevents flags from silently triggering destructive subcommands
@@ -1381,6 +1641,7 @@ def main() -> None:
             _agents_uninstall(Path("."), platform=cmd)
             if cmd == "codex":
                 _uninstall_codex_hook(Path("."))
+                _uninstall_git_hooks_if_possible(Path("."))
         else:
             print(f"Usage: graphify {cmd} [install|uninstall]", file=sys.stderr)
             sys.exit(1)
@@ -1696,7 +1957,8 @@ def main() -> None:
         cohesion = score_all(G, communities)
         gods = god_nodes(G)
         surprises = surprising_connections(G, communities)
-        out = watch_path / "graphify-out"
+        out = graph_json.parent if graph_override is not None else watch_path / "graphify-out"
+        out.mkdir(parents=True, exist_ok=True)
         labels_path = out / ".graphify_labels.json"
         if labels_path.exists():
             try:
@@ -1784,6 +2046,26 @@ def main() -> None:
             sys.exit(1)
         from graphify.watch import check_update
         check_update(Path(sys.argv[2]).resolve())
+        sys.exit(0)
+    elif cmd == "codex-session-start":
+        watch_path = Path(sys.argv[2]).resolve() if len(sys.argv) >= 3 else Path(".").resolve()
+        try:
+            from graphify.watch import codex_session_start_notice
+            additional_context = codex_session_start_notice(watch_path)
+            payload = {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": additional_context,
+                }
+            }
+        except Exception as exc:
+            payload = {
+                "hookSpecificOutput": {
+                    "hookEventName": "SessionStart",
+                    "additionalContext": f"Graphify startup check skipped: {exc}",
+                }
+            }
+        json.dump(payload, sys.stdout)
         sys.exit(0)
     elif cmd == "tree":
         # Emit a D3 v7 collapsible-tree HTML view of graph.json:
@@ -2075,6 +2357,7 @@ def main() -> None:
                 labels_path = graph_out_dir / ".graphify_labels.json"
             if not report_path_explicit:
                 report_path = graph_out_dir / "GRAPH_REPORT.md"
+            analysis_path = graph_out_dir / ".graphify_analysis.json"
         labels_path = labels_path.expanduser()
         report_path = report_path.expanduser()
 
@@ -2373,10 +2656,8 @@ def main() -> None:
         if cli_max_workers is not None:
             os.environ["GRAPHIFY_MAX_WORKERS"] = str(cli_max_workers)
 
-        # Backend resolution. If user did not pass --backend, sniff env.
-        # If backend was explicitly requested, validate its key is present
-        # and surface a clear error early — don't let extract_corpus_parallel
-        # raise mid-run after we've spent time on AST extraction.
+        # Backend resolution is deferred until there is uncached semantic work.
+        # Code-only extraction is AST-only and should not require an LLM key.
         from graphify.llm import (
             BACKENDS as _BACKENDS,
             detect_backend as _detect_backend,
@@ -2385,9 +2666,10 @@ def main() -> None:
             _format_backend_env_keys,
             _get_backend_api_key,
         )
-        if backend is None:
-            backend = _detect_backend()
-            if backend is None:
+
+        def _resolve_semantic_backend(requested_backend: str | None) -> str:
+            resolved = requested_backend or _detect_backend()
+            if resolved is None:
                 print(
                     "error: no LLM API key found. Set GEMINI_API_KEY or GOOGLE_API_KEY "
                     "(gemini), MOONSHOT_API_KEY (kimi), ANTHROPIC_API_KEY (claude), "
@@ -2395,39 +2677,40 @@ def main() -> None:
                     file=sys.stderr,
                 )
                 sys.exit(1)
-        if backend not in _BACKENDS:
-            print(
-                f"error: unknown backend '{backend}'. "
-                f"Available: {', '.join(sorted(_BACKENDS))}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        if not _get_backend_api_key(backend):
-            # Ollama on a loopback URL ignores auth entirely; don't block
-            # the run just because OLLAMA_API_KEY is unset (issue #792).
-            # extract_files_direct already prints a warning and substitutes
-            # a placeholder key in that case.
-            allow_no_key = False
-            if backend == "ollama":
-                from urllib.parse import urlparse
-                ollama_url = os.environ.get(
-                    "OLLAMA_BASE_URL",
-                    _BACKENDS["ollama"].get("base_url", ""),
-                )
-                try:
-                    host = (urlparse(ollama_url).hostname or "").lower()
-                except Exception:
-                    host = ""
-                allow_no_key = (
-                    host in ("localhost", "127.0.0.1", "::1")
-                    or host.startswith("127.")
-                )
-            if not allow_no_key:
+            if resolved not in _BACKENDS:
                 print(
-                    f"error: backend '{backend}' requires {_format_backend_env_keys(backend)} to be set.",
+                    f"error: unknown backend '{resolved}'. "
+                    f"Available: {', '.join(sorted(_BACKENDS))}",
                     file=sys.stderr,
                 )
                 sys.exit(1)
+            if not _get_backend_api_key(resolved):
+                # Ollama on a loopback URL ignores auth entirely; don't block
+                # the run just because OLLAMA_API_KEY is unset (issue #792).
+                # extract_files_direct already prints a warning and substitutes
+                # a placeholder key in that case.
+                allow_no_key = False
+                if resolved == "ollama":
+                    from urllib.parse import urlparse
+                    ollama_url = os.environ.get(
+                        "OLLAMA_BASE_URL",
+                        _BACKENDS["ollama"].get("base_url", ""),
+                    )
+                    try:
+                        host = (urlparse(ollama_url).hostname or "").lower()
+                    except Exception:
+                        host = ""
+                    allow_no_key = (
+                        host in ("localhost", "127.0.0.1", "::1")
+                        or host.startswith("127.")
+                    )
+                if not allow_no_key:
+                    print(
+                        f"error: backend '{resolved}' requires {_format_backend_env_keys(resolved)} to be set.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+            return resolved
 
         # Resolve output dir. The user-facing contract is "<out>/graphify-out/"
         # so a fresh checkout writes graphify-out/ at the project root, matching
@@ -2527,6 +2810,7 @@ def main() -> None:
                 print(f"[graphify extract] semantic cache: {sem_cache_hits} hit / {sem_cache_misses} miss")
 
             if uncached_paths:
+                backend = _resolve_semantic_backend(backend)
                 print(f"[graphify extract] semantic extraction on {len(uncached_paths)} files via {backend}...")
                 corpus_kwargs: dict = {
                     "backend": backend,
@@ -2599,9 +2883,7 @@ def main() -> None:
             graph_json_path.write_text(
                 json.dumps(merged, indent=2), encoding="utf-8"
             )
-            cost = _estimate_cost(
-                backend, merged["input_tokens"], merged["output_tokens"]
-            )
+            cost = _estimate_cost(backend or "", merged["input_tokens"], merged["output_tokens"])
             print(
                 f"[graphify extract] wrote {graph_json_path} — "
                 f"{len(merged['nodes'])} nodes, {len(merged['edges'])} edges "
@@ -2643,10 +2925,18 @@ def main() -> None:
         from graphify.analyze import god_nodes as _god_nodes, surprising_connections as _surprising
         dedup_backend = backend if dedup_llm else None
         if incremental_mode:
+            changed_sources = list(deleted_files)
+            for p in code_files + doc_files + paper_files + image_files:
+                changed_sources.append(str(p))
+                try:
+                    changed_sources.append(str(p.resolve().relative_to(target.resolve())))
+                except ValueError:
+                    pass
+            prune_sources = list(dict.fromkeys(changed_sources))
             G = _build_merge(
                 [merged],
                 graph_path=existing_graph_path,
-                prune_sources=deleted_files or None,
+                prune_sources=prune_sources or None,
                 dedup=True,
                 dedup_llm_backend=dedup_backend,
             )
@@ -2701,7 +2991,7 @@ def main() -> None:
         except Exception as exc:
             print(f"[graphify extract] warning: could not write manifest: {exc}", file=sys.stderr)
 
-        cost = _estimate_cost(backend, merged["input_tokens"], merged["output_tokens"])
+        cost = _estimate_cost(backend or "", merged["input_tokens"], merged["output_tokens"])
         print(
             f"[graphify extract] wrote {graph_json_path}: "
             f"{G.number_of_nodes()} nodes, {G.number_of_edges()} edges, "

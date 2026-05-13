@@ -54,6 +54,19 @@ def test_detect_skips_dotfiles():
             assert "/." not in f
 
 
+def test_detect_skips_sensitive_parent_directories(tmp_path):
+    secrets_dir = tmp_path / "secrets"
+    secrets_dir.mkdir()
+    (secrets_dir / "config.py").write_text("TOKEN = 'do-not-read'\n")
+    (tmp_path / "app.py").write_text("print('safe')\n")
+
+    result = detect(tmp_path)
+
+    assert any("app.py" in f for f in result["files"]["code"])
+    assert not any("config.py" in f for f in result["files"]["code"])
+    assert any("secrets" in f for f in result["skipped_sensitive"])
+
+
 def test_classify_md_paper_by_signals(tmp_path):
     """A .md file with enough paper signals should classify as PAPER."""
     paper = tmp_path / "paper.md"

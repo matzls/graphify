@@ -1,6 +1,8 @@
 """Tests for graphify install --platform routing."""
+import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 from unittest.mock import patch
 import pytest
@@ -37,6 +39,20 @@ def test_install_default_claude(tmp_path):
 def test_install_codex(tmp_path):
     _install(tmp_path, "codex")
     assert (tmp_path / ".agents" / "skills" / "graphify" / "SKILL.md").exists()
+
+
+def test_install_updates_only_selected_platform_version_stamp(tmp_path):
+    from graphify.__main__ import __version__
+
+    _install(tmp_path, "claude")
+    claude_version = tmp_path / ".claude" / "skills" / "graphify" / ".graphify_version"
+    claude_version.write_text("stale-version", encoding="utf-8")
+
+    _install(tmp_path, "codex")
+
+    codex_version = tmp_path / ".agents" / "skills" / "graphify" / ".graphify_version"
+    assert codex_version.read_text(encoding="utf-8") == __version__
+    assert claude_version.read_text(encoding="utf-8") == "stale-version"
 
 
 def test_install_opencode(tmp_path):
@@ -128,6 +144,35 @@ def test_all_skill_files_exist_in_package():
         assert (pkg / name).exists(), f"Missing: {name}"
 
 
+def test_packaged_skills_clear_current_needs_update_flag():
+    """Skill cleanup snippets must clear the sentinel written by watch/hooks."""
+    import graphify
+    pkg = Path(graphify.__file__).parent
+    for skill_path in pkg.glob("skill*.md"):
+        content = skill_path.read_text(encoding="utf-8")
+        assert "graphify-out/.needs_update" not in content, skill_path.name
+
+
+def test_doctor_accepts_required_matching_source(tmp_path, monkeypatch, capsys):
+    from graphify import __main__ as main_mod
+
+    monkeypatch.setattr(main_mod, "_install_source", lambda: tmp_path.resolve())
+    assert main_mod._doctor(require_source=str(tmp_path)) == 0
+    assert f"graphify install source: {tmp_path.resolve()}" in capsys.readouterr().out
+
+
+def test_doctor_rejects_required_mismatched_source(tmp_path, monkeypatch, capsys):
+    from graphify import __main__ as main_mod
+
+    actual = tmp_path / "actual"
+    expected = tmp_path / "expected"
+    monkeypatch.setattr(main_mod, "_install_source", lambda: actual.resolve())
+    assert main_mod._doctor(require_source=str(expected)) == 1
+    captured = capsys.readouterr()
+    assert f"graphify install source: {actual.resolve()}" in captured.out
+    assert f"expected install source {expected.resolve()}" in captured.err
+
+
 def test_claude_install_registers_claude_md(tmp_path):
     """Claude platform install writes CLAUDE.md; others do not."""
     _install(tmp_path, "claude")
@@ -159,6 +204,279 @@ def test_codex_agents_install_writes_agents_md(tmp_path):
     assert "GRAPH_REPORT.md" in agents_md.read_text()
 
 
+def test_codex_agents_install_installs_git_hooks_in_repo(tmp_path):
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+    _agents_install(tmp_path, "codex")
+
+    post_commit = tmp_path / ".git" / "hooks" / "post-commit"
+    post_checkout = tmp_path / ".git" / "hooks" / "post-checkout"
+    assert post_commit.exists()
+    assert "# graphify-hook-start" in post_commit.read_text(encoding="utf-8")
+    assert post_checkout.exists()
+    assert "# graphify-checkout-hook-start" in post_checkout.read_text(encoding="utf-8")
+
+
+def test_codex_agents_install_registers_session_start_hook(tmp_path):
+    _agents_install(tmp_path, "codex")
+
+    config = tmp_path / ".codex" / "config.toml"
+    content = config.read_text(encoding="utf-8")
+
+    assert "# graphify-session-start-hook-start" in content
+    assert "[[hooks.SessionStart]]" in content
+    assert "codex-session-start" in content
+    assert str(tmp_path) in content
+
+
+def test_codex_agents_install_uses_config_toml_only_for_fresh_hooks(tmp_path):
+    _agents_install(tmp_path, "codex")
+
+    config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
+
+    assert config.count("# graphify-session-start-hook-start") == 1
+    assert config.count("# graphify-pre-tool-use-hook-start") == 1
+    assert "[[hooks.SessionStart]]" in config
+    assert "codex-session-start" in config
+    assert "[[hooks.PreToolUse]]" in config
+    assert 'matcher = "Bash"' in config
+    assert "[[hooks.PreToolUse.hooks]]" in config
+    assert 'type = "command"' in config
+    assert "hook-check" in config
+    assert not (tmp_path / ".codex" / "hooks.json").exists()
+
+
+def test_codex_agents_install_deletes_graphify_only_legacy_hooks_json(tmp_path):
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.parent.mkdir(parents=True)
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {"type": "command", "command": "graphify hook-check"}
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+
+    config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert "# graphify-pre-tool-use-hook-start" in config
+    assert not hooks_path.exists()
+
+
+def test_codex_agents_install_preserves_unrelated_legacy_hooks_json(tmp_path):
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.parent.mkdir(parents=True)
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {"type": "command", "command": "graphify hook-check"}
+                            ],
+                        },
+                        {
+                            "matcher": "Bash",
+                            "hooks": [{"type": "command", "command": "echo user hook"}],
+                        },
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+
+    surviving = json.loads(hooks_path.read_text(encoding="utf-8"))
+    assert "echo user hook" in json.dumps(surviving)
+    assert "graphify hook-check" not in json.dumps(surviving)
+
+
+def test_codex_agents_install_removes_json_duplicate_when_toml_exists(tmp_path):
+    _agents_install(tmp_path, "codex")
+
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {"type": "command", "command": "graphify hook-check"}
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+
+    config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert config.count("# graphify-session-start-hook-start") == 1
+    assert config.count("# graphify-pre-tool-use-hook-start") == 1
+    assert not hooks_path.exists()
+
+
+def test_codex_agents_install_replaces_legacy_unmarked_toml_hook(tmp_path):
+    config_path = tmp_path / ".codex" / "config.toml"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        '\n'.join(
+            [
+                '# Graphify Hooks',
+                '[[hooks.PreToolUse]]',
+                'matcher = "Bash"',
+                '',
+                '[[hooks.PreToolUse.hooks]]',
+                'type = "command"',
+                'command = "/Users/mase/.local/bin/graphify hook-check"',
+                '',
+            ]
+        ),
+        encoding="utf-8",
+    )
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {"type": "command", "command": "graphify hook-check"}
+                            ],
+                        }
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+
+    config = config_path.read_text(encoding="utf-8")
+    assert "# Graphify Hooks" not in config
+    assert config.count("hook-check") == 1
+    assert config.count("# graphify-pre-tool-use-hook-start") == 1
+    assert not hooks_path.exists()
+
+
+def test_codex_agents_install_collapses_duplicate_toml_blocks(tmp_path):
+    _agents_install(tmp_path, "codex")
+    config_path = tmp_path / ".codex" / "config.toml"
+    config_path.write_text(
+        config_path.read_text(encoding="utf-8")
+        + "\n"
+        + config_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+
+    config = config_path.read_text(encoding="utf-8")
+    assert config.count("# graphify-session-start-hook-start") == 1
+    assert config.count("# graphify-pre-tool-use-hook-start") == 1
+
+
+def test_codex_agents_uninstall_preserves_unrelated_config_and_json(tmp_path):
+    _agents_install(tmp_path, "codex")
+
+    config_path = tmp_path / ".codex" / "config.toml"
+    config_path.write_text(
+        'model = "gpt-5.2"\n\n' + config_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {
+                            "matcher": "Bash",
+                            "hooks": [
+                                {"type": "command", "command": "graphify hook-check"}
+                            ],
+                        },
+                        {
+                            "matcher": "Bash",
+                            "hooks": [{"type": "command", "command": "echo user hook"}],
+                        },
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    from graphify.__main__ import _uninstall_codex_hook
+
+    _uninstall_codex_hook(tmp_path)
+
+    config = config_path.read_text(encoding="utf-8")
+    surviving = json.loads(hooks_path.read_text(encoding="utf-8"))
+    assert 'model = "gpt-5.2"' in config
+    assert "# graphify-session-start-hook-start" not in config
+    assert "# graphify-pre-tool-use-hook-start" not in config
+    assert "echo user hook" in json.dumps(surviving)
+    assert "graphify hook-check" not in json.dumps(surviving)
+
+
+def test_codex_agents_install_preserves_invalid_legacy_hooks_json(tmp_path):
+    hooks_path = tmp_path / ".codex" / "hooks.json"
+    hooks_path.parent.mkdir(parents=True)
+    hooks_path.write_text("{not valid json", encoding="utf-8")
+
+    _agents_install(tmp_path, "codex")
+
+    assert hooks_path.read_text(encoding="utf-8") == "{not valid json"
+
+
+def test_codex_agents_uninstall_removes_git_hooks_in_repo(tmp_path):
+    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
+    _agents_install(tmp_path, "codex")
+
+    from graphify.__main__ import _uninstall_codex_hook, _uninstall_git_hooks_if_possible
+
+    _agents_uninstall(tmp_path, platform="codex")
+    _uninstall_codex_hook(tmp_path)
+    _uninstall_git_hooks_if_possible(tmp_path)
+
+    assert not (tmp_path / ".git" / "hooks" / "post-commit").exists()
+    assert not (tmp_path / ".git" / "hooks" / "post-checkout").exists()
+
+
+def test_codex_agents_uninstall_removes_session_start_hook(tmp_path):
+    _agents_install(tmp_path, "codex")
+
+    from graphify.__main__ import _uninstall_codex_hook
+
+    _uninstall_codex_hook(tmp_path)
+
+    config = tmp_path / ".codex" / "config.toml"
+    assert "# graphify-session-start-hook-start" not in config.read_text(encoding="utf-8")
+
+
 def test_opencode_agents_install_writes_agents_md(tmp_path):
     _agents_install(tmp_path, "opencode")
     assert (tmp_path / "AGENTS.md").exists()
@@ -174,6 +492,36 @@ def test_agents_install_idempotent(tmp_path):
     _agents_install(tmp_path, "codex")
     _agents_install(tmp_path, "codex")
     content = (tmp_path / "AGENTS.md").read_text()
+    config = (tmp_path / ".codex" / "config.toml").read_text()
+    assert content.count("## graphify") == 1
+    assert config.count("# graphify-session-start-hook-start") == 1
+    assert config.count("# graphify-pre-tool-use-hook-start") == 1
+
+
+def test_agents_install_updates_existing_graphify_section(tmp_path):
+    """Installing again replaces stale Graphify guidance in AGENTS.md."""
+    agents_md = tmp_path / "AGENTS.md"
+    agents_md.write_text(
+        "# Existing rules\n\n"
+        "Keep this.\n\n"
+        "## graphify\n\n"
+        "This project has stale graphify guidance.\n"
+        "- This repo can use repo-local Graphify Git hooks. They refresh code graph\n"
+        "  outputs after commits and branch switches, but they do not semantically\n"
+        "  refresh docs, media, images, or research notes.\n\n"
+        "## Other\n\n"
+        "Also keep this.\n",
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+    content = agents_md.read_text(encoding="utf-8")
+
+    assert "Keep this." in content
+    assert "## Other" in content
+    assert "Also keep this." in content
+    assert "stale graphify guidance" not in content
+    assert "changes write `graphify-out/needs_update`" in content
     assert content.count("## graphify") == 1
 
 

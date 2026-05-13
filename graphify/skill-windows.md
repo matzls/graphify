@@ -781,7 +781,7 @@ print(f'All time: {cost["total_input_tokens"]:,} input, {cost["total_output_toke
 python .graphify_step_9_save_manifest_update_cost_trac_18.py
 Remove-Item -ErrorAction SilentlyContinue .graphify_step_9_save_manifest_update_cost_trac_18.py
 Remove-Item -ErrorAction SilentlyContinue .graphify_detect.json, .graphify_extract.json, .graphify_ast.json, .graphify_semantic.json, .graphify_analysis.json, .graphify_labels.json
-Remove-Item -ErrorAction SilentlyContinue graphify-out/.needs_update
+Remove-Item -ErrorAction SilentlyContinue graphify-out/needs_update
 ```
 
 Tell the user (omit the obsidian line unless --obsidian was given):

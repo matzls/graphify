@@ -3,7 +3,16 @@ import time
 from pathlib import Path
 import pytest
 
-from graphify.watch import _notify_only, _WATCHED_EXTENSIONS
+from graphify.watch import (
+    _rebuild_lock,
+    _rebuild_code,
+    _load_community_labels,
+    _notify_only,
+    _parse_report_community_labels,
+    _save_community_labels,
+    _WATCHED_EXTENSIONS,
+    mark_needs_update,
+)
 
 
 # --- _notify_only ---
@@ -27,6 +36,13 @@ def test_notify_only_idempotent(tmp_path):
     assert flag.read_text() == "1"
 
 
+def test_mark_needs_update_returns_flag_path(tmp_path):
+    flag = mark_needs_update(tmp_path)
+
+    assert flag == tmp_path / "graphify-out" / "needs_update"
+    assert flag.read_text(encoding="utf-8") == "1"
+
+
 # --- _WATCHED_EXTENSIONS ---
 
 def test_watched_extensions_includes_code():
@@ -43,6 +59,8 @@ def test_watched_extensions_includes_docs():
 def test_watched_extensions_includes_images():
     assert ".png" in _WATCHED_EXTENSIONS
     assert ".jpg" in _WATCHED_EXTENSIONS
+    assert ".mp4" in _WATCHED_EXTENSIONS
+    assert ".mp3" in _WATCHED_EXTENSIONS
 
 def test_watched_extensions_excludes_noise():
     assert ".json" not in _WATCHED_EXTENSIONS
@@ -70,6 +88,26 @@ def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
     assert "graphify --update" in out
 
 
+def test_codex_session_start_notice_with_flag(tmp_path):
+    """Codex SessionStart notice is explicit and agent-facing when flag exists."""
+    from graphify.watch import codex_session_start_notice
+    flag = tmp_path / "graphify-out" / "needs_update"
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.write_text("1")
+
+    notice = codex_session_start_notice(tmp_path)
+
+    assert "Graphify graph refresh is pending" in notice
+    assert "/graphify . --update" in notice
+    assert "graphify update ." in notice
+
+
+def test_codex_session_start_notice_without_flag_is_empty(tmp_path):
+    """Codex SessionStart hook should not inject context when graph is fresh."""
+    from graphify.watch import codex_session_start_notice
+    assert codex_session_start_notice(tmp_path) == ""
+
+
 def test_check_update_does_not_clear_flag(tmp_path):
     """check_update never removes the needs_update flag (clearing is LLM's job)."""
     from graphify.watch import check_update
@@ -78,6 +116,33 @@ def test_check_update_does_not_clear_flag(tmp_path):
     flag.write_text("1")
     check_update(tmp_path)
     assert flag.exists()
+
+
+def test_rebuild_lock_uses_external_lock_dir(tmp_path, monkeypatch):
+    """Rebuild lock should not create Git-visible files under graphify-out."""
+    lock_dir = tmp_path / "locks"
+    graph_out = tmp_path / "repo" / "graphify-out"
+    monkeypatch.setenv("GRAPHIFY_LOCK_DIR", str(lock_dir))
+
+    with _rebuild_lock(graph_out) as acquired:
+        assert acquired is True
+
+    assert not (graph_out / ".rebuild.lock").exists()
+    assert any(lock_dir.iterdir())
+
+
+def test_rebuild_code_smoke_generates_outputs(tmp_path, monkeypatch):
+    """Code-only rebuild must match the current extract() API."""
+    monkeypatch.setenv("GRAPHIFY_LOCK_DIR", str(tmp_path / "locks"))
+    (tmp_path / "app.py").write_text(
+        "def hello(name):\n    return f'hello {name}'\n",
+        encoding="utf-8",
+    )
+
+    assert _rebuild_code(tmp_path, block_on_lock=True) is True
+
+    assert (tmp_path / "graphify-out" / "graph.json").exists()
+    assert (tmp_path / "graphify-out" / "GRAPH_REPORT.md").exists()
 
 
 def test_watch_raises_without_watchdog(tmp_path, monkeypatch):
@@ -94,3 +159,41 @@ def test_watch_raises_without_watchdog(tmp_path, monkeypatch):
     from graphify.watch import watch
     with pytest.raises(ImportError, match="watchdog not installed"):
         watch(tmp_path)
+
+
+# --- community label preservation ---
+
+def test_parse_report_community_labels(tmp_path):
+    report = tmp_path / "GRAPH_REPORT.md"
+    report.write_text(
+        '### Community 0 - "Runtime Configuration"\n'
+        '### Community 12 - "Auth And Query Scope"\n',
+        encoding="utf-8",
+    )
+
+    assert _parse_report_community_labels(report) == {
+        0: "Runtime Configuration",
+        12: "Auth And Query Scope",
+    }
+
+
+def test_load_community_labels_prefers_durable_json(tmp_path):
+    out = tmp_path / "graphify-out"
+    _save_community_labels(out, {0: "Durable Label"})
+    (out / "GRAPH_REPORT.md").write_text(
+        '### Community 0 - "Report Label"\n',
+        encoding="utf-8",
+    )
+
+    assert _load_community_labels(out) == {0: "Durable Label"}
+
+
+def test_load_community_labels_falls_back_to_report(tmp_path):
+    out = tmp_path / "graphify-out"
+    out.mkdir()
+    (out / "GRAPH_REPORT.md").write_text(
+        '### Community 3 - "Media Chunking Pipeline"\n',
+        encoding="utf-8",
+    )
+
+    assert _load_community_labels(out) == {3: "Media Chunking Pipeline"}

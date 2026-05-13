@@ -8,6 +8,71 @@ trigger: /graphify
 
 Turn any folder of files into a navigable knowledge graph with community detection, an honest audit trail, and three outputs: interactive HTML, GraphRAG-ready JSON, and a plain-language GRAPH_REPORT.md.
 
+## Purpose
+Graphify turns a folder into a knowledge graph with extracted nodes,
+community clustering, and audit-friendly outputs.
+
+Graphify is not specific to Second Brain. Treat it as a repo or corpus analysis
+layer that can be applied to bounded targets. Treat `graphify-out/` as derived
+evidence, not canonical project state, durable memory, or an automatic input to
+Second Brain reflection.
+
+## When To Use
+Use Graphify when you need to understand a repo, paper stack, note corpus, or
+mixed folder before changing it, or when you want a persistent graph for later
+questioning.
+
+## Inputs
+- A path to a folder, defaulting to `.`.
+- Optional flags such as `--mode deep`, `--update`, `--cluster-only`,
+  `--no-viz`, `--obsidian`, `--svg`, `--graphml`, `--neo4j`, and `--watch`.
+- Optional subcommands for adding URLs, querying the graph, finding paths, and
+  explaining nodes.
+
+## Preconditions
+- `graphifyy` must be installed and available as the `graphify` CLI.
+- In this Codex setup, the active CLI is installed from Mase's fork at
+  `/Users/mase/Codebase/Personal-Projects/graphify` on `mase/local-fixes`.
+- Choose a bounded repo or corpus root rather than a broad top-level folder.
+- Review sensitive or generated paths before graphing.
+- Do not run repo activation inside `/Users/mase/.codex`.
+
+## Procedure
+1. Detect supported files.
+2. Extract structural and semantic relationships.
+3. Build `graphify-out/` outputs.
+4. Label communities and verify the report.
+5. Optionally generate Obsidian or other exports.
+
+## Verify Commands
+- `uv tool list`
+- `graphify --help`
+- `graphify explain "SomeKnownNode" --graph graphify-out/graph.json`
+- `graphify query "what are the core abstractions" --graph graphify-out/graph.json`
+
+## Failure Modes
+- No supported files found in the target root.
+- The corpus is too large and needs to be split into a smaller subfolder.
+- Semantic extraction can fail if worker responses are missing or invalid,
+  or if the parent agent does not write validated chunk JSON files.
+- Graph build can be empty if all files were skipped or extraction failed.
+- Video/audio corpora need transcription support or the media will be skipped.
+
+## Examples
+- `/graphify .`
+- `/graphify path/to/repo --mode deep`
+- `/graphify query "auth flow" --graph graphify-out/graph.json`
+
+## Provenance
+- Canonical source: `/Users/mase/Codebase/Personal-Projects/graphify/graphify/skill-codex.md`
+  is the canonical Codex skill source for Mase's Graphify fork.
+- Installed global copy: `/Users/mase/.codex/skills/graphify/SKILL.md`.
+- Operating notes: `/Users/mase/.codex/docs/reference/graphify.md`.
+- Propagation should flow from fork source to installed global copy only after
+  validation and explicit approval.
+- Local patch preserved from upstream: create `graphify-out/` before
+  interpreter metadata and write both `.graphify_python` locations.
+
 ## Usage
 
 ```
@@ -57,22 +122,115 @@ If no path was given, use `.` (current directory). Do not ask the user for a pat
 
 Follow these steps in order. Do not skip steps.
 
+### Step 0 - Preflight target, ignore rules, and active install
+
+Run this preflight from the target repo before building or activating Graphify.
+Summarize the results before writing new files. Do not scan a broad workspace
+root such as `/Users/mase/Codebase`; choose a bounded repo, package, docs
+folder, or corpus root.
+
+Scope rule:
+- For cross-layer repo understanding, prefer the repo root with a strict
+  `.graphifyignore`. This preserves links between implementation, tests, PRDs,
+  plans, and docs.
+- Use a narrower root only when the user asks about one isolated subsystem,
+  such as only a router, one package, or one docs folder.
+- For Second Brain-style repos, do not default to tiny slices just because some
+  paths are private or noisy. Exclude those paths explicitly and keep the
+  useful repo-level context.
+
+```bash
+git status --short --branch 2>/dev/null || true
+find . -maxdepth 2 \( -name AGENTS.md -o -name .codex -o -name .graphifyignore -o -name graphify-out \) -print
+```
+
+Review existing `AGENTS.md`, `.codex/hooks.json`, `.graphifyignore`, and
+`graphify-out/` if present. If `.graphifyignore` is missing, draft one before
+the first graph build when the repo contains generated, cache, virtualenv,
+secret, or broad artifact paths.
+
+Minimum exclusions to consider for code repos:
+
+```gitignore
+.git/
+.venv/
+.pytest_cache/
+.worktrees/
+__pycache__/
+.env
+graphify-out/
+```
+
+Add repo-specific generated or sensitive paths before scanning. For Second
+Brain-style repos, consider excluding runtime data, private integration caches,
+and broad artifacts unless the user intentionally asks to graph them.
+
+Second Brain-style strict ignore starter:
+
+```gitignore
+.git/
+.venv/
+__pycache__/
+.pytest_cache/
+graphify-out/
+.claude/data/
+Memory/
+artifacts/
+*.log
+.env
+```
+
+In Mase's Codex setup, verify the active CLI still points to the local fork
+before graphing another repo:
+
+```bash
+graphify doctor --require-source /Users/mase/Codebase/Personal-Projects/graphify
+```
+
+If this check fails, stop and reinstall from the fork before continuing:
+
+```bash
+uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
+  --with faster-whisper \
+  --with yt-dlp \
+  --with watchdog \
+  --with tree-sitter-sql
+```
+
+This fork installs the OpenAI-compatible Python SDK by default because
+semantic extraction uses it for `ollama`, `gemini`, `kimi`, and `openai`
+backends. If semantic extraction reports that `openai` is missing, reinstall
+from this checkout rather than installing from PyPI.
+
+Local Ollama semantic extraction can be slow. Graphify runs Ollama chunks
+sequentially by default, prints chunk-start lines with filenames before waiting
+on the model, uses smaller local-model prompt chunks than hosted backends, asks
+for JSON-object output, repairs missing final JSON delimiters, and uses a
+30-minute request timeout unless `GRAPHIFY_LLM_TIMEOUT_SECONDS` is set for a
+bounded smoke check.
+
+Do not continue by running a plain `pip install graphifyy` or
+`uv tool upgrade graphifyy` when Mase's fork fixes are still required.
+
 ### Step 1 - Ensure graphify is installed
 
 ```bash
-# Detect the correct Python interpreter (handles pipx, venv, system installs)
+# Detect the verified graphify interpreter. Do not fall back to PyPI here.
 GRAPHIFY_BIN=$(which graphify 2>/dev/null)
-if [ -n "$GRAPHIFY_BIN" ]; then
-    PYTHON=$(head -1 "$GRAPHIFY_BIN" | tr -d '#!')
-    case "$PYTHON" in
-        *[!a-zA-Z0-9/_.-]*) PYTHON="python3" ;;
-    esac
-else
-    PYTHON="python3"
+if [ -z "$GRAPHIFY_BIN" ]; then
+    echo "graphify CLI not found. Install from Mase's fork, then rerun doctor."
+    exit 1
 fi
-"$PYTHON" -c "import graphify" 2>/dev/null || "$PYTHON" -m pip install graphifyy -q 2>/dev/null || "$PYTHON" -m pip install graphifyy -q --break-system-packages 2>&1 | tail -3
+PYTHON=$(head -1 "$GRAPHIFY_BIN" | tr -d '#!')
+case "$PYTHON" in
+    *[!a-zA-Z0-9/_.-]*) PYTHON="python3" ;;
+esac
+"$PYTHON" -c "import graphify" 2>/dev/null || {
+    echo "graphify import failed from the verified CLI interpreter. Reinstall from Mase's fork."
+    exit 1
+}
 # Write interpreter path for all subsequent steps
-"$PYTHON" -c "import sys; open('graphify-out/.graphify_python', 'w').write(sys.executable)"
+"$PYTHON" -c "import sys; from pathlib import Path; Path('graphify-out').mkdir(exist_ok=True); Path('.graphify_python').write_text(sys.executable); Path('graphify-out/.graphify_python').write_text(sys.executable)"
 ```
 
 If the import succeeds, print nothing and move straight to Step 2.
@@ -87,8 +245,11 @@ import json
 from graphify.detect import detect
 from pathlib import Path
 result = detect(Path('INPUT_PATH'))
-print(json.dumps(result))
-" > .graphify_detect.json
+payload = json.dumps(result)
+Path('.graphify_detect.json').write_text(payload)
+Path('graphify-out').mkdir(exist_ok=True)
+Path('graphify-out/.graphify_detect.json').write_text(payload)
+"
 ```
 
 Replace INPUT_PATH with the actual path the user provided. Do NOT cat or print the JSON - read it silently and present a clean summary instead:
@@ -181,7 +342,7 @@ for f in detect.get('files', {}).get('code', []):
     code_files.extend(collect_files(Path(f)) if Path(f).is_dir() else [Path(f)])
 
 if code_files:
-    result = extract(code_files)
+    result = extract(code_files, cache_root=Path('INPUT_PATH'), root=Path('INPUT_PATH'))
     Path('.graphify_ast.json').write_text(json.dumps(result, indent=2))
     print(f'AST: {len(result[\"nodes\"])} nodes, {len(result[\"edges\"])} edges')
 else:
@@ -236,10 +397,10 @@ Load files from `.graphify_uncached.txt`. Split into chunks of 20-25 files each.
 > Requires `multi_agent = true` under `[features]` in `~/.codex/config.toml`.
 > If `spawn_agent` is unavailable, tell the user to add that config and restart Codex.
 
-Call `spawn_agent` once per chunk — ALL in the same response so they run in parallel. Build the message by wrapping the extraction prompt below in task-delegation framing:
+Call `spawn_agent` once per chunk — ALL in the same response so they run in parallel. Build the message by wrapping the extraction prompt below in task-delegation framing. Name or track each worker as chunk `NN` so the parent can write `graphify-out/.graphify_chunk_NN.json` after the worker returns.
 
 ```
-spawn_agent(agent_type="worker", message="Your task is to perform the following. Follow the instructions below exactly.\n\n<agent-instructions>\n[extraction prompt below, with FILE_LIST, CHUNK_NUM, TOTAL_CHUNKS, DEEP_MODE substituted]\n</agent-instructions>\n\nExecute this now. Output ONLY the structured JSON response.")
+spawn_agent(agent_type="worker", message="Your task is to perform the following. Follow the instructions below exactly.\n\n<agent-instructions>\n[extraction prompt below, with FILE_LIST, CHUNK_NUM, TOTAL_CHUNKS, DEEP_MODE substituted]\n</agent-instructions>\n\nExecute this now. Output ONLY the structured JSON response. Do not edit files; the parent agent writes graphify-out/.graphify_chunk_NN.json after validating your JSON.")
 ```
 
 After all agents are dispatched, collect results sequentially:
@@ -247,7 +408,11 @@ After all agents are dispatched, collect results sequentially:
 result = wait_agent(handle); close_agent(handle)   # repeat per handle
 ```
 
-Parse each result as JSON. Accumulate nodes/edges/hyperedges across all results and write to `.graphify_semantic_new.json`.
+Parse each returned worker result as JSON. The parent agent owns chunk artifacts:
+- For valid JSON with `nodes` and `edges`, write it to `graphify-out/.graphify_chunk_NN.json`.
+- If the worker result has a usage field, copy real token counts into `input_tokens` and `output_tokens` before writing.
+- If the result is missing, not valid JSON, or lacks `nodes`/`edges`, count that chunk as failed and print a warning with the chunk number.
+- Do not expect workers to write files themselves.
 
 The extraction prompt each subagent receives (substitute FILE_LIST, CHUNK_NUM, TOTAL_CHUNKS, DEEP_MODE):
 
@@ -308,34 +473,43 @@ Output exactly this JSON (no other text):
 **Step B3 - Collect, cache, and merge**
 
 Wait for all subagents. For each result:
-- Check that `graphify-out/.graphify_chunk_NN.json` exists on disk — this is the success signal
-- If the file exists and contains valid JSON with `nodes` and `edges`, include it and save to cache
-- If the file is missing, the subagent was likely dispatched as read-only (Explore type) — print a warning: "chunk N missing from disk — subagent may have been read-only. Re-run with general-purpose agent." Do not silently skip.
-- If a subagent failed or returned invalid JSON, print a warning and skip that chunk - do not abort
+- Parse the returned JSON from the worker response.
+- If it contains valid `nodes` and `edges`, write it to `graphify-out/.graphify_chunk_NN.json`.
+- If it is missing or invalid, print `Warning: chunk N returned no valid semantic JSON` and skip that chunk.
 
-If more than half the chunks failed or are missing, stop and tell the user to re-run and ensure `subagent_type="general-purpose"` is used.
+If more than half the chunks failed, stop and tell the user semantic extraction failed before continuing. Do not silently downgrade to AST-only unless the user explicitly approves an AST-only fallback.
 
-Merge all chunk files into `.graphify_semantic_new.json`. **After each Agent call completes, read the real token counts from the Agent tool result's `usage` field and write them back into the chunk JSON before merging** — the chunk JSON itself always has placeholder zeros. Then run:
+Merge all parent-written chunk files into `.graphify_semantic_new.json`. Then run:
+
 ```bash
-$(cat graphify-out/.graphify_python) -c "
-import json, glob
+$(cat .graphify_python) -c "
+import glob, json
 from pathlib import Path
 
-chunks = sorted(glob.glob('graphify-out/.graphify_chunk_*.json'))
-all_nodes, all_edges, all_hyperedges = [], [], []
-total_in, total_out = 0, 0
-for c in chunks:
-    d = json.loads(Path(c).read_text())
-    all_nodes += d.get('nodes', [])
-    all_edges += d.get('edges', [])
-    all_hyperedges += d.get('hyperedges', [])
-    total_in += d.get('input_tokens', 0)
-    total_out += d.get('output_tokens', 0)
-Path('graphify-out/.graphify_semantic_new.json').write_text(json.dumps({
-    'nodes': all_nodes, 'edges': all_edges, 'hyperedges': all_hyperedges,
-    'input_tokens': total_in, 'output_tokens': total_out,
-}, indent=2))
-print(f'Merged {len(chunks)} chunks: {total_in:,} in / {total_out:,} out tokens')
+nodes, edges, hyperedges = [], [], []
+input_tokens = output_tokens = 0
+for path in sorted(glob.glob('graphify-out/.graphify_chunk_*.json')):
+    try:
+        chunk = json.loads(Path(path).read_text())
+    except Exception as exc:
+        print(f'Warning: skipping invalid chunk {path}: {exc}')
+        continue
+    nodes.extend(chunk.get('nodes', []))
+    edges.extend(chunk.get('edges', []))
+    hyperedges.extend(chunk.get('hyperedges', []))
+    input_tokens += int(chunk.get('input_tokens', 0) or 0)
+    output_tokens += int(chunk.get('output_tokens', 0) or 0)
+
+payload = {
+    'nodes': nodes,
+    'edges': edges,
+    'hyperedges': hyperedges,
+    'input_tokens': input_tokens,
+    'output_tokens': output_tokens,
+}
+Path('.graphify_semantic_new.json').write_text(json.dumps(payload, indent=2))
+Path('graphify-out/.graphify_semantic_new.json').write_text(json.dumps(payload, indent=2))
+print(f'Merged {len(nodes)} nodes, {len(edges)} edges, {len(hyperedges)} hyperedges from chunk files')
 "
 ```
 
@@ -501,6 +675,7 @@ questions = suggest_questions(G, communities, labels)
 report = generate(G, communities, cohesion, labels, analysis['gods'], analysis['surprises'], detection, tokens, 'INPUT_PATH', suggested_questions=questions)
 Path('graphify-out/GRAPH_REPORT.md').write_text(report)
 Path('.graphify_labels.json').write_text(json.dumps({str(k): v for k, v in labels.items()}))
+Path('graphify-out/community_labels.json').write_text(json.dumps({str(k): v for k, v in labels.items()}, indent=2, sort_keys=True) + '\n')
 print('Report updated with community labels')
 "
 ```
@@ -727,7 +902,7 @@ print(f'This run: {input_tok:,} input tokens, {output_tok:,} output tokens')
 print(f'All time: {cost[\"total_input_tokens\"]:,} input, {cost[\"total_output_tokens\"]:,} output ({len(cost[\"runs\"])} runs)')
 "
 rm -f .graphify_detect.json .graphify_extract.json .graphify_ast.json .graphify_semantic.json .graphify_analysis.json .graphify_labels.json .graphify_chunk_*.json
-rm -f graphify-out/.needs_update 2>/dev/null || true
+rm -f graphify-out/needs_update 2>/dev/null || true
 ```
 
 Tell the user (omit the obsidian line unless --obsidian was given):
@@ -743,6 +918,17 @@ Graph complete. Outputs in PATH_TO_DIR/graphify-out/
 If graphify saved you time, consider supporting it: https://github.com/sponsors/safishamsi
 
 Replace PATH_TO_DIR with the actual absolute path of the directory that was processed.
+
+Before offering any repo activation, verify the success checklist:
+- `graphify-out/GRAPH_REPORT.md` exists and includes plausible god nodes,
+  community labels, surprising connections, and suggested questions.
+- `graphify-out/graph.json` exists and has non-empty nodes and edges unless the
+  corpus was intentionally tiny.
+- `graphify-out/graph.html` exists if visualization was not disabled.
+
+Only after that checklist passes should you offer optional repo-local activation
+with `graphify codex install` or Git hooks. A successful scan does not imply the
+repo should install reminders or hooks.
 
 Then paste these sections from GRAPH_REPORT.md directly into the chat:
 - God Nodes
@@ -1224,13 +1410,13 @@ Debounce (default 3s): waits until file activity stops before triggering, so a w
 
 Press Ctrl+C to stop.
 
-For agentic workflows: run `--watch` in a background terminal. Code changes from agent waves are picked up automatically between waves. If agents are also writing docs or notes, you'll need a manual `/graphify --update` after those waves.
+For agentic workflows: run `--watch` in a separate terminal when you need live freshness before commits. Code changes from agent waves are picked up automatically between waves. If agents are also writing docs or notes, `--watch` writes `graphify-out/needs_update` immediately; otherwise the post-commit Git hook writes the same flag after those docs are committed.
 
 ---
 
 ## For git commit hook
 
-Install a post-commit hook that auto-rebuilds the graph after every commit. No background process needed - triggers once per commit, works with any editor.
+Install repo-local Git hooks that refresh code graph outputs after commits and branch switches and flag committed docs/media for later semantic refresh. No watcher process is needed for these Git-triggered freshness checks.
 
 ```bash
 graphify hook install    # install
@@ -1238,9 +1424,54 @@ graphify hook uninstall  # remove
 graphify hook status     # check
 ```
 
-After every `git commit`, the hook detects which code files changed (via `git diff HEAD~1`), re-runs AST extraction on those files, and rebuilds `graph.json` and `GRAPH_REPORT.md`. Doc/image changes are ignored by the hook - run `/graphify --update` manually for those.
+After every `git commit`, the hook detects changed files (via `git diff HEAD~1`). Code changes launch a detached `_rebuild_code(Path('.'))` and rebuild `graph.json` and `GRAPH_REPORT.md` without LLM tokens. Docs, papers, images, and videos write `graphify-out/needs_update` so the next `/graphify --update` can refresh semantic relationships. Mixed commits do both: code rebuild first, then the stale semantic flag is written.
 
-If a post-commit hook already exists, graphify appends to it rather than replacing it.
+The code-only rebuild preserves semantic nodes, edges, and community labels from the previous graph. Use the Git hooks for code freshness and stale detection, not as a replacement for `/graphify --update` when docs/media changed or when report quality matters.
+
+Doc/image/media changes are not semantically refreshed by the Git hooks. They only write `graphify-out/needs_update`; run `/graphify --update` manually when that flag exists.
+
+If a hook already contains a Graphify marker block, `graphify hook install` upgrades that block in place. If unrelated hook content exists, Graphify preserves it and appends its block.
+
+---
+
+## For native Codex AGENTS.md integration
+
+Optional. Run only after the first graph has been built and the success
+checklist above passed:
+
+```bash
+graphify codex install
+graphify hook status
+```
+
+This writes or updates the repo-local `AGENTS.md` Graphify section, creates
+repo-local `.codex/hooks.json` reminders, and installs repo-local Git refresh
+hooks. After installation, review the generated `## graphify` section and make
+sure it includes the local freshness model:
+
+- The Codex reminder hook is passive. It reminds the agent when
+  `graphify-out/graph.json` exists or when `graphify-out/needs_update` exists.
+- The Git hooks are repo-local. They refresh code graph outputs after commits
+  and branch switches. After commits, docs/media/image changes write
+  `graphify-out/needs_update`; they are not semantically refreshed until
+  `graphify . --update` runs.
+- `graphify watch .` is optional and foreground. Use it in a separate terminal
+  for longer active coding sessions; it watches live file changes while running,
+  rebuilds for code changes, and writes `graphify-out/needs_update` for
+  non-code changes.
+- Do not assume `graphify watch .` is already running. Check before relying on
+  live graph freshness and avoid duplicate watchers in the same repo.
+- If `graphify-out/needs_update` exists, run `graphify . --update` before
+  relying on docs/media/image relationships. This semantic update can spend LLM
+  tokens.
+- Treat Git hooks and `graphify watch .` as freshness helpers. When report
+  quality matters, prefer a full `graphify . --update`.
+
+If the Git hooks are missing after a previous or partial install, repair them
+with `graphify hook install`, then verify with `graphify hook status`.
+
+Keep this guidance in the repo-local `AGENTS.md`; it is part of the standard
+bootstrap for Graphify-enabled repos.
 
 ---
 

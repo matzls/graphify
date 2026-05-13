@@ -1,8 +1,10 @@
 # monitor a folder and auto-trigger --update when files change
 from __future__ import annotations
 import contextlib
+import hashlib
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -26,8 +28,15 @@ def _rebuild_lock(out_dir: Path, *, blocking: bool = False):
         yield True
         return
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    lock_path = out_dir / ".rebuild.lock"
+    lock_base_raw = os.environ.get("GRAPHIFY_LOCK_DIR")
+    lock_base = (
+        Path(lock_base_raw).expanduser()
+        if lock_base_raw
+        else Path.home() / ".cache" / "graphify" / "locks"
+    )
+    lock_base.mkdir(parents=True, exist_ok=True)
+    lock_key = hashlib.sha256(str(out_dir.resolve()).encode("utf-8")).hexdigest()
+    lock_path = lock_base / f"{lock_key}.lock"
     fh = open(lock_path, "a", encoding="utf-8")
     try:
         flags = fcntl.LOCK_EX if blocking else (fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -88,10 +97,62 @@ def _git_head() -> str | None:
         return None
 
 
-from graphify.detect import CODE_EXTENSIONS, DOC_EXTENSIONS, PAPER_EXTENSIONS, IMAGE_EXTENSIONS
+from graphify.detect import (
+    CODE_EXTENSIONS,
+    DOC_EXTENSIONS,
+    PAPER_EXTENSIONS,
+    IMAGE_EXTENSIONS,
+    VIDEO_EXTENSIONS,
+)
 
-_WATCHED_EXTENSIONS = CODE_EXTENSIONS | DOC_EXTENSIONS | PAPER_EXTENSIONS | IMAGE_EXTENSIONS
+_WATCHED_EXTENSIONS = (
+    CODE_EXTENSIONS | DOC_EXTENSIONS | PAPER_EXTENSIONS | IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
+)
 _CODE_EXTENSIONS = CODE_EXTENSIONS
+
+
+def _parse_report_community_labels(report_path: Path) -> dict[int, str]:
+    """Recover semantic community labels from an existing GRAPH_REPORT.md."""
+    if not report_path.exists():
+        return {}
+    labels: dict[int, str] = {}
+    pattern = re.compile(r'^### Community\s+(\d+)\s+-\s+"([^"]+)"\s*$')
+    for line in report_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        match = pattern.match(line.strip())
+        if not match:
+            continue
+        labels[int(match.group(1))] = match.group(2)
+    return labels
+
+
+def _load_community_labels(out: Path) -> dict[int, str]:
+    """Load durable labels, falling back to the previous human report."""
+    candidates = [
+        out / "community_labels.json",
+        out / ".graphify_labels.json",
+        out.parent / ".graphify_labels.json",
+    ]
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        try:
+            raw = json.loads(candidate.read_text(encoding="utf-8"))
+            return {int(k): str(v) for k, v in raw.items()}
+        except Exception:
+            continue
+    return _parse_report_community_labels(out / "GRAPH_REPORT.md")
+
+
+def _save_community_labels(out: Path, labels: dict[int, str]) -> None:
+    """Persist labels for future code-only rebuilds."""
+    if not labels:
+        return
+    out.mkdir(exist_ok=True)
+    payload = {str(k): v for k, v in sorted(labels.items())}
+    (out / "community_labels.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _report_root_label(watch_path: Path) -> str:
@@ -211,7 +272,10 @@ def _rebuild_code(
             extract_targets = code_files
 
         commit = _git_head()
-        result = extract(extract_targets, cache_root=watch_root) if extract_targets else {
+        result = extract(
+            extract_targets,
+            cache_root=watch_root,
+        ) if extract_targets else {
             "nodes": [], "edges": [], "hyperedges": [],
             "input_tokens": 0, "output_tokens": 0,
         }
@@ -269,20 +333,16 @@ def _rebuild_code(
         cohesion = score_all(G, communities)
         gods = god_nodes(G)
         surprises = surprising_connections(G, communities)
-        labels_file = out / ".graphify_labels.json"
-        try:
-            raw = json.loads(labels_file.read_text(encoding="utf-8")) if labels_file.exists() else {}
-            labels = {int(k): v for k, v in raw.items() if int(k) in communities}
-        except Exception:
-            raw = {}
-            labels = {}
-        for cid in communities:
-            if cid not in labels:
-                labels[cid] = "Community " + str(cid)
+        preserved_labels = _load_community_labels(out)
+        labels = {
+            cid: preserved_labels.get(cid, "Community " + str(cid))
+            for cid in communities
+        }
         questions = suggest_questions(G, communities, labels)
 
         out.mkdir(exist_ok=True)
         (out / ".graphify_root").write_text(str(watch_root), encoding="utf-8")
+        _save_community_labels(out, labels)
 
         json_written = to_json(G, communities, str(out / "graph.json"), force=force, built_at_commit=commit)
         if not json_written:
@@ -328,11 +388,6 @@ def _rebuild_code(
             except Exception as cf_err:
                 print(f"[graphify watch] callflow HTML update skipped: {cf_err}")
 
-        # clear stale needs_update flag if present
-        flag = out / "needs_update"
-        if flag.exists():
-            flag.unlink()
-
         print(f"[graphify watch] Rebuilt: {G.number_of_nodes()} nodes, "
               f"{G.number_of_edges()} edges, {len(communities)} communities")
         products = "graph.json" + (", graph.html" if html_written else "") + " and GRAPH_REPORT.md"
@@ -346,6 +401,37 @@ def _rebuild_code(
         return False
 
 
+def semantic_update_notice(watch_path: Path) -> str:
+    """Return the human notice for a pending semantic refresh, or empty string."""
+    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
+    if not flag.exists():
+        return ""
+    return "\n".join(
+        [
+            f"[graphify check-update] Pending non-code changes in {watch_path}.",
+            "[graphify check-update] Run `/graphify --update` to apply semantic re-extraction.",
+        ]
+    )
+
+
+def codex_session_start_notice(watch_path: Path) -> str:
+    """Return Codex SessionStart context for pending semantic refresh work."""
+    raw_notice = semantic_update_notice(watch_path)
+    if not raw_notice:
+        return ""
+    return "\n".join(
+        [
+            "Graphify graph refresh is pending for this repo.",
+            "",
+            raw_notice,
+            "",
+            "Action: tell the user this repo has pending Graphify semantic refresh work.",
+            "Offer to run `/graphify . --update` before relying on doc/media/image relationships.",
+            "Code-only refresh is cheaper and can be run with `graphify update .`, but it will not clear semantic refresh needs.",
+        ]
+    )
+
+
 def check_update(watch_path: Path) -> bool:
     """Check for pending semantic update flag and notify the user if set.
 
@@ -354,18 +440,27 @@ def check_update(watch_path: Path) -> bool:
     re-extraction via `/graphify --update` — this function only signals
     that the update is needed.
     """
-    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
-    if flag.exists():
-        print(f"[graphify check-update] Pending non-code changes in {watch_path}.")
-        print("[graphify check-update] Run `/graphify --update` to apply semantic re-extraction.")
+    notice = semantic_update_notice(watch_path)
+    if notice:
+        print(notice)
     return True
+
+
+def mark_needs_update(watch_path: Path) -> Path:
+    """Write the semantic-refresh sentinel used by watch and Git hooks.
+
+    The file intentionally stays a tiny stable sentinel (`1`) so older
+    `check_update` callers and existing tests continue to work.
+    """
+    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.write_text("1", encoding="utf-8")
+    return flag
 
 
 def _notify_only(watch_path: Path) -> None:
     """Write a flag file and print a notification (fallback for non-code-only corpora)."""
-    flag = watch_path / _GRAPHIFY_OUT / "needs_update"
-    flag.parent.mkdir(parents=True, exist_ok=True)
-    flag.write_text("1", encoding="utf-8")
+    flag = mark_needs_update(watch_path)
     print(f"\n[graphify watch] New or changed files detected in {watch_path}")
     print("[graphify watch] Non-code files changed - semantic re-extraction requires LLM.")
     print("[graphify watch] Run `/graphify --update` in Claude Code to update the graph.")
@@ -381,7 +476,7 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
     Watch watch_path for new or modified files and auto-update the graph.
 
     For code-only changes: re-runs AST extraction + rebuild immediately (no LLM).
-    For doc/paper/image changes: writes a needs_update flag and notifies the user
+    For doc/media changes: writes a needs_update flag and notifies the user
     to run /graphify --update (LLM extraction required).
 
     debounce: seconds to wait after the last change before triggering (avoids
@@ -422,7 +517,7 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 
     print(f"[graphify watch] Watching {watch_path.resolve()} - press Ctrl+C to stop")
     print(f"[graphify watch] Code changes rebuild graph automatically. "
-          f"Doc/image changes require /graphify --update.")
+          f"Doc/media changes require /graphify --update.")
     print(f"[graphify watch] Debounce: {debounce}s")
 
     try:

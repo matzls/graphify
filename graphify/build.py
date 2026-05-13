@@ -264,6 +264,29 @@ def build_merge(
         links_key = "links" if "links" in data else "edges"
         existing_nodes = list(data.get("nodes", []))
         existing_edges = list(data.get(links_key, []))
+        if prune_sources:
+            pruned_ids = {
+                n.get("id")
+                for n in existing_nodes
+                if n.get("source_file") in prune_sources
+            }
+            if pruned_ids:
+                existing_nodes = [n for n in existing_nodes if n.get("id") not in pruned_ids]
+                existing_edges = [
+                    e for e in existing_edges
+                    if e.get("source") not in pruned_ids and e.get("target") not in pruned_ids
+                ]
+                print(
+                    f"[graphify] Pruned {len(pruned_ids)} existing node(s) "
+                    f"from {len(prune_sources)} changed/deleted source file(s).",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    f"[graphify] {len(prune_sources)} changed/deleted source file(s) "
+                    f"had no matching existing nodes in graph.",
+                    file=sys.stderr,
+                )
         base = [{"nodes": existing_nodes, "edges": existing_edges}]
     else:
         existing_nodes = []
@@ -271,27 +294,6 @@ def build_merge(
 
     all_chunks = base + list(new_chunks)
     G = build(all_chunks, directed=directed, dedup=dedup, dedup_llm_backend=dedup_llm_backend)
-
-    # Prune nodes from deleted source files
-    if prune_sources:
-        to_remove = [
-            n for n, d in G.nodes(data=True)
-            if d.get("source_file") in prune_sources
-        ]
-        G.remove_nodes_from(to_remove)
-        n_files = len(prune_sources)
-        n_nodes = len(to_remove)
-        if n_nodes:
-            print(
-                f"[graphify] Pruned {n_nodes} node(s) from {n_files} deleted source file(s).",
-                file=sys.stderr,
-            )
-        else:
-            print(
-                f"[graphify] {n_files} source file(s) deleted since last run — "
-                f"no matching nodes in graph, already clean.",
-                file=sys.stderr,
-            )
 
     # Safety check: refuse to shrink the graph silently (#479)
     # Skip when dedup or prune_sources is active — shrinkage is intentional there.

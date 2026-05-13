@@ -2,6 +2,7 @@
 from __future__ import annotations
 import configparser
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -45,7 +46,9 @@ fi
 
 _HOOK_SCRIPT = """\
 # graphify-hook-start
-# Auto-rebuilds the knowledge graph after each commit (code files only, no LLM needed).
+# Auto-refreshes Graphify after each commit:
+# - code changes trigger a deterministic graph rebuild (no LLM needed)
+# - docs/media changes write graphify-out/needs_update for later semantic refresh
 # Installed by: graphify hook install
 
 # Skip during rebase/merge/cherry-pick to avoid blocking --continue with unstaged changes
@@ -63,11 +66,11 @@ fi
 """ + _PYTHON_DETECT + """
 export GRAPHIFY_CHANGED="$CHANGED"
 
-# Run rebuild detached so git commit returns immediately.
-# Full repo rebuilds can take hours; blocking the post-commit hook stalls the shell.
+# Run detached so git commit returns immediately. Semantic doc/media refreshes
+# are intentionally not run from Git hooks because they may spend tokens/time.
 _GRAPHIFY_LOG="${HOME}/.cache/graphify-rebuild.log"
 mkdir -p "$(dirname "$_GRAPHIFY_LOG")"
-echo "[graphify hook] launching background rebuild (log: $_GRAPHIFY_LOG)"
+echo "[graphify hook] launching background freshness check (log: $_GRAPHIFY_LOG)"
 nohup $GRAPHIFY_PYTHON -c "
 import os, signal, sys
 from pathlib import Path
@@ -78,22 +81,95 @@ changed = [Path(f.strip()) for f in changed_raw.strip().splitlines() if f.strip(
 if not changed:
     sys.exit(0)
 
-print(f'[graphify hook] {len(changed)} file(s) changed - rebuilding graph...')
+print(f'[graphify hook] {len(changed)} file(s) changed')
 
+needs_code = False
+needs_semantic = False
 try:
-    from graphify.watch import _rebuild_code, _apply_resource_limits
+    from graphify.detect import (
+        CODE_EXTENSIONS,
+        DOC_EXTENSIONS,
+        IMAGE_EXTENSIONS,
+        PAPER_EXTENSIONS,
+        VIDEO_EXTENSIONS,
+        FileType,
+        _is_ignored,
+        _load_graphifyignore,
+        classify_file,
+    )
+    from graphify.watch import _apply_resource_limits
     _apply_resource_limits()
-    _timeout = int(os.environ.get('GRAPHIFY_REBUILD_TIMEOUT', '600'))
-    if _timeout > 0 and hasattr(signal, 'SIGALRM'):
-        signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError(f'graphify rebuild exceeded {_timeout}s')))
-        signal.alarm(_timeout)
-    _force = os.environ.get('GRAPHIFY_FORCE', '').lower() in ('1', 'true', 'yes')
-    _rebuild_code(Path('.'), changed_paths=changed, force=_force)
+    root = Path('.').resolve()
+    ignore_patterns = _load_graphifyignore(root)
+    for rel in changed:
+        path = (root / rel).resolve()
+        if not path.exists():
+            suffix = path.suffix.lower()
+            if suffix in CODE_EXTENSIONS:
+                needs_code = True
+            elif suffix in DOC_EXTENSIONS or suffix in PAPER_EXTENSIONS or suffix in IMAGE_EXTENSIONS or suffix in VIDEO_EXTENSIONS:
+                needs_semantic = True
+            continue
+        try:
+            if _is_ignored(path, root, ignore_patterns):
+                continue
+        except Exception as exc:
+            print(f'[graphify hook] ignore check failed for {path}: {exc}')
+            needs_semantic = True
+            continue
+
+        try:
+            file_type = classify_file(path)
+        except Exception as exc:
+            print(f'[graphify hook] classification failed for {path}: {exc}')
+            needs_semantic = True
+            continue
+
+        if file_type == FileType.CODE:
+            needs_code = True
+        elif file_type in {FileType.DOCUMENT, FileType.PAPER, FileType.IMAGE, FileType.VIDEO}:
+            needs_semantic = True
 except TimeoutError as exc:
     print(f'[graphify hook] {exc}')
     sys.exit(1)
 except Exception as exc:
-    print(f'[graphify hook] Rebuild failed: {exc}')
+    print(f'[graphify hook] change classification failed: {exc}')
+    # Conservative fallback: do not silently trust a stale semantic graph.
+    needs_semantic = True
+
+rebuild_failed = False
+if needs_code:
+    try:
+        import os as _os
+        from graphify.watch import _rebuild_code
+        _timeout = int(_os.environ.get('GRAPHIFY_REBUILD_TIMEOUT', '600'))
+        if _timeout > 0 and hasattr(signal, 'SIGALRM'):
+            signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError(f'graphify rebuild exceeded {_timeout}s')))
+            signal.alarm(_timeout)
+        _force = _os.environ.get('GRAPHIFY_FORCE', '').lower() in ('1', 'true', 'yes')
+        if not _rebuild_code(Path('.'), changed_paths=changed, force=_force):
+            rebuild_failed = True
+    except TimeoutError as exc:
+        print(f'[graphify hook] {exc}')
+        rebuild_failed = True
+    except Exception as exc:
+        print(f'[graphify hook] Rebuild failed: {exc}')
+        rebuild_failed = True
+else:
+    print('[graphify hook] no code rebuild needed')
+
+if needs_semantic:
+    try:
+        from graphify.watch import mark_needs_update
+        flag = mark_needs_update(Path('.'))
+        print(f'[graphify hook] docs/media changed - wrote {flag}')
+    except Exception as exc:
+        print(f'[graphify hook] could not write needs_update flag: {exc}')
+
+if not needs_code and not needs_semantic:
+    print('[graphify hook] no graph-relevant file types changed')
+
+if rebuild_failed:
     sys.exit(1)
 " > "$_GRAPHIFY_LOG" 2>&1 < /dev/null &
 disown 2>/dev/null || true
@@ -169,9 +245,14 @@ def _git_root(path: Path) -> Path | None:
 
 def _hooks_dir(root: Path) -> Path:
     """Return the git hooks directory, respecting core.hooksPath if set (e.g. Husky)."""
+    git_dir = root / ".git"
+    rejected_custom = False
     try:
         cfg = configparser.RawConfigParser()
-        cfg.read(root / ".git" / "config", encoding="utf-8")
+        if git_dir.is_dir():
+            cfg.read(git_dir / "config", encoding="utf-8")
+        else:
+            cfg.read([], encoding="utf-8")
         # configparser lowercases option names; git's hooksPath becomes hookspath
         custom = cfg.get("core", "hookspath", fallback="").strip()
         if custom:
@@ -183,7 +264,7 @@ def _hooks_dir(root: Path) -> Path:
             try:
                 p.resolve().relative_to(root.resolve())
             except ValueError:
-                pass  # Path escapes repo root; fall through to default .git/hooks
+                rejected_custom = True
             else:
                 p.mkdir(parents=True, exist_ok=True)
                 return p
@@ -197,19 +278,63 @@ def _hooks_dir(root: Path) -> Path:
             f"{root / '.git' / 'config'}: {exc}",
             file=sys.stderr,
         )
-    d = root / ".git" / "hooks"
-    d.mkdir(exist_ok=True)
+
+    if not rejected_custom:
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "--git-path", "hooks"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                d = Path(result.stdout.strip())
+                if not d.is_absolute():
+                    d = root / d
+                d.mkdir(parents=True, exist_ok=True)
+                return d
+        except (OSError, subprocess.SubprocessError) as exc:
+            print(f"[graphify hooks] git hook path lookup failed in {root}: {exc}", file=sys.stderr)
+
+    if git_dir.is_file():
+        raise RuntimeError(f"Cannot resolve Git hooks directory for worktree at {root}")
+    d = git_dir / "hooks"
+    d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _install_hook(hooks_dir: Path, name: str, script: str, marker: str) -> str:
-    """Install a single git hook, appending if an existing hook is present."""
+def _install_hook(
+    hooks_dir: Path,
+    name: str,
+    script: str,
+    marker: str,
+    marker_end: str,
+) -> str:
+    """Install or update a single git hook, preserving unrelated hook content."""
     hook_path = hooks_dir / name
     if hook_path.exists():
         content = hook_path.read_text(encoding="utf-8")
-        if marker in content:
-            return f"already installed at {hook_path}"
+        if marker in content and marker_end in content:
+            new_content, count = re.subn(
+                rf"{re.escape(marker)}.*?{re.escape(marker_end)}\n?",
+                script,
+                content,
+                count=1,
+                flags=re.DOTALL,
+            )
+            if count:
+                hook_path.write_text(new_content.rstrip() + "\n", encoding="utf-8", newline="\n")
+                hook_path.chmod(0o755)
+                return f"updated existing {name} hook at {hook_path}"
+        if marker in content or marker_end in content:
+            backup = hook_path.with_name(f"{name}.graphify-backup")
+            backup.write_text(content, encoding="utf-8", newline="\n")
+            hook_path.write_text(content.rstrip() + "\n\n" + script, encoding="utf-8", newline="\n")
+            hook_path.chmod(0o755)
+            return f"appended to existing {name} hook at {hook_path} (backed up partial graphify block to {backup})"
         hook_path.write_text(content.rstrip() + "\n\n" + script, encoding="utf-8", newline="\n")
+        hook_path.chmod(0o755)
         return f"appended to existing {name} hook at {hook_path}"
     hook_path.write_text("#!/bin/sh\n" + script, encoding="utf-8", newline="\n")
     hook_path.chmod(0o755)
@@ -245,8 +370,14 @@ def install(path: Path = Path(".")) -> str:
 
     hooks_dir = _hooks_dir(root)
 
-    commit_msg = _install_hook(hooks_dir, "post-commit", _HOOK_SCRIPT, _HOOK_MARKER)
-    checkout_msg = _install_hook(hooks_dir, "post-checkout", _CHECKOUT_SCRIPT, _CHECKOUT_MARKER)
+    commit_msg = _install_hook(hooks_dir, "post-commit", _HOOK_SCRIPT, _HOOK_MARKER, _HOOK_MARKER_END)
+    checkout_msg = _install_hook(
+        hooks_dir,
+        "post-checkout",
+        _CHECKOUT_SCRIPT,
+        _CHECKOUT_MARKER,
+        _CHECKOUT_MARKER_END,
+    )
 
     return f"post-commit: {commit_msg}\npost-checkout: {checkout_msg}"
 
