@@ -134,6 +134,21 @@ def test_transcribe_all_uses_cache(tmp_path):
     assert str(cached) in results[0]
 
 
+def test_transcribe_all_force_reruns_cached_file(tmp_path):
+    video = tmp_path / "lecture.mp4"
+    video.write_bytes(b"fake")
+    out_dir = tmp_path / "transcripts"
+    out_dir.mkdir()
+    cached = _transcript_path(video, out_dir)
+    cached.write_text("Cached.")
+
+    with patch("graphify.transcribe.transcribe", return_value=cached) as mocked:
+        results = transcribe_all([str(video)], output_dir=out_dir, force=True)
+
+    assert results == [str(cached)]
+    mocked.assert_called_once_with(str(video), out_dir, initial_prompt=None, force=True)
+
+
 def test_transcript_paths_do_not_collide_for_same_stem(tmp_path):
     """Same-stem media with different suffixes get distinct transcript files."""
     mp3 = tmp_path / "sample.mp3"

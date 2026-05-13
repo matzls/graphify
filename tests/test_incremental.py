@@ -89,9 +89,10 @@ def test_extract_transcribes_video_files_for_semantic_extraction(tmp_path, monke
     transcript = corpus / "graphify-out" / "transcripts" / "lecture.txt"
     calls: dict[str, object] = {}
 
-    def fake_transcribe_all(video_files, output_dir=None, initial_prompt=None):
+    def fake_transcribe_all(video_files, output_dir=None, initial_prompt=None, force=False):
         calls["video_files"] = video_files
         calls["output_dir"] = output_dir
+        calls["force"] = force
         transcript.parent.mkdir(parents=True, exist_ok=True)
         transcript.write_text("Transcript content.", encoding="utf-8")
         return [str(transcript)]
@@ -123,8 +124,94 @@ def test_extract_transcribes_video_files_for_semantic_extraction(tmp_path, monke
 
     assert calls["video_files"] == [str(video)]
     assert calls["output_dir"] == corpus / "graphify-out" / "transcripts"
+    assert calls["force"] is False
     assert calls["semantic_paths"] == [str(transcript)]
     assert (corpus / "graphify-out" / "graph.json").exists()
+
+
+def test_incremental_extract_forces_changed_video_retranscription(tmp_path, monkeypatch):
+    from graphify.__main__ import main
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    video = corpus / "lecture.mp4"
+    video.write_bytes(b"v1")
+    transcript = corpus / "graphify-out" / "transcripts" / "lecture.txt"
+    out = corpus / "graphify-out"
+    out.mkdir()
+    (out / "manifest.json").write_text(json.dumps({
+        "version": 1,
+        "files": {
+            "video": [
+                {
+                    "path": str(video),
+                    "mtime": 0,
+                    "size": 0,
+                    "hash": "old",
+                }
+            ]
+        },
+    }), encoding="utf-8")
+    (out / "graph.json").write_text(json.dumps({"nodes": [], "edges": []}), encoding="utf-8")
+    calls: dict[str, object] = {}
+
+    def fake_transcribe_all(video_files, output_dir=None, initial_prompt=None, force=False):
+        calls["video_files"] = video_files
+        calls["force"] = force
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        transcript.write_text("Fresh transcript.", encoding="utf-8")
+        return [str(transcript)]
+
+    def fake_extract_corpus_parallel(paths, **kwargs):
+        return {
+            "nodes": [{"id": "fresh", "label": "Fresh", "source_file": str(transcript)}],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+        }
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["graphify", "extract", str(corpus), "--backend", "gemini"])
+
+    with patch("graphify.transcribe.transcribe_all", side_effect=fake_transcribe_all), \
+         patch("graphify.llm.extract_corpus_parallel", side_effect=fake_extract_corpus_parallel):
+        main()
+
+    assert calls["video_files"] == [str(video)]
+    assert calls["force"] is True
+
+
+def test_incremental_no_cluster_preserves_unchanged_graph_data(tmp_path, monkeypatch):
+    from graphify.__main__ import main
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    keep = corpus / "keep.py"
+    change = corpus / "change.py"
+    keep.write_text("def keep_func():\n    return 1\n", encoding="utf-8")
+    change.write_text("def old_func():\n    return 2\n", encoding="utf-8")
+    env = {
+        k: v for k, v in os.environ.items()
+        if not k.endswith("_API_KEY") and k not in {"GEMINI_API_KEY", "GOOGLE_API_KEY"}
+    }
+    first = _run(["extract", str(corpus), "--no-cluster"], tmp_path, env=env)
+    assert first.returncode == 0, first.stderr
+
+    change.write_text("def new_func():\n    return 3\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["graphify", "extract", str(corpus), "--no-cluster"])
+
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 0
+
+    graph = json.loads((corpus / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
+    labels = {n.get("label") for n in graph["nodes"]}
+    assert "keep_func()" in labels
+    assert "new_func()" in labels
+    assert "old_func()" not in labels
 
 
 def test_incremental_extract_prunes_changed_code_source(tmp_path):

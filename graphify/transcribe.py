@@ -176,6 +176,7 @@ def transcribe_all(
     video_files: list[str],
     output_dir: Path | None = None,
     initial_prompt: str | None = None,
+    force: bool = False,
 ) -> list[str]:
     """Transcribe a list of video/audio files or URLs, return paths to transcript .txt files.
 
@@ -188,7 +189,7 @@ def transcribe_all(
     transcript_paths = []
     for vf in video_files:
         try:
-            t = transcribe(vf, output_dir, initial_prompt=initial_prompt)
+            t = transcribe(vf, output_dir, initial_prompt=initial_prompt, force=force)
             transcript_paths.append(str(t))
         except Exception as exc:
             print(f"  warning: could not transcribe {vf}: {exc}")

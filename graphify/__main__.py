@@ -2769,6 +2769,7 @@ def main() -> None:
             transcript_paths = _transcribe_all(
                 [str(p) for p in video_files],
                 output_dir=graphify_out / "transcripts",
+                force=incremental_mode,
             )
             transcript_files = [Path(p) for p in transcript_paths]
 
@@ -2895,9 +2896,64 @@ def main() -> None:
         graph_json_path = graphify_out / "graph.json"
         analysis_path = graphify_out / ".graphify_analysis.json"
 
+        def _merge_raw_incremental(existing_path: Path, fresh: dict, prune_sources: list[str]) -> dict:
+            if not existing_path.exists():
+                return fresh
+            try:
+                existing = json.loads(existing_path.read_text(encoding="utf-8"))
+            except Exception:
+                return fresh
+            existing_nodes = list(existing.get("nodes", []))
+            existing_edges = list(existing.get("links", existing.get("edges", [])))
+            existing_hyperedges = list(existing.get("hyperedges", []))
+            prune_set = set(prune_sources)
+            fresh_node_ids = {n.get("id") for n in fresh.get("nodes", [])}
+            pruned_ids = {
+                n.get("id")
+                for n in existing_nodes
+                if n.get("id") and n.get("source_file") in prune_set
+            }
+            preserved_nodes = [
+                n for n in existing_nodes
+                if n.get("id") not in fresh_node_ids and n.get("id") not in pruned_ids
+            ]
+            valid_ids = fresh_node_ids | {n.get("id") for n in preserved_nodes}
+            preserved_edges = [
+                e for e in existing_edges
+                if e.get("source") in valid_ids
+                and e.get("target") in valid_ids
+                and e.get("source_file") not in prune_set
+            ]
+            fresh_hyperedges = list(fresh.get("hyperedges", []))
+            fresh_hyper_ids = {h.get("id") for h in fresh_hyperedges if isinstance(h, dict)}
+            preserved_hyperedges = [
+                h for h in existing_hyperedges
+                if not isinstance(h, dict) or h.get("id") not in fresh_hyper_ids
+            ]
+            return {
+                "nodes": preserved_nodes + list(fresh.get("nodes", [])),
+                "edges": preserved_edges + list(fresh.get("edges", [])),
+                "hyperedges": preserved_hyperedges + fresh_hyperedges,
+                "input_tokens": fresh.get("input_tokens", 0),
+                "output_tokens": fresh.get("output_tokens", 0),
+            }
+
         if no_cluster:
             # --no-cluster: dump the raw merged extraction as graph.json.
             # No NetworkX, no community detection, no analysis sidecar.
+            if incremental_mode:
+                changed_sources = list(deleted_files)
+                for p in code_files + doc_files + paper_files + image_files + video_files + transcript_files:
+                    changed_sources.append(str(p))
+                    try:
+                        changed_sources.append(str(p.resolve().relative_to(target.resolve())))
+                    except ValueError:
+                        pass
+                merged = _merge_raw_incremental(
+                    graph_json_path,
+                    merged,
+                    list(dict.fromkeys(changed_sources)),
+                )
             graph_json_path.write_text(
                 json.dumps(merged, indent=2), encoding="utf-8"
             )
