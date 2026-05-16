@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import re
 from pathlib import Path
 
 from graphify.paths import out_path as _out_path
@@ -115,6 +117,15 @@ def build_whisper_prompt(god_nodes: list[dict]) -> str:
     return f"Technical discussion about {topics}. Use proper punctuation and paragraph breaks."
 
 
+def _transcript_path(audio_path: Path, out_dir: Path) -> Path:
+    """Return a stable transcript path that cannot collide on same-stem media."""
+    suffix = audio_path.suffix.lower().lstrip(".") or "media"
+    stem = re.sub(r"[^A-Za-z0-9_.-]+", "_", audio_path.stem).strip("._") or "media"
+    identity = str(audio_path.resolve() if audio_path.exists() else audio_path)
+    digest = hashlib.sha1(identity.encode("utf-8")).hexdigest()[:10]
+    return out_dir / f"{stem}__{suffix}__{digest}.txt"
+
+
 def transcribe(
     video_path: Path | str,
     output_dir: Path | None = None,
@@ -138,7 +149,7 @@ def transcribe(
     else:
         audio_path = Path(video_path)
 
-    transcript_path = out_dir / (audio_path.stem + ".txt")
+    transcript_path = _transcript_path(audio_path, out_dir)
     if transcript_path.exists() and not force:
         return transcript_path
 
@@ -167,6 +178,7 @@ def transcribe_all(
     video_files: list[str],
     output_dir: Path | None = None,
     initial_prompt: str | None = None,
+    force: bool = False,
 ) -> list[str]:
     """Transcribe a list of video/audio files or URLs, return paths to transcript .txt files.
 
@@ -179,7 +191,7 @@ def transcribe_all(
     transcript_paths = []
     for vf in video_files:
         try:
-            t = transcribe(vf, output_dir, initial_prompt=initial_prompt)
+            t = transcribe(vf, output_dir, initial_prompt=initial_prompt, force=force)
             transcript_paths.append(str(t))
         except Exception as exc:
             print(f"  warning: could not transcribe {vf}: {exc}")

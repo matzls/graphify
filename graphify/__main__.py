@@ -9,13 +9,16 @@ import platform
 import re
 import shutil
 import sys
+import urllib.parse
 from pathlib import Path
 
 try:
+    from importlib.metadata import distribution as _pkg_distribution
     from importlib.metadata import version as _pkg_version
 
     __version__ = _pkg_version("graphifyy")
 except Exception:
+    _pkg_distribution = None
     __version__ = "unknown"
 
 # Output directory — override with GRAPHIFY_OUT env var for worktrees or shared-output setups.
@@ -153,6 +156,50 @@ def __getattr__(name: str) -> str:
     if base is not None:
         return _always_on(base)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _install_source() -> Path | str | None:
+    """Return the direct install source for graphifyy when package metadata records it."""
+    if _pkg_distribution is None:
+        return None
+    try:
+        dist = _pkg_distribution("graphifyy")
+        text = dist.read_text("direct_url.json") or "{}"
+        data = json.loads(text)
+    except Exception:
+        return None
+    url = data.get("url")
+    if not url:
+        return None
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme == "file":
+        return Path(urllib.parse.unquote(parsed.path)).resolve()
+    return url
+
+
+def _doctor(require_source: str | None = None) -> int:
+    """Print install diagnostics and return a process exit code."""
+    source = _install_source()
+    module_path = Path(__file__).resolve()
+    print(f"graphify version: {__version__}")
+    print(f"graphify module: {module_path}")
+    print(f"graphify install source: {source or '<unknown>'}")
+
+    if require_source:
+        expected = Path(require_source).expanduser().resolve()
+        module_under_expected = False
+        try:
+            module_path.relative_to(expected)
+            module_under_expected = True
+        except ValueError:
+            pass
+        if source != expected and not (source is None and module_under_expected):
+            print(
+                f"error: expected install source {expected}, got {source or '<unknown>'}",
+                file=sys.stderr,
+            )
+            return 1
+    return 0
 
 
 
@@ -581,6 +628,7 @@ def _run_cli() -> None:
         print("    --half-life-days N      signal weight halves every N days (default 30)")
         print("    --min-corroboration N   distinct useful results to prefer a node (default 2)")
         print("  check-update <path>     check needs_update flag and notify if semantic re-extraction is pending (cron-safe)")
+        print("  codex-session-start <path>  emit Codex SessionStart JSON for pending semantic refresh")
         print("  tree                    emit a D3 v7 collapsible-tree HTML for graph.json")
         print("    --graph PATH            path to graph.json (default graphify-out/graph.json)")
         print("    --output HTML           output path (default graphify-out/GRAPH_TREE.html)")
@@ -621,6 +669,8 @@ def _run_cli() -> None:
         print("  global path              print path to the global graph file")
         print("  benchmark [graph.json]  measure token reduction vs naive full-corpus approach")
         print("  export callflow-html    emit Mermaid-based architecture/call-flow HTML")
+        print("  doctor                  print install diagnostics")
+        print("    --require-source DIR   fail unless package was installed from DIR")
         print("  hook install            install post-commit/post-checkout git hooks (all platforms)")
         print("  hook uninstall          remove git hooks")
         print("  hook status             check if git hooks are installed")
@@ -702,6 +752,28 @@ def _run_cli() -> None:
     if cmd not in _FREE_TEXT_CMDS and any(a in {"-h", "--help", "-?"} for a in sys.argv[2:]):
         print(f"Run 'graphify --help' for full usage.")
         return
+
+    if cmd == "doctor":
+        args = sys.argv[2:]
+        require_source = None
+        if args in (["--help"], ["-h"], ["-?"]):
+            print("Usage: graphify doctor [--require-source DIR]")
+            return
+        if "--require-source" in args:
+            idx = args.index("--require-source")
+            if idx + 1 >= len(args):
+                print("Usage: graphify doctor [--require-source DIR]", file=sys.stderr)
+                sys.exit(2)
+            require_source = args[idx + 1]
+            allowed = {"--require-source", require_source}
+            extras = [a for a in args if a not in allowed]
+            if extras:
+                print("Usage: graphify doctor [--require-source DIR]", file=sys.stderr)
+                sys.exit(2)
+        elif args:
+            print("Usage: graphify doctor [--require-source DIR]", file=sys.stderr)
+            sys.exit(2)
+        sys.exit(_doctor(require_source=require_source))
 
     if dispatch_install_cli(cmd):
         return

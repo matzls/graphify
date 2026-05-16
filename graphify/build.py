@@ -28,6 +28,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+from typing import cast
 import networkx as nx
 from .ids import make_id, normalize_id as _normalize_id
 from .paths import default_graph_json as _default_graph_json
@@ -391,6 +392,62 @@ def _doc_twin_remap(nodes: list) -> dict[str, str]:
     return remap
 
 
+def _rewrite_hyperedge_nodes(
+    hyperedges: list,
+    remap: dict[str, str],
+    *,
+    valid_ids: set[str] | None = None,
+) -> list:
+    """Rewrite hyperedge node references after node deduplication."""
+    if not hyperedges:
+        return hyperedges
+
+    rewritten = []
+    for hyperedge in hyperedges:
+        if not isinstance(hyperedge, dict):
+            rewritten.append(hyperedge)
+            continue
+        raw_nodes = hyperedge.get("nodes")
+        if not isinstance(raw_nodes, list):
+            rewritten.append(hyperedge)
+            continue
+        seen = set()
+        nodes = []
+        for node_id in raw_nodes:
+            mapped = remap.get(node_id, node_id)
+            if valid_ids is not None and mapped not in valid_ids:
+                continue
+            if mapped in seen:
+                continue
+            seen.add(mapped)
+            nodes.append(mapped)
+        item = dict(hyperedge)
+        item["nodes"] = nodes
+        rewritten.append(item)
+    return rewritten
+
+
+def _filter_hyperedges_for_valid_nodes(
+    hyperedges: list,
+    valid_ids: set[str],
+    *,
+    prune_sources: set[str] | None = None,
+) -> list:
+    """Drop hyperedges that point at removed nodes or pruned source files."""
+    filtered = []
+    for hyperedge in hyperedges:
+        if not isinstance(hyperedge, dict):
+            filtered.append(hyperedge)
+            continue
+        if prune_sources and hyperedge.get("source_file") in prune_sources:
+            continue
+        nodes = hyperedge.get("nodes")
+        if isinstance(nodes, list) and any(node_id not in valid_ids for node_id in nodes):
+            continue
+        filtered.append(hyperedge)
+    return filtered
+
+
 def build_from_json(extraction: dict, *, directed: bool = False, root: str | Path | None = None) -> nx.Graph:
     """Build a NetworkX graph from an extraction dict.
 
@@ -686,6 +743,13 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
         if "source" not in edge or "target" not in edge:
             continue
         src, tgt = edge["source"], edge["target"]
+        if not isinstance(src, str) or not isinstance(tgt, str):
+            print(
+                f"[graphify] WARNING: skipping edge with non-string endpoint "
+                f"(source={src!r}, target={tgt!r}).",
+                file=sys.stderr,
+            )
+            continue
         # Skip edges with non-hashable endpoints (e.g. a list emitted by a buggy
         # LLM extraction) so the `not in node_set` membership test below never
         # raises TypeError: unhashable type. The validator already reported these.
@@ -861,10 +925,43 @@ def build(
         combined["input_tokens"] += ext.get("input_tokens", 0)
         combined["output_tokens"] += ext.get("output_tokens", 0)
     if dedup and combined["nodes"]:
-        combined["nodes"], combined["edges"] = deduplicate_entities(
-            combined["nodes"], combined["edges"], communities={},
-            dedup_llm_backend=dedup_llm_backend,
+        combined["nodes"], combined["edges"], remap = cast(
+            tuple[list[dict], list[dict], dict[str, str]],
+            deduplicate_entities(
+                combined["nodes"], combined["edges"], communities={},
+                dedup_llm_backend=dedup_llm_backend,
+                return_remap=True,
+            ),
         )
+        valid_ids = {
+            node_id
+            for n in combined["nodes"]
+            if isinstance((node_id := n.get("id")), str)
+        }
+        combined["hyperedges"] = _rewrite_hyperedge_nodes(
+            combined["hyperedges"],
+            remap,
+            valid_ids=valid_ids,
+        )
+        combined["nodes"], combined["edges"], label_remap = cast(
+            tuple[list[dict], list[dict], dict[str, str]],
+            deduplicate_by_label(
+                combined["nodes"],
+                combined["edges"],
+                return_remap=True,
+            ),
+        )
+        if label_remap:
+            valid_ids = {
+                node_id
+                for n in combined["nodes"]
+                if isinstance((node_id := n.get("id")), str)
+            }
+            combined["hyperedges"] = _rewrite_hyperedge_nodes(
+                combined["hyperedges"],
+                label_remap,
+                valid_ids=valid_ids,
+            )
     return build_from_json(combined, directed=directed, root=root)
 
 
@@ -876,7 +973,12 @@ def _norm_label(label: str | None) -> str:
     return re.sub(r"[\W_ ]+", " ", label.casefold(), flags=re.UNICODE).strip()
 
 
-def deduplicate_by_label(nodes: list[dict], edges: list[dict]) -> tuple[list[dict], list[dict]]:
+def deduplicate_by_label(
+    nodes: list[dict],
+    edges: list[dict],
+    *,
+    return_remap: bool = False,
+) -> tuple[list[dict], list[dict]] | tuple[list[dict], list[dict], dict[str, str]]:
     """Merge nodes that share a normalised label, rewriting edge references.
 
     Prefers IDs without chunk suffixes (_c\\d+) and shorter IDs when tied.
@@ -916,6 +1018,8 @@ def deduplicate_by_label(nodes: list[dict], edges: list[dict]) -> tuple[list[dic
                 remap[node["id"]] = existing["id"]
 
     if not remap:
+        if return_remap:
+            return nodes, edges, {}
         return nodes, edges
 
     print(f"[graphify] Deduplicated {len(remap)} duplicate node(s) by label.", file=sys.stderr)
@@ -927,6 +1031,8 @@ def deduplicate_by_label(nodes: list[dict], edges: list[dict]) -> tuple[list[dic
         e["target"] = remap.get(e["target"], e["target"])
         if e["source"] != e["target"]:
             deduped_edges.append(e)
+    if return_remap:
+        return deduped_nodes, deduped_edges, remap
     return deduped_nodes, deduped_edges
 
 
@@ -1016,8 +1122,16 @@ def build_merge(
             return sf not in new_sources and _norm_source_file(sf, _replace_root) not in new_sources
         existing_nodes = [n for n in existing_nodes if _kept(n)]
         existing_edges = [e for e in existing_edges if _kept(e)]
+        kept_ids = {n.get("id") for n in existing_nodes if n.get("id")}
+        existing_hyperedges = _filter_hyperedges_for_valid_nodes(
+            existing_hyperedges,
+            kept_ids,
+            prune_sources=new_sources,
+        )
 
-    base = [{"nodes": existing_nodes, "edges": existing_edges}] if had_graph else []
+    base = [
+        {"nodes": existing_nodes, "edges": existing_edges, "hyperedges": existing_hyperedges}
+    ] if had_graph else []
 
     all_chunks = base + list(new_chunks)
     G = build(all_chunks, directed=directed, dedup=dedup, dedup_llm_backend=dedup_llm_backend, root=root)

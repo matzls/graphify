@@ -589,3 +589,46 @@ def test_uninstall_removes_merge_driver_keeps_other_attrs(tmp_path):
     content = (repo / ".gitattributes").read_text(encoding="utf-8")
     assert "*.png binary" in content
     assert "merge=graphify" not in content
+
+
+def test_codex_session_start_outputs_json(tmp_path):
+    """Codex SessionStart command must emit valid JSON even when graph is fresh."""
+    import json
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex-session-start", str(tmp_path)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    assert payload["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert payload["hookSpecificOutput"]["additionalContext"] == ""
+
+
+def test_codex_session_start_outputs_pending_context(tmp_path):
+    """Codex SessionStart injects refresh context when needs_update exists."""
+    import json
+    import sys
+
+    flag = tmp_path / "graphify-out" / "needs_update"
+    flag.parent.mkdir(parents=True)
+    flag.write_text("1", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex-session-start", str(tmp_path)],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    payload = json.loads(result.stdout)
+    context = payload["hookSpecificOutput"]["additionalContext"]
+    assert "Graphify graph refresh is pending" in context
+    assert "/graphify . --update" in context
+    assert "graphify update ." in context
+    assert "will not clear semantic refresh needs" in context

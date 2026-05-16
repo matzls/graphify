@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -408,16 +409,45 @@ def _hooks_dir(root: Path) -> Path:
     file, not a directory) correctly in one place. Genuinely corrupt configs
     are still surfaced: git itself fails on them, and its stderr is printed.
     """
+    # Retain the fork's guard against an external hooks path: Graphify should
+    # not append a generated hook to a location outside the selected repository.
+    # Ask Git rather than parsing .git/config so duplicate keys and includeIf
+    # remain supported (#1907).
+    configured = subprocess.run(
+        ["git", "-C", str(root), "config", "--get", "--path", "core.hooksPath"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    if configured.returncode == 0:
+        custom = configured.stdout.strip()
+        if custom:
+            _reject_windows_path(custom, "core.hooksPath")
+            custom_path = Path(custom)
+            if not custom_path.is_absolute():
+                custom_path = root / custom_path
+            try:
+                custom_path.resolve().relative_to(root.resolve())
+            except ValueError as exc:
+                raise RuntimeError(
+                    "Refusing to install Graphify hooks into external "
+                    f"core.hooksPath {custom_path}. Git will ignore "
+                    f"{root / '.git' / 'hooks'} while this setting is active."
+                ) from exc
+
     # NOTE: do NOT pass --path-format=absolute — added in git 2.31; older git
     # echoes it back as a literal argument, contaminating stdout and causing a
     # phantom directory to be created (#907). git -C <root> already returns an
     # absolute path for worktree/external-gitdir cases, and a path relative to
     # <root> for normal repos — anchoring on root covers both.
-    import subprocess as _sp
     try:
-        res = _sp.run(
+        res = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "--git-path", "hooks"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
         if res.returncode != 0:
             # git failing here is a real signal (corrupt .git/config, tampering,
@@ -435,12 +465,19 @@ def _hooks_dir(root: Path) -> Path:
             # means git echoed an unrecognised flag back (old git behaviour).
             if raw and not any(c in raw for c in ("\n", "\r", "\x00")):
                 _reject_windows_path(raw, "git rev-parse --git-path hooks")
-                d = (root / raw).resolve()
+                d = Path(raw)
+                if not d.is_absolute():
+                    d = root / d
+                d = d.resolve()
                 d.mkdir(parents=True, exist_ok=True)
                 return d
-    except (OSError, FileNotFoundError):
-        pass
-    d = root / ".git" / "hooks"
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f"[graphify hooks] git hook path lookup failed in {root}: {exc}", file=sys.stderr)
+
+    git_dir = root / ".git"
+    if git_dir.is_file():
+        raise RuntimeError(f"Cannot resolve Git hooks directory for worktree at {root}")
+    d = git_dir / "hooks"
     d.mkdir(parents=True, exist_ok=True)
     return d
 
