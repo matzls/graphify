@@ -1860,6 +1860,20 @@ def dispatch_command(cmd: str) -> None:
 
         check_update(Path(sys.argv[2]).resolve())
         sys.exit(0)
+    elif cmd == "codex-session-start":
+        if len(sys.argv) < 3:
+            print("Usage: graphify codex-session-start <path>", file=sys.stderr)
+            sys.exit(1)
+        from graphify.watch import codex_session_start_notice
+
+        payload = {
+            "hookSpecificOutput": {
+                "hookEventName": "SessionStart",
+                "additionalContext": codex_session_start_notice(Path(sys.argv[2]).resolve()),
+            }
+        }
+        print(json.dumps(payload))
+        sys.exit(0)
     elif cmd == "tree":
         # Emit a D3 v7 collapsible-tree HTML view of graph.json:
         # expand-all / collapse-all / reset-view buttons, multi-line

@@ -1363,6 +1363,37 @@ def _rebuild_code(
         return False
 
 
+def semantic_update_notice(watch_path: Path) -> str:
+    """Return the human notice for a pending semantic refresh, or empty string."""
+    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
+    if not flag.exists():
+        return ""
+    return "\n".join(
+        [
+            f"[graphify check-update] Pending non-code changes in {watch_path}.",
+            "[graphify check-update] Run `/graphify --update` to apply semantic re-extraction.",
+        ]
+    )
+
+
+def codex_session_start_notice(watch_path: Path) -> str:
+    """Return Codex SessionStart context for pending semantic refresh work."""
+    raw_notice = semantic_update_notice(watch_path)
+    if not raw_notice:
+        return ""
+    return "\n".join(
+        [
+            "Graphify graph refresh is pending for this repo.",
+            "",
+            raw_notice,
+            "",
+            "Action: tell the user this repo has pending Graphify semantic refresh work.",
+            "Offer to run `/graphify . --update` before relying on doc/media/image relationships.",
+            "Code-only refresh is cheaper and can be run with `graphify update .`, but it will not clear semantic refresh needs.",
+        ]
+    )
+
+
 def check_update(watch_path: Path) -> bool:
     """Check for pending semantic update flag and notify the user if set.
 
@@ -1371,18 +1402,23 @@ def check_update(watch_path: Path) -> bool:
     re-extraction via `/graphify --update` — this function only signals
     that the update is needed.
     """
-    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
-    if flag.exists():
-        print(f"[graphify check-update] Pending non-code changes in {watch_path}.")
-        print("[graphify check-update] Run `/graphify --update` to apply semantic re-extraction.")
+    notice = semantic_update_notice(watch_path)
+    if notice:
+        print(notice)
     return True
+
+
+def mark_needs_update(watch_path: Path) -> Path:
+    """Write the semantic-refresh sentinel used by watch and Git hooks."""
+    flag = Path(watch_path) / _GRAPHIFY_OUT / "needs_update"
+    flag.parent.mkdir(parents=True, exist_ok=True)
+    flag.write_text("1", encoding="utf-8")
+    return flag
 
 
 def _notify_only(watch_path: Path) -> None:
     """Write a flag file and print a notification (fallback for non-code-only corpora)."""
-    flag = watch_path / _GRAPHIFY_OUT / "needs_update"
-    flag.parent.mkdir(parents=True, exist_ok=True)
-    flag.write_text("1", encoding="utf-8")
+    flag = mark_needs_update(watch_path)
     print(f"\n[graphify watch] New or changed files detected in {watch_path}")
     print("[graphify watch] Non-code files changed - semantic re-extraction requires LLM.")
     print("[graphify watch] Run `/graphify --update` in Claude Code to update the graph.")

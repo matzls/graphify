@@ -323,7 +323,8 @@ def deduplicate_entities(
     *,
     communities: dict[str, int],
     dedup_llm_backend: str | None = None,
-) -> tuple[list[dict], list[dict]]:
+    return_remap: bool = False,
+) -> tuple[list[dict], list[dict]] | tuple[list[dict], list[dict], dict[str, str]]:
     """Deduplicate near-identical entities in a knowledge graph.
 
     Args:
@@ -333,7 +334,9 @@ def deduplicate_entities(
         dedup_llm_backend: if set, use LLM to resolve ambiguous pairs
 
     Returns:
-        (deduped_nodes, deduped_edges) with edges rewired to survivors
+        (deduped_nodes, deduped_edges) with edges rewired to survivors.
+        If return_remap is True, include a mapping of removed node IDs to
+        survivor IDs as the third tuple item.
     """
     # Guard: cross-project dedup is not supported — nodes from different repos
     # share label names by coincidence and must never be merged by string similarity.
@@ -346,7 +349,7 @@ def deduplicate_entities(
         )
 
     if len(nodes) <= 1:
-        return nodes, edges
+        return (nodes, edges, {}) if return_remap else (nodes, edges)
 
     # Pre-deduplicate: one node per ID. The survivor is the node that *defines* the
     # ID (its source_file is the file the ID encodes), not merely the first seen —
@@ -393,7 +396,7 @@ def deduplicate_entities(
     unique_nodes = list(seen_ids.values())
 
     if len(unique_nodes) <= 1:
-        return unique_nodes, edges
+        return (unique_nodes, edges, {}) if return_remap else (unique_nodes, edges)
 
     # ── pass 1: exact normalization ───────────────────────────────────────────
     norm_to_nodes: dict[str, list[dict]] = defaultdict(list)
@@ -560,7 +563,7 @@ def deduplicate_entities(
 
     # ── apply remap ───────────────────────────────────────────────────────────
     if not remap:
-        return unique_nodes, edges
+        return (unique_nodes, edges, {}) if return_remap else (unique_nodes, edges)
 
     total = len(remap)
     msg = f"[graphify] Deduplicated {total} node(s)"
@@ -597,6 +600,8 @@ def deduplicate_entities(
         if e["source"] != e["target"]:
             deduped_edges.append(e)
 
+    if return_remap:
+        return deduped_nodes, deduped_edges, remap
     return deduped_nodes, deduped_edges
 
 

@@ -2149,3 +2149,42 @@ def test_rebuild_code_incremental_preserves_present_non_ast_source(tmp_path):
     assert "spec_concept" in after_ids, (
         "present-but-unextractable file in change set wrongly evicted as deleted (#2056)"
     )
+def test_rebuild_code_changed_paths_drop_stale_edges_from_changed_source(
+    tmp_path, monkeypatch
+):
+    import json
+    from graphify.watch import _rebuild_code
+
+    monkeypatch.chdir(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir()
+    app = src / "app.py"
+    helper = src / "helper.py"
+    app.write_text(
+        "from helper import helper\n\ndef run():\n    return helper()\n",
+        encoding="utf-8",
+    )
+    helper.write_text("def helper():\n    return 1\n", encoding="utf-8")
+
+    assert _rebuild_code(Path("."), block_on_lock=True) is True
+    app.write_text("def run():\n    return 2\n", encoding="utf-8")
+
+    assert _rebuild_code(
+        Path("."), changed_paths=[Path("src/app.py")], block_on_lock=True
+    ) is True
+
+    graph = json.loads(
+        (tmp_path / "graphify-out" / "graph.json").read_text(encoding="utf-8")
+    )
+    nodes_by_label = {n.get("label"): n.get("id") for n in graph["nodes"]}
+    run_id = nodes_by_label.get("run()")
+    helper_id = nodes_by_label.get("helper()")
+    assert run_id
+    assert helper_id
+    assert not any(
+        edge.get("source") == run_id
+        and edge.get("target") == helper_id
+        and edge.get("relation") == "calls"
+        for edge in graph.get("links", graph.get("edges", []))
+    )
+
