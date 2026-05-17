@@ -207,15 +207,18 @@ Rules:
 - This repo can use repo-local Graphify Git hooks. They refresh code graph
   outputs after commits and branch switches. After commits, docs/media/image
   changes write `graphify-out/needs_update`; they are not semantically
-  refreshed until `graphify . --update` runs.
+  refreshed until the Graphify assistant skill runs `/graphify . --update`.
 - For longer active coding sessions, consider running `graphify watch .` in a
   separate terminal. It watches live file changes while the process is running:
   code changes trigger a code-only graph rebuild, and non-code changes write
   `graphify-out/needs_update`.
 - Do not assume `graphify watch .` is already running. Check before relying on
   live graph freshness, and avoid starting duplicate watchers in the same repo.
-- If `graphify-out/needs_update` exists, run `graphify . --update` before
-  relying on docs/media/image relationships. This semantic update can spend LLM
-  tokens.
+- If `graphify-out/needs_update` exists, run the native CLI code refresh
+  `graphify update .`, then invoke the Graphify assistant skill as
+  `/graphify . --update` before relying on docs/media/image relationships.
+  The semantic update can spend LLM tokens. Do not run `graphify . --update`
+  in the shell; that is not the native CLI shape.
 - Treat Git hooks and `graphify watch .` as freshness helpers. When report
-  quality matters, prefer a full `graphify . --update`.
+  quality matters, prefer both `graphify update .` and the assistant skill
+  `/graphify . --update`.

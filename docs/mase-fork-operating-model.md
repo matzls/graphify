@@ -248,7 +248,9 @@ Do not tell Mase that Codex is actively reminded by the hook unless
 The local Git hooks are active when installed. They refresh code graph outputs
 after commits and branch switches. After commits, docs/media/image changes
 write `graphify-out/needs_update`; they do not semantically refresh until
-`graphify . --update` runs.
+the Graphify assistant skill runs `/graphify . --update`. Use native CLI
+`graphify update .` for cheap code-only refreshes, then the assistant skill
+semantic refresh when docs/media/image relationships matter.
 
 ## Skill And Guide Sync Rules
 

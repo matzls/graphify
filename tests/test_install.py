@@ -565,8 +565,12 @@ def test_codex_agents_install_writes_agents_md(tmp_path):
     _agents_install(tmp_path, "codex")
     agents_md = tmp_path / "AGENTS.md"
     assert agents_md.exists()
-    assert "graphify" in agents_md.read_text()
-    assert "GRAPH_REPORT.md" in agents_md.read_text()
+    content = agents_md.read_text()
+    assert "graphify" in content
+    assert "GRAPH_REPORT.md" in content
+    assert "graphify update ." in content
+    assert "/graphify . --update" in content
+    assert "Do not run `graphify . --update` in the shell" in content
 
 
 def test_opencode_agents_install_writes_agents_md(tmp_path):

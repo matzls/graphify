@@ -73,7 +73,9 @@ def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
     result = check_update(tmp_path)
     assert result is True
     out = capsys.readouterr().out
-    assert "graphify --update" in out
+    assert "native CLI `graphify update .`" in out
+    assert "assistant skill as `/graphify . --update`" in out
+    assert "Do not run `graphify . --update` in the shell" in out
 
 
 def test_check_update_does_not_clear_flag(tmp_path):

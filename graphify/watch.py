@@ -1371,7 +1371,9 @@ def semantic_update_notice(watch_path: Path) -> str:
     return "\n".join(
         [
             f"[graphify check-update] Pending non-code changes in {watch_path}.",
-            "[graphify check-update] Run `/graphify --update` to apply semantic re-extraction.",
+            "[graphify check-update] First run native CLI `graphify update .` for a code graph refresh.",
+            "[graphify check-update] Then invoke the Graphify assistant skill as `/graphify . --update` to apply semantic re-extraction.",
+            "[graphify check-update] Do not run `graphify . --update` in the shell; that is not the native CLI shape.",
         ]
     )
 
@@ -1388,8 +1390,8 @@ def codex_session_start_notice(watch_path: Path) -> str:
             raw_notice,
             "",
             "Action: tell the user this repo has pending Graphify semantic refresh work.",
-            "Offer to run `/graphify . --update` before relying on doc/media/image relationships.",
-            "Code-only refresh is cheaper and can be run with `graphify update .`, but it will not clear semantic refresh needs.",
+            "Offer to run native CLI `graphify update .` first, then invoke the Graphify assistant skill as `/graphify . --update` before relying on doc/media/image relationships.",
+            "`graphify update .` is code-only and no-LLM; `/graphify . --update` is assistant-skill semantic refresh and may spend LLM/API budget.",
         ]
     )
 
@@ -1399,7 +1401,8 @@ def check_update(watch_path: Path) -> bool:
 
     Cron-safe: always returns True so cron jobs do not alarm.
     Non-code file changes (docs, papers, images) require LLM-backed
-    re-extraction via `/graphify --update` — this function only signals
+    re-extraction via the Graphify assistant skill `/graphify . --update` —
+    this function only signals
     that the update is needed.
     """
     notice = semantic_update_notice(watch_path)
@@ -1421,7 +1424,7 @@ def _notify_only(watch_path: Path) -> None:
     flag = mark_needs_update(watch_path)
     print(f"\n[graphify watch] New or changed files detected in {watch_path}")
     print("[graphify watch] Non-code files changed - semantic re-extraction requires LLM.")
-    print("[graphify watch] Run `/graphify --update` in Claude Code to update the graph.")
+    print("[graphify watch] Invoke the Graphify assistant skill as `/graphify . --update` to update semantic relationships.")
     print(f"[graphify watch] Flag written to {flag}")
 
 
@@ -1435,7 +1438,7 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 
     For code-only changes: re-runs AST extraction + rebuild immediately (no LLM).
     For doc/paper/image changes: writes a needs_update flag and notifies the user
-    to run /graphify --update (LLM extraction required).
+    to invoke /graphify . --update in the assistant (LLM extraction required).
 
     debounce: seconds to wait after the last change before triggering (avoids
     running on every keystroke when many files are saved at once).
@@ -1498,7 +1501,7 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 
     print(f"[graphify watch] Watching {watch_path.resolve()} - press Ctrl+C to stop")
     print(f"[graphify watch] Code changes rebuild graph automatically. "
-          f"Doc/image changes require /graphify --update.")
+          f"Doc/image changes require assistant skill /graphify . --update.")
     print(f"[graphify watch] Debounce: {debounce}s")
 
     try:
