@@ -1,8 +1,10 @@
 """Tests for hooks.py - git hook install/uninstall."""
+import json
 import os
 import shutil
 import subprocess
 from types import SimpleNamespace
+import sys
 from pathlib import Path
 import pytest
 from graphify.hooks import install, uninstall, status, _hooks_dir, _HOOK_MARKER, _CHECKOUT_MARKER
@@ -720,3 +722,81 @@ def test_codex_session_start_outputs_pending_context(tmp_path):
     assert "/graphify . --update" in context
     assert "assistant-skill semantic refresh" in context
     assert "graphify . --update` in the shell" in context
+
+
+def _run_codex_install(repo: Path):
+    return subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "install"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_codex_install_uses_config_toml_not_hooks_json(tmp_path):
+    result = _run_codex_install(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    config = (tmp_path / ".codex" / "config.toml").read_text(encoding="utf-8")
+    assert "graphify-session-start-hook-start" in config
+    assert "codex-session-start" in config
+    assert "hook-check" not in config
+    assert not (tmp_path / ".codex" / "hooks.json").exists()
+
+
+def test_codex_install_preserves_user_hooks_json(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    hooks_json = codex_dir / "hooks.json"
+    hooks_json.write_text(
+        json.dumps({"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "echo user"}]}]}}),
+        encoding="utf-8",
+    )
+
+    result = _run_codex_install(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    data = json.loads(hooks_json.read_text(encoding="utf-8"))
+    commands = [hook["command"] for entry in data["hooks"]["PreToolUse"] for hook in entry["hooks"]]
+    assert commands == ["echo user"]
+
+
+def test_codex_install_removes_legacy_graphify_hook_check(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    hooks_json = codex_dir / "hooks.json"
+    hooks_json.write_text(
+        json.dumps({"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "graphify hook-check"}]}]}}),
+        encoding="utf-8",
+    )
+
+    result = _run_codex_install(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert not hooks_json.exists()
+
+
+def test_codex_install_removes_only_graphify_hook_check_near_miss(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    hooks_json = codex_dir / "hooks.json"
+    hooks_json.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {"matcher": "Bash", "hooks": [{"type": "command", "command": "graphify hook-check"}]},
+                        {"matcher": "Bash", "hooks": [{"type": "command", "command": "cd /repos/graphify && ./lint.sh"}]},
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = _run_codex_install(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    data = json.loads(hooks_json.read_text(encoding="utf-8"))
+    commands = [hook["command"] for entry in data["hooks"]["PreToolUse"] for hook in entry["hooks"]]
+    assert commands == ["cd /repos/graphify && ./lint.sh"]

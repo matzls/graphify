@@ -216,23 +216,21 @@ workflow is:
 
 ## Codex Integration Reality
 
-`graphify codex install` writes four repo-local surfaces:
+`graphify codex install` writes three repo-local surfaces:
 
 - an `AGENTS.md` `## graphify` section
 - `.codex/config.toml` with a SessionStart hook that reports pending semantic
   refresh work
-- `.codex/config.toml` with a PreToolUse hook that runs `graphify hook-check`
 - `.git/hooks/post-commit` and `.git/hooks/post-checkout` Graphify refresh
   hooks
 
 Important current limitation:
 
-- `graphify hook-check` currently exits silently in Codex Desktop.
-- This is intentional because Codex Desktop rejected the old
-  `hookSpecificOutput.additionalContext` payload.
-- Therefore the PreToolUse hook is not currently an active reminder surface in
-  Codex Desktop. The SessionStart hook is the active startup freshness signal
-  when Codex accepts `hookSpecificOutput.additionalContext` for that event.
+- `graphify hook-check` is retained only as a silent legacy/backcompat no-op for
+  stale `.codex/hooks.json` entries.
+- New installs do not write Graphify `PreToolUse` entries to `.codex/hooks.json`.
+- The SessionStart hook is the active startup freshness signal when Codex
+  accepts `hookSpecificOutput.additionalContext` for that event.
 
 Practical compensation:
 
@@ -242,8 +240,8 @@ Practical compensation:
 - Mase's global guide at `/Users/mase/.codex/docs/reference/graphify.md` is the
   operator policy surface.
 
-Do not tell Mase that Codex is actively reminded by the hook unless
-`graphify hook-check` has been changed and verified in the active Codex runtime.
+Do not tell Mase that Codex is actively reminded by `hook-check`; the active
+Codex hook surface is `graphify codex-session-start` in `.codex/config.toml`.
 
 The local Git hooks are active when installed. They refresh code graph outputs
 after commits and branch switches. After commits, docs/media/image changes

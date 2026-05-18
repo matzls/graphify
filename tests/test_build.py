@@ -487,11 +487,11 @@ def test_build_from_json_preserves_first_direction_on_bidirectional_pair(tmp_pat
 
 def test_build_rewrites_hyperedge_nodes_after_dedup():
     G = build([{
-        "nodes": [
-            {"id": "auth_flow_c1", "label": "Auth Flow", "source_file": "a.md"},
-            {"id": "auth_flow", "label": "Auth Flow", "source_file": "b.md"},
-            {"id": "entrypoint", "label": "Entrypoint", "source_file": "c.md"},
-        ],
+            "nodes": [
+                {"id": "auth_flow_c1", "label": "Auth Flow", "source_file": "a.md"},
+                {"id": "auth_flow", "label": "Auth Flow", "source_file": "a.md"},
+                {"id": "entrypoint", "label": "Entrypoint", "source_file": "c.md"},
+            ],
         "edges": [],
         "hyperedges": [
             {"id": "h1", "nodes": ["auth_flow_c1", "entrypoint"], "relation": "topic_cluster"},
