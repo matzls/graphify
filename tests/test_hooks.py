@@ -744,6 +744,38 @@ def test_codex_install_uses_config_toml_not_hooks_json(tmp_path):
     assert not (tmp_path / ".codex" / "hooks.json").exists()
 
 
+def test_codex_install_removes_legacy_config_toml_hook_check(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    config_toml = codex_dir / "config.toml"
+    config_toml.write_text(
+        """# GSD Hooks
+[[hooks.SessionStart]]
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "node .codex/hooks/gsd-check-update.js"
+
+# Graphify Hooks
+[[hooks.PreToolUse]]
+matcher = "Bash"
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "/Users/mase/.local/bin/graphify hook-check"
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_codex_install(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    config = config_toml.read_text(encoding="utf-8")
+    assert "gsd-check-update.js" in config
+    assert "graphify-session-start-hook-start" in config
+    assert "codex-session-start" in config
+    assert "PreToolUse" not in config
+    assert "hook-check" not in config
+
+
 def test_codex_install_preserves_user_hooks_json(tmp_path):
     codex_dir = tmp_path / ".codex"
     codex_dir.mkdir()
