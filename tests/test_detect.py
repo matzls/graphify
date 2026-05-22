@@ -736,6 +736,20 @@ def test_detect_skips_graphify_own_cache(tmp_path):
     assert any("app.py" in f for f in all_files)
 
 
+def test_detect_skips_graphify_root_diagnostic_files(tmp_path):
+    """Root .graphify_* diagnostics are generated evidence, not corpus input."""
+    (tmp_path / ".graphify_uncached.txt").write_text("generated list\n")
+    (tmp_path / ".graphify_detect.json").write_text("{}")
+    (tmp_path / ".graphify_ast.json").write_text("{}")
+    (tmp_path / "real.md").write_text("# Real doc\n")
+
+    result = detect(tmp_path)
+
+    all_files = [f for files in result["files"].values() for f in files]
+    assert any("real.md" in f for f in all_files)
+    assert not any(Path(f).name.startswith(".graphify_") for f in all_files)
+
+
 # --- #882: gitignore parent-exclusion rule for ! re-includes ---
 
 def test_anchored_root_wildcard_negation_reincludes_subtree(tmp_path):

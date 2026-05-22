@@ -11,10 +11,13 @@ import os
 import re
 import sys
 import time
+from importlib.util import find_spec
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from urllib.parse import urlparse
 
 from graphify.file_slice import (
     FileSlice,
@@ -84,7 +87,7 @@ BACKENDS: dict[str, dict] = {
     },
     "ollama": {
         "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-        "default_model": os.environ.get("OLLAMA_MODEL", "qwen2.5-coder:7b"),
+        "default_model": os.environ.get("OLLAMA_MODEL", "qwen3:30b"),
         "env_key": "OLLAMA_API_KEY",
         "pricing": {"input": 0.0, "output": 0.0},
         "temperature": 0,
@@ -175,6 +178,87 @@ BACKENDS: dict[str, dict] = {
         "vision": True,
     },
 }
+
+_BACKEND_REQUIRED_PACKAGES: dict[str, tuple[str, str]] = {
+    "gemini": ("openai", "pip install openai"),
+    "kimi": ("openai", "pip install graphifyy[kimi]"),
+    "ollama": ("openai", "pip install openai"),
+    "openai": ("openai", "pip install openai"),
+    "deepseek": ("openai", "pip install openai"),
+    "claude": ("anthropic", "pip install anthropic"),
+    "bedrock": ("boto3", "pip install graphifyy[bedrock]"),
+}
+
+
+def validate_backend_dependencies(backend: str) -> None:
+    """Fail early when the selected direct LLM backend lacks its Python SDK."""
+    if backend not in BACKENDS:
+        raise ValueError(f"Unknown backend {backend!r}. Available: {sorted(BACKENDS)}")
+    requirement = _BACKEND_REQUIRED_PACKAGES.get(backend)
+    if requirement is None:
+        return
+    package, install_hint = requirement
+    if find_spec(package) is None:
+        raise ImportError(
+            f"Backend '{backend}' requires the {package!r} package. "
+            f"Run: {install_hint}"
+        )
+
+
+def _estimate_chunk_input_tokens(chunk: list[Path]) -> int:
+    """Return a cheap pre-request size estimate for semantic chunk logging."""
+    total_chars = 0
+    for path in chunk:
+        try:
+            total_chars += min(path.stat().st_size, _FILE_CHAR_CAP)
+        except OSError:
+            continue
+    total_chars += len(chunk) * _PER_FILE_OVERHEAD_CHARS
+    return total_chars // _CHARS_PER_TOKEN + 400
+
+
+def _llm_trace_enabled() -> bool:
+    """Return true when low-risk LLM request diagnostics are enabled."""
+    return os.environ.get("GRAPHIFY_LLM_TRACE", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _trace_print(message: str) -> None:
+    print(f"[graphify trace] {message}", file=sys.stderr, flush=True)
+
+
+def probe_backend(backend: str, model: str | None = None) -> dict:
+    """Run a tiny semantic extraction through the selected direct backend."""
+    validate_backend_dependencies(backend)
+    with TemporaryDirectory(prefix="graphify-llm-probe-") as tmp:
+        root = Path(tmp)
+        probe_file = root / "probe.md"
+        probe_file.write_text(
+            "# Graphify probe\n\nGraphify maps files into a knowledge graph.",
+            encoding="utf-8",
+        )
+        result = extract_files_direct([probe_file], backend=backend, model=model, root=root)
+    nodes = result.get("nodes", [])
+    edges = result.get("edges", [])
+    hyperedges = result.get("hyperedges", [])
+    if not (nodes or edges or hyperedges):
+        raise ValueError(
+            f"backend '{backend}' probe returned no semantic nodes, edges, or hyperedges"
+        )
+    return {
+        "backend": backend,
+        "model": result.get("model") or model or _default_model_for_backend(backend),
+        "nodes": len(nodes),
+        "edges": len(edges),
+        "hyperedges": len(hyperedges),
+        "input_tokens": result.get("input_tokens", 0),
+        "output_tokens": result.get("output_tokens", 0),
+        "finish_reason": result.get("finish_reason"),
+    }
 
 
 def _custom_providers_path(global_: bool = True) -> Path:
@@ -1186,7 +1270,34 @@ def _call_openai_compat(
             num_ctx = auto_num_ctx
         keep_alive = os.environ.get("GRAPHIFY_OLLAMA_KEEP_ALIVE", "30m")
         kwargs["extra_body"] = {"options": {"num_ctx": num_ctx}, "keep_alive": keep_alive}
-    resp = client.chat.completions.create(**kwargs)
+    trace = _llm_trace_enabled()
+    if trace:
+        parsed = urlparse(base_url)
+        host = parsed.netloc or parsed.path or "<unknown>"
+        extra_body = kwargs.get("extra_body") or {}
+        options = extra_body.get("options") if isinstance(extra_body, dict) else None
+        num_ctx_trace = options.get("num_ctx") if isinstance(options, dict) else None
+        keep_alive_trace = extra_body.get("keep_alive") if isinstance(extra_body, dict) else None
+        details = (
+            f"request sent: backend={backend or 'openai-compatible'}, "
+            f"host={host}, model={model}, timeout={timeout_s:g}s, "
+            f"estimated_input_tokens={len(user_message) // _CHARS_PER_TOKEN + 400}"
+        )
+        if num_ctx_trace is not None:
+            details += f", num_ctx={num_ctx_trace}"
+        if keep_alive_trace is not None:
+            details += f", keep_alive={keep_alive_trace}"
+        _trace_print(details)
+    t0 = time.time()
+    try:
+        resp = client.chat.completions.create(**kwargs)
+    except Exception as exc:
+        if trace:
+            _trace_print(
+                f"request failed: backend={backend or 'openai-compatible'}, "
+                f"elapsed_seconds={time.time() - t0:.2f}, error={type(exc).__name__}"
+            )
+        raise
     if not resp.choices or resp.choices[0].message is None:
         raise ValueError("LLM returned empty or filtered response")
     raw_content = resp.choices[0].message.content
@@ -1212,6 +1323,17 @@ def _call_openai_compat(
             file=sys.stderr,
         )
         result["finish_reason"] = "length"
+    if trace:
+        _trace_print(
+            f"response complete: backend={backend or 'openai-compatible'}, "
+            f"elapsed_seconds={time.time() - t0:.2f}, "
+            f"finish_reason={result.get('finish_reason')}, "
+            f"input_tokens={result.get('input_tokens', 0)}, "
+            f"output_tokens={result.get('output_tokens', 0)}, "
+            f"nodes={len(result.get('nodes', []))}, "
+            f"edges={len(result.get('edges', []))}, "
+            f"hyperedges={len(result.get('hyperedges', []))}"
+        )
     output_tokens = result["output_tokens"]
     if output_tokens < 50 and backend == "ollama":
         print(
@@ -2107,10 +2229,17 @@ def extract_corpus_parallel(
         "failed_chunks": 0,  # count of chunks that raised — loud failure on chunk errors
     }
     total = len(chunks)
+    merged["total_chunks"] = total
 
     def _run_one(idx: int, chunk: list[Path]) -> tuple[int, dict | None, Exception | None]:
         t0 = time.time()
         try:
+            print(
+                f"[graphify] chunk {idx + 1}/{total} start: backend={backend}, "
+                f"model={model or _default_model_for_backend(backend)}, "
+                f"files={len(chunk)}, estimated_input_tokens={_estimate_chunk_input_tokens(chunk)}",
+                flush=True,
+            )
             result = _extract_with_adaptive_retry(
                 chunk,
                 backend=backend,

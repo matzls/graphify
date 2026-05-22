@@ -1308,7 +1308,7 @@ def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace:
                         safe_dirs.append(d)
                     dirnames[:] = safe_dirs
             for fname in filenames:
-                if fname in _SKIP_FILES:
+                if _is_skip_file(fname):
                     continue
                 p = dp / fname
                 if p not in seen:

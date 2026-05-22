@@ -435,28 +435,53 @@ Verify the active CLI source before using Graphify as evidence for another repo:
 graphify doctor --require-source /Users/mase/Codebase/Personal-Projects/graphify
 ```
 
+When validating local semantic extraction, first check backend dependencies,
+then run a tiny explicit probe instead of starting with a full-repo semantic
+refresh:
+
+```bash
+graphify doctor --backend ollama
+GRAPHIFY_LLM_TRACE=1 graphify doctor --backend ollama --probe
+```
+
+`GRAPHIFY_LLM_TRACE=1` logs backend/model, URL host, timing, token counts,
+finish reason, and parsed graph counts. It must not print prompt bodies, raw
+model output, API keys, or document content.
+
 If it fails, reinstall from this checkout:
 
 ```bash
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
+  --with openai \
+  --with tiktoken \
   --with faster-whisper \
   --with yt-dlp \
   --with watchdog \
   --with tree-sitter-sql
 ```
 
-The OpenAI-compatible Python SDK is a base dependency because the direct
-semantic extraction path uses it for `ollama`, `gemini`, `kimi`, and `openai`
-backends. Do not move it behind an optional extra unless backend auto-detection
-and the local active-install command are updated together.
+The OpenAI-compatible Python SDK is installed by Mase's local fork reinstall
+command because the direct semantic extraction path uses it for
+OpenAI-compatible backends such as `ollama`, `gemini`, `kimi`, `openai`, and
+`deepseek`. It remains an optional package dependency for upstream-friendly
+packaging, so keep backend preflight checks and the local active-install
+command aligned.
+
+When changing backend dependencies, keep these aligned:
+
+- `pyproject.toml` core dependencies and optional extras
+- the documented `uv tool install` command for Mase's active fork install
+- `graphify doctor` backend checks
+- packaged and installed skill install guidance
+- every backend routed through `graphify.llm._call_openai_compat`
 
 Local Ollama semantic extraction is intentionally patient and conservative:
-chunks run sequentially by default, each chunk prints a start line with the
-included filenames before model generation, the default request timeout is 30
-minutes, and the default semantic chunk/input sizing is smaller than hosted
-model defaults. Use `GRAPHIFY_SEMANTIC_TOKEN_BUDGET=<tokens>`,
-`GRAPHIFY_FILE_CHAR_CAP=<chars>`, or `GRAPHIFY_LLM_TIMEOUT_SECONDS=<seconds>`
-only when tuning a bounded smoke check or a specific local model.
+chunks run sequentially by default, each chunk prints a start line before model
+generation, and trace mode can show whether a non-streaming request has been
+sent and when the full response returns. Use `--token-budget <tokens>`,
+`--api-timeout <seconds>`, `GRAPHIFY_OLLAMA_NUM_CTX=<tokens>`, or
+`GRAPHIFY_LLM_TRACE=1` only when tuning a bounded smoke check or a specific
+local model.
 
 Do not use `pip install graphify`, `pip install graphifyy`, or
 `uv tool upgrade graphifyy` as a substitute while Mase's local fork fixes are

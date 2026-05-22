@@ -40,6 +40,8 @@ of or behind Mase's GitHub remote and upstream at the same time.
 
 ```bash
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
+  --with openai \
+  --with tiktoken \
   --with faster-whisper \
   --with yt-dlp \
   --with watchdog \
@@ -112,6 +114,8 @@ git checkout mase/local-fixes
 git rebase upstream-v8
 uv run --with pytest pytest tests/test_watch.py tests/test_transcribe.py tests/test_hooks.py
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
+  --with openai \
+  --with tiktoken \
   --with faster-whisper \
   --with yt-dlp \
   --with watchdog \
