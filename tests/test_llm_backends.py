@@ -160,6 +160,72 @@ def test_missing_gemini_key_names_both_supported_env_vars(monkeypatch):
     assert "GEMINI_API_KEY or GOOGLE_API_KEY" in str(exc.value)
 
 
+def test_validate_backend_dependencies_reports_missing_openai(monkeypatch):
+    def fake_find_spec(package):
+        return None if package == "openai" else object()
+
+    monkeypatch.setattr(llm, "find_spec", fake_find_spec)
+
+    with pytest.raises(ImportError) as exc:
+        llm.validate_backend_dependencies("ollama")
+
+    assert "requires the 'openai' package" in str(exc.value)
+
+
+def test_validate_backend_dependencies_skips_claude_cli(monkeypatch):
+    monkeypatch.setattr(llm, "find_spec", lambda package: None)
+
+    llm.validate_backend_dependencies("claude-cli")
+
+
+def test_probe_backend_requires_non_empty_semantic_output(monkeypatch):
+    monkeypatch.setattr(llm, "validate_backend_dependencies", lambda backend: None)
+    monkeypatch.setattr(
+        llm,
+        "extract_files_direct",
+        lambda *_, **__: {
+            "nodes": [],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+        },
+    )
+
+    with pytest.raises(ValueError, match="returned no semantic"):
+        llm.probe_backend("ollama")
+
+
+def test_probe_backend_returns_safe_summary(monkeypatch):
+    monkeypatch.setattr(llm, "validate_backend_dependencies", lambda backend: None)
+    monkeypatch.setattr(
+        llm,
+        "extract_files_direct",
+        lambda *_, **__: {
+            "nodes": [{"id": "probe"}],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "model": "qwen3:30b",
+            "finish_reason": "stop",
+        },
+    )
+
+    result = llm.probe_backend("ollama")
+
+    assert result == {
+        "backend": "ollama",
+        "model": "qwen3:30b",
+        "nodes": 1,
+        "edges": 0,
+        "hyperedges": 0,
+        "input_tokens": 10,
+        "output_tokens": 20,
+        "finish_reason": "stop",
+    }
+
+
 # ---------------------------------------------------------------------------
 # #1386: public entry points accept str paths, not just pathlib.Path
 # ---------------------------------------------------------------------------
@@ -460,6 +526,42 @@ def test_call_openai_compat_preserves_real_finish_reason(monkeypatch):
     assert result["nodes"] == [{"id": "a"}]
 
 
+def test_llm_trace_reports_safe_diagnostics_without_prompt_or_response(monkeypatch, capsys):
+    fake_resp = _fake_openai_response(
+        '{"nodes":[{"id":"trace_node"}],"edges":[],"hyperedges":[]}',
+        finish_reason="stop",
+        prompt_tokens=123,
+        completion_tokens=45,
+    )
+    _install_fake_openai(monkeypatch, fake_resp)
+    monkeypatch.setenv("GRAPHIFY_LLM_TRACE", "1")
+
+    result = llm._call_openai_compat(
+        "http://localhost:11434/v1",
+        "sk-secret-key",
+        "qwen3:30b",
+        "prompt-secret-content",
+        temperature=0,
+        max_completion_tokens=8192,
+        backend="ollama",
+    )
+
+    err = capsys.readouterr().err
+    assert "request sent" in err
+    assert "response complete" in err
+    assert "host=localhost:11434" in err
+    assert "model=qwen3:30b" in err
+    assert "num_ctx=" in err
+    assert "keep_alive=30m" in err
+    assert "input_tokens=123" in err
+    assert "output_tokens=45" in err
+    assert "nodes=1" in err
+    assert "prompt-secret-content" not in err
+    assert "trace_node" not in err
+    assert "sk-secret-key" not in err
+    assert result["nodes"] == [{"id": "trace_node"}]
+
+
 # ---------------------------------------------------------------------------
 # Ollama context-window fix (#798): num_ctx + keep_alive in extra_body,
 # serial execution by default.
@@ -696,6 +798,32 @@ def test_extract_corpus_parallel_ollama_runs_serially(tmp_path, monkeypatch):
 
     mock_pool.assert_not_called()
     assert len(result["nodes"]) == 6
+
+
+def test_extract_corpus_parallel_prints_chunk_start_before_completion(tmp_path, monkeypatch, capsys):
+    files = [tmp_path / "doc.md"]
+    files[0].write_text("hello", encoding="utf-8")
+
+    def fake_extract(chunk, *_, **__):
+        captured = capsys.readouterr()
+        assert "chunk 1/1 start: backend=ollama" in captured.out
+        return _ok(nodes=[{"id": "doc"} for _ in chunk])
+
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_PARALLEL", raising=False)
+
+    with patch("graphify.llm.extract_files_direct", side_effect=fake_extract):
+        result = llm.extract_corpus_parallel(
+            files,
+            backend="ollama",
+            api_key="ollama",
+            model="qwen3:30b",
+            root=tmp_path,
+            token_budget=None,
+            chunk_size=1,
+            max_concurrency=1,
+        )
+
+    assert result["nodes"] == [{"id": "doc"}]
 
 
 def test_extract_corpus_parallel_ollama_parallel_env_restores_concurrency(tmp_path, monkeypatch):

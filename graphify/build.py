@@ -21,6 +21,7 @@
 #    before any graph construction happens.
 #
 from __future__ import annotations
+import fnmatch
 import json
 import math
 import os
@@ -73,6 +74,11 @@ _FILE_TYPE_SYNONYMS = {
     "gotcha": "concept",
     "framework": "concept",
 }
+
+_INTERNAL_GRAPHIFY_SOURCE_PATTERNS = (
+    ".graphify_*.json",
+    ".graphify_*.txt",
+)
 
 
 # Hyperedge member lists are canonically keyed `nodes` (see graphify/llm.py
@@ -270,6 +276,66 @@ def _infer_merge_root(graph_path: Path) -> str | None:
         return str(graph_path.parent.parent.resolve())
     except Exception:
         return None
+
+
+def is_internal_graphify_source(source_file: str | None) -> bool:
+    """Return True for Graphify's own root-level temporary diagnostic files."""
+    if not source_file:
+        return False
+    name = Path(str(source_file).replace("\\", "/")).name
+    return any(fnmatch.fnmatchcase(name, pattern) for pattern in _INTERNAL_GRAPHIFY_SOURCE_PATTERNS)
+
+
+def _drop_internal_graphify_sources(extraction: dict, root: str | None) -> dict:
+    """Remove nodes, edges, and hyperedges sourced from Graphify temp files."""
+    removed_ids: set[str] = set()
+    nodes: list[dict] = []
+    for node in extraction.get("nodes", []):
+        if not isinstance(node, dict):
+            continue
+        item = dict(node)
+        if "source_file" in item:
+            item["source_file"] = _norm_source_file(item["source_file"], root)
+        if is_internal_graphify_source(item.get("source_file")):
+            node_id = item.get("id")
+            if node_id:
+                removed_ids.add(node_id)
+            continue
+        nodes.append(item)
+
+    edges: list[dict] = []
+    for edge in extraction.get("edges", []):
+        if not isinstance(edge, dict):
+            continue
+        item = dict(edge)
+        if "source_file" in item:
+            item["source_file"] = _norm_source_file(item["source_file"], root)
+        if is_internal_graphify_source(item.get("source_file")):
+            continue
+        if item.get("source") in removed_ids or item.get("target") in removed_ids:
+            continue
+        edges.append(item)
+
+    hyperedges: list = []
+    for hyperedge in extraction.get("hyperedges", []):
+        if not isinstance(hyperedge, dict):
+            hyperedges.append(hyperedge)
+            continue
+        item = dict(hyperedge)
+        if "source_file" in item:
+            item["source_file"] = _norm_source_file(item["source_file"], root)
+        if is_internal_graphify_source(item.get("source_file")):
+            continue
+        nodes_ref = item.get("nodes")
+        if isinstance(nodes_ref, list) and any(node_id in removed_ids for node_id in nodes_ref):
+            continue
+        hyperedges.append(item)
+
+    filtered = dict(extraction)
+    filtered["nodes"] = nodes
+    filtered["edges"] = edges
+    filtered["hyperedges"] = hyperedges
+    return filtered
 
 
 def edge_data(G: nx.Graph, u: str, v: str) -> dict:
@@ -592,6 +658,8 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
     # one canonical key, the same way edge endpoints alias from/to at build.
     for he in extraction.get("hyperedges", []) or []:
         _normalize_hyperedge_members(he)
+
+    extraction = _drop_internal_graphify_sources(extraction, _root)
 
     errors = validate_extraction(extraction)
     # Dangling edges (stdlib/external imports) are expected - only warn about real schema errors.
@@ -1207,6 +1275,15 @@ def build_merge(
         else _infer_merge_root(graph_path)
     )
 
+    internal_sources = {
+        item.get("source_file")
+        for item in [*existing_nodes, *existing_edges, *existing_hyperedges]
+        if isinstance(item, dict) and is_internal_graphify_source(item.get("source_file"))
+    }
+    internal_sources.discard(None)
+    if internal_sources:
+        prune_sources = sorted(set(prune_sources or []) | internal_sources)
+
     # Re-extracted files REPLACE their prior contribution. Every source_file
     # present in new_chunks is dropped from the loaded base before merging, so a
     # CHANGED file's stale nodes/edges don't accumulate across incremental
@@ -1339,6 +1416,13 @@ def build_merge(
             print(
                 f"[graphify] Pruned {len(edges_to_remove)} edge(s) from deleted source file(s).",
                 file=sys.stderr,
+            )
+
+        if G.graph.get("hyperedges"):
+            G.graph["hyperedges"] = _filter_hyperedges_for_valid_nodes(
+                G.graph["hyperedges"],
+                set(G.nodes),
+                prune_sources=prune_set,
             )
 
         if not n_nodes and not edges_to_remove:

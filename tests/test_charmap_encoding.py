@@ -160,11 +160,17 @@ class TestLoudChunkFailure:
             lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("charmap error")),
         )
 
-        result = llm.extract_corpus_parallel(files, backend="claude-cli")
+        result = llm.extract_corpus_parallel(
+            files,
+            backend="claude-cli",
+            token_budget=None,
+            chunk_size=1,
+        )
         assert result.get("failed_chunks", 0) > 0, (
             "extract_corpus_parallel must expose failed_chunks count in its "
             f"return dict; got: {result}"
         )
+        assert result.get("total_chunks") == 3
 
     def test_summary_printed_when_chunks_fail(self, monkeypatch, tmp_path, capsys):
         """A summary line must appear on stderr when ≥1 chunk fails."""
