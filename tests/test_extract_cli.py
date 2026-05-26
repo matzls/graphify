@@ -48,11 +48,14 @@ def test_extract_exits_nonzero_when_all_semantic_chunks_fail(
             "hyperedges": [],
             "input_tokens": 0,
             "output_tokens": 0,
+            "failed_chunks": 2,
+            "total_chunks": 2,
         }
 
     monkeypatch.setattr(
         "graphify.llm.extract_corpus_parallel", _all_chunks_failed
     )
+    monkeypatch.setattr("graphify.llm.validate_backend_dependencies", lambda _: None)
     monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
     monkeypatch.setattr(
         mainmod.sys,
@@ -70,7 +73,7 @@ def test_extract_exits_nonzero_when_all_semantic_chunks_fail(
     )
 
     stderr = capsys.readouterr().err
-    assert "all semantic chunks failed" in stderr
+    assert "all fresh semantic chunks failed" in stderr
     assert "claude" in stderr
 
     # No graph.json should have been written - the failure must abort before
@@ -94,11 +97,20 @@ def test_extract_succeeds_when_at_least_one_chunk_completes(
         if on_chunk:
             on_chunk(0, 1, {"nodes": [], "edges": [], "hyperedges": []})
         return {
-            "nodes": [],
+            "nodes": [
+                {
+                    "id": "readme_notes",
+                    "label": "Notes",
+                    "file_type": "document",
+                    "source_file": "README.md",
+                }
+            ],
             "edges": [],
             "hyperedges": [],
             "input_tokens": 100,
             "output_tokens": 50,
+            "failed_chunks": 0,
+            "total_chunks": 1,
         }
 
     monkeypatch.setattr(
@@ -113,6 +125,7 @@ def test_extract_succeeds_when_at_least_one_chunk_completes(
     monkeypatch.setattr(
         "graphify.cache.save_semantic_cache", _capture_semantic_cache
     )
+    monkeypatch.setattr("graphify.llm.validate_backend_dependencies", lambda _: None)
     monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
     monkeypatch.setattr(
         mainmod.sys,
