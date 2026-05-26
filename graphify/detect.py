@@ -745,6 +745,18 @@ _SKIP_FILES = {
     "composer.lock", "go.sum", "go.work.sum",
 }
 
+_SKIP_FILE_PATTERNS = {
+    ".graphify_*.json",
+    ".graphify_*.txt",
+}
+
+
+def _is_skip_file(name: str) -> bool:
+    """Return True for generated files that should never enter the corpus."""
+    return name in _SKIP_FILES or any(
+        fnmatch.fnmatchcase(name, pattern) for pattern in _SKIP_FILE_PATTERNS
+    )
+
 # A bare "snapshots" dir is a Jest/Vitest artifact only when it actually holds
 # snapshot files or lives directly under a JS test root. Elsewhere it is often a
 # real code namespace (e.g. Rails app/services/snapshots/), so pruning it by name
