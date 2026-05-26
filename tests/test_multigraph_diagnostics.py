@@ -221,7 +221,9 @@ def test_format_diagnostic_report_includes_build_and_suppression_errors(
                 {"id": "a", "label": "A", "file_type": "code", "source_file": "a.py"},
                 ["not", "a", "node"],
             ],
-            "edges": [],
+            "edges": [
+                {"source": "a", "target": {"unhashable": "target"}, "relation": "bad-target"}
+            ],
         },
         extract_path=tmp_path / "missing-extract.py",
     )
