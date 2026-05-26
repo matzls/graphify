@@ -28,6 +28,7 @@ skills/
 !tools/skillgen/fragments/core/
 !tools/skillgen/fragments/core/**
 docs/superpowers/
+docs/plans/_advisory-reviews/
 .vscode/
 .kilo
 openspec/

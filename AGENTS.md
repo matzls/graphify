@@ -66,11 +66,11 @@ a Graphify repo Git hook.
 
 ## Codex And Skill Sync
 
-The upstream Codex hook path is intentionally limited in Codex Desktop:
-`graphify codex install` writes `.codex/hooks.json`, but `graphify hook-check`
-currently exits silently because Codex Desktop rejects the old
-`hookSpecificOutput.additionalContext` payload. Do not describe this as an
-active per-tool reminder unless the hook implementation changes and is verified.
+The active Codex hook surface is `.codex/config.toml` SessionStart:
+`graphify codex install` writes `graphify codex-session-start <repo>` there and
+cleans old `.codex/hooks.json` Graphify `hook-check` entries. `graphify
+hook-check` is retained only as a silent legacy/backcompat no-op for stale
+hook configs. Do not describe it as the active reminder path.
 
 For Codex, the reliable guidance surface is repo-local `AGENTS.md`, the global
 Graphify skill, and explicit `$graphify` invocation.

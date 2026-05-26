@@ -95,8 +95,10 @@ def test_install_project_codex_writes_skill_and_agents(tmp_path, monkeypatch):
         main()
     assert (project / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
     assert (project / "AGENTS.md").exists()
-    assert (project / ".codex" / "hooks.json").exists()
+    assert (project / ".codex" / "config.toml").exists()
+    assert not (project / ".codex" / "hooks.json").exists()
     assert not (home / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
+    assert not (home / ".agents" / "skills" / "graphify" / "SKILL.md").exists()
 
 
 def test_claude_subcommand_project_install_and_uninstall_are_project_scoped(tmp_path, monkeypatch):
@@ -139,7 +141,8 @@ def test_codex_subcommand_project_install_and_uninstall_are_project_scoped(tmp_p
         main()
         assert (project / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
         assert (project / "AGENTS.md").exists()
-        assert (project / ".codex" / "hooks.json").exists()
+        assert (project / ".codex" / "config.toml").exists()
+        assert not (project / ".codex" / "hooks.json").exists()
         assert user_skill.exists()
 
         monkeypatch.setattr(sys, "argv", ["graphify", "codex", "uninstall", "--project"])
@@ -148,9 +151,9 @@ def test_codex_subcommand_project_install_and_uninstall_are_project_scoped(tmp_p
     assert user_skill.exists()
     assert not (project / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
     assert not (project / "AGENTS.md").exists()
-    hooks_path = project / ".codex" / "hooks.json"
-    assert hooks_path.exists()
-    assert "graphify" not in hooks_path.read_text()
+    config_path = project / ".codex" / "config.toml"
+    if config_path.exists():
+        assert "graphify" not in config_path.read_text()
 
 
 def test_antigravity_install_project_writes_project_skill(tmp_path, monkeypatch):
