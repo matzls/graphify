@@ -199,30 +199,27 @@ Safety rules:
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
+When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
+
 Rules:
-- ALWAYS read `graphify-out/GRAPH_REPORT.md` before reading source files,
-  running grep/glob searches, or answering architecture/codebase questions.
-  The graph is your primary map of the codebase.
-- If `graphify-out/wiki/index.md` exists, navigate it before reading raw files.
-- For cross-module "how does X relate to Y" questions, prefer
-  `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or
-  `graphify explain "<concept>"` over grep. These traverse EXTRACTED and
-  INFERRED graph edges instead of only scanning file text.
-- This repo can use repo-local Graphify Git hooks. They refresh code graph
-  outputs after commits and branch switches. After commits, docs/media/image
-  changes write `graphify-out/needs_update`; they are not semantically
-  refreshed until the Graphify assistant skill runs `/graphify . --update`.
-- For longer active coding sessions, consider running `graphify watch .` in a
-  separate terminal. It watches live file changes while the process is running:
-  code changes trigger a code-only graph rebuild, and non-code changes write
-  `graphify-out/needs_update`.
-- Do not assume `graphify watch .` is already running. Check before relying on
-  live graph freshness, and avoid starting duplicate watchers in the same repo.
-- If `graphify-out/needs_update` exists, run the native CLI code refresh
-  `graphify update .`, then invoke the Graphify assistant skill as
-  `/graphify . --update` before relying on docs/media/image relationships.
-  The semantic update can spend LLM tokens. Do not run `graphify . --update`
-  in the shell; that is not the native CLI shape.
-- Treat Git hooks and `graphify watch .` as freshness helpers. When report
-  quality matters, prefer both `graphify update .` and the assistant skill
-  `/graphify . --update`.
+- For codebase questions, first run `graphify query "<question>"` when
+  `graphify-out/graph.json` exists. Use `graphify path "<A>" "<B>"` for
+  relationships and `graphify explain "<concept>"` for focused concepts. These
+  return a scoped subgraph, usually much smaller than `GRAPH_REPORT.md` or raw
+  grep output.
+- Dirty `graphify-out/` files are expected after hooks or incremental updates;
+  dirty graph files are not a reason to skip Graphify. Only skip Graphify if
+  the task is about stale or incorrect graph output, or the user explicitly
+  says not to use it.
+- If `graphify-out/wiki/index.md` exists, use it for broad navigation instead
+  of raw source browsing.
+- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or
+  when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current
+  (AST-only, no API cost).
+- After modifying docs, media, images, or mixed corpus content, invoke the
+  Graphify assistant skill as `/graphify . --update` to refresh semantic
+  relationships. Do not run `graphify . --update` in the shell; that is not
+  the native CLI shape.
+- If both code and semantic content changed, run `graphify update .` first,
+  then invoke `/graphify . --update`.
