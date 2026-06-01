@@ -515,6 +515,28 @@ def test_antigravity_global_install_writes_gemini_config_skills(tmp_path, monkey
     assert (project / ".agents" / "workflows" / "graphify.md").exists()
 
 
+def test_startup_version_check_ignores_legacy_antigravity_path(tmp_path, monkeypatch, capsys):
+    """The stale-skill check must use the same resolved paths as install/uninstall."""
+    from graphify.__main__ import __version__, main
+
+    home = tmp_path / "home"
+    legacy_skill = home / ".agents" / "skills" / "graphify" / "SKILL.md"
+    legacy_skill.parent.mkdir(parents=True)
+    legacy_skill.write_text("legacy skill", encoding="utf-8")
+    (legacy_skill.parent / ".graphify_version").write_text("0.8.25", encoding="utf-8")
+
+    current_skill = home / ".gemini" / "config" / "skills" / "graphify" / "SKILL.md"
+    current_skill.parent.mkdir(parents=True)
+    current_skill.write_text("current skill", encoding="utf-8")
+    (current_skill.parent / ".graphify_version").write_text(__version__, encoding="utf-8")
+
+    with patch("graphify.__main__.Path.home", return_value=home):
+        monkeypatch.setattr(sys, "argv", ["graphify", "version"])
+        main()
+
+    assert "warning: skill is from graphify 0.8.25" not in capsys.readouterr().err
+
+
 def test_antigravity_global_uninstall_removes_gemini_config_skill(tmp_path, monkeypatch):
     """Global `graphify antigravity uninstall` must remove from ~/.gemini/config/skills/ (#1079)."""
     from graphify.__main__ import main
