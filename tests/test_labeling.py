@@ -28,7 +28,7 @@ def test_label_communities_happy_path(monkeypatch):
 
     captured = {}
 
-    def fake_call(prompt, *, backend, max_tokens=200):
+    def fake_call(prompt, *, backend, model=None, max_tokens=200):
         captured["prompt"] = prompt
         captured["backend"] = backend
         return '{"0": "Order Management", "1": "Payment Flow"}'
@@ -165,7 +165,7 @@ def test_label_cli_missing_only_preserves_existing_labels(tmp_path, monkeypatch)
 def test_label_communities_partial_reply_fills_placeholder(monkeypatch):
     G, communities = _graph()
     monkeypatch.setattr("graphify.llm._call_llm",
-                        lambda p, *, backend, max_tokens=200: '{"0": "Order Management"}')
+                        lambda p, *, backend, model=None, max_tokens=200: '{"0": "Order Management"}')
     labels = label_communities(G, communities, backend="gemini")
     assert labels[0] == "Order Management"
     assert labels[1] == "Community 1"   # missing cid falls back
@@ -175,7 +175,7 @@ def test_label_communities_strips_code_fences(monkeypatch):
     G, communities = _graph()
     monkeypatch.setattr(
         "graphify.llm._call_llm",
-        lambda p, *, backend, max_tokens=200: '```json\n{"0":"Orders","1":"Pay"}\n```',
+        lambda p, *, backend, model=None, max_tokens=200: '```json\n{"0":"Orders","1":"Pay"}\n```',
     )
     labels = label_communities(G, communities, backend="gemini")
     assert labels == {0: "Orders", 1: "Pay"}
@@ -184,7 +184,7 @@ def test_label_communities_strips_code_fences(monkeypatch):
 def test_label_communities_malformed_raises(monkeypatch):
     G, communities = _graph()
     monkeypatch.setattr("graphify.llm._call_llm",
-                        lambda p, *, backend, max_tokens=200: "sorry, I cannot help")
+                        lambda p, *, backend, model=None, max_tokens=200: "sorry, I cannot help")
     with pytest.raises(Exception):
         label_communities(G, communities, backend="gemini")
 
@@ -192,7 +192,7 @@ def test_label_communities_malformed_raises(monkeypatch):
 def test_generate_community_labels_degrades_on_error(monkeypatch):
     G, communities = _graph()
     monkeypatch.setattr("graphify.llm._call_llm",
-                        lambda p, *, backend, max_tokens=200: "not json")
+                        lambda p, *, backend, model=None, max_tokens=200: "not json")
     labels, source = generate_community_labels(G, communities, backend="gemini", quiet=True)
     assert source == "placeholder"
     assert labels == {0: "Community 0", 1: "Community 1"}
@@ -209,7 +209,7 @@ def test_generate_community_labels_no_backend(monkeypatch):
 def test_generate_community_labels_success(monkeypatch):
     G, communities = _graph()
     monkeypatch.setattr("graphify.llm._call_llm",
-                        lambda p, *, backend, max_tokens=200: '{"0":"Orders","1":"Payments"}')
+                        lambda p, *, backend, model=None, max_tokens=200: '{"0":"Orders","1":"Payments"}')
     labels, source = generate_community_labels(G, communities, backend="gemini", quiet=True)
     assert source == "llm"
     assert labels == {0: "Orders", 1: "Payments"}
@@ -219,7 +219,7 @@ def test_gods_as_dicts_do_not_crash(monkeypatch):
     """god_nodes() returns list[dict] with an 'id' key, not bare ids."""
     G, communities = _graph()
     monkeypatch.setattr("graphify.llm._call_llm",
-                        lambda p, *, backend, max_tokens=200: '{"0":"Orders","1":"Pay"}')
+                        lambda p, *, backend, model=None, max_tokens=200: '{"0":"Orders","1":"Pay"}')
     gods = [{"id": "order_repo", "label": "OrderRepository"}]
     labels = label_communities(G, communities, backend="gemini", gods=gods)
     assert labels == {0: "Orders", 1: "Pay"}
@@ -229,7 +229,7 @@ def test_empty_communities_returns_placeholders(monkeypatch):
     G = nx.Graph()
     called = False
 
-    def fake_call(p, *, backend, max_tokens=200):
+    def fake_call(p, *, backend, model=None, max_tokens=200):
         nonlocal called
         called = True
         return "{}"

@@ -73,6 +73,55 @@ def _patch_extract_dependencies(
     return root, doc
 
 
+def test_extract_single_file_target_writes_output_next_to_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    import graphify.cache
+    import graphify.llm
+
+    doc = tmp_path / "decision.md"
+    doc.write_text("# Decision\n\nUse a bounded semantic scan.\n", encoding="utf-8")
+    node_id = "decision"
+    monkeypatch.setattr(
+        graphify.cache,
+        "check_semantic_cache",
+        lambda paths, root: ([], [], [], list(paths)),
+    )
+    monkeypatch.setattr(graphify.cache, "save_semantic_cache", lambda *_, **__: None)
+    monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
+    monkeypatch.setattr(
+        graphify.llm,
+        "extract_corpus_parallel",
+        lambda *_, **__: {
+            "nodes": [
+                {
+                    "id": node_id,
+                    "label": "Decision",
+                    "type": "document",
+                    "source_file": str(doc.resolve()),
+                    "confidence": 1.0,
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "failed_chunks": 0,
+            "total_chunks": 1,
+        },
+    )
+
+    rc = _run_main(monkeypatch, ["extract", str(doc), "--backend", "ollama", "--no-cluster"])
+
+    graph_path = tmp_path / "graphify-out" / "graph.json"
+    assert rc == 0
+    assert graph_path.exists()
+    assert not (doc / "graphify-out").exists()
+    graph = json.loads(graph_path.read_text(encoding="utf-8"))
+    assert graph["nodes"][0]["id"] == node_id
+
+
 def test_extract_preserves_existing_graph_when_all_fresh_semantic_chunks_fail(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

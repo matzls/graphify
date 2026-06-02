@@ -1,0 +1,30 @@
+{
+  "required_concepts": [
+    "Payment Retry Policy",
+    "Support Runbook",
+    "Billing Service",
+    "Card Payments",
+    "Attempt Number",
+    "Gateway Response",
+    "Retry Schedule",
+    "Subscription",
+    "Grace Period",
+    "Payment Update Link",
+    "Account Risk"
+  ],
+  "dedup_watchlist": [
+    "Retry Schedule",
+    "Subscription",
+    "Grace Period",
+    "Gateway Response"
+  ],
+  "expected_community_label_terms": [
+    ["payment", "retry"],
+    ["support"],
+    ["grace"],
+    ["gateway"]
+  ],
+  "generic_relations": [
+    "references"
+  ]
+}

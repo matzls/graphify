@@ -58,6 +58,17 @@ def test_detect_finds_fixtures():
     assert "code" in result["files"]
     assert "document" in result["files"]
 
+
+def test_detect_accepts_single_file_target(tmp_path):
+    doc = tmp_path / "decision.md"
+    doc.write_text("# Decision\n\nUse a bounded semantic scan.\n", encoding="utf-8")
+
+    result = detect(doc)
+
+    assert result["total_files"] == 1
+    assert result["files"]["document"] == [str(doc.resolve())]
+    assert result["scan_root"] == str(doc.resolve())
+
 def test_detect_warns_small_corpus():
     result = detect(FIXTURES)
     assert result["needs_graph"] is False

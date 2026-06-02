@@ -659,6 +659,25 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
     for he in extraction.get("hyperedges", []) or []:
         _normalize_hyperedge_members(he)
 
+    valid_confidences = {"EXTRACTED", "INFERRED", "AMBIGUOUS"}
+    for edge in extraction.get("edges", []):
+        if not isinstance(edge, dict):
+            continue
+        conf = edge.get("confidence")
+        if conf is None:
+            edge["confidence"] = "EXTRACTED"
+            continue
+        normalized_conf = str(conf).strip().upper()
+        if normalized_conf in valid_confidences:
+            edge["confidence"] = normalized_conf
+            continue
+        edge["confidence"] = "AMBIGUOUS"
+        try:
+            score = float(edge.get("confidence_score", 0.3))
+        except (TypeError, ValueError):
+            score = 0.3
+        edge["confidence_score"] = min(score, 0.3)
+
     extraction = _drop_internal_graphify_sources(extraction, _root)
 
     errors = validate_extraction(extraction)

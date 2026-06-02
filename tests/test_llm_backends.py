@@ -207,7 +207,7 @@ def test_probe_backend_returns_safe_summary(monkeypatch):
             "hyperedges": [],
             "input_tokens": 10,
             "output_tokens": 20,
-            "model": "qwen3:30b",
+            "model": "minimax-m3:cloud",
             "finish_reason": "stop",
         },
     )
@@ -216,7 +216,7 @@ def test_probe_backend_returns_safe_summary(monkeypatch):
 
     assert result == {
         "backend": "ollama",
-        "model": "qwen3:30b",
+        "model": "minimax-m3:cloud",
         "nodes": 1,
         "edges": 0,
         "hyperedges": 0,
