@@ -257,6 +257,15 @@ instead:
 - `.codex/config.toml` SessionStart hook installed by `graphify codex install`
 - `/Users/mase/.codex/docs/reference/graphify.md`
 
+Use `graphify codex reconcile` as the safe one-repo primitive before or during
+multi-repo propagation. It audits repo-local AGENTS.md, Codex SessionStart
+config, legacy `.codex/hooks.json` entries, Git hooks, and graph artifacts in
+dry-run mode by default. Use `--state active`, `--state staged`, or
+`--state disabled` to declare the target state, and add `--apply` only after
+reviewing the planned changes. Reconciliation removes active triggers for
+staged/disabled repos but leaves `graphify-out/`, `.graphifyignore`,
+`GRAPHIFY.md`, and historical review artifacts alone.
+
 The SessionStart hook only reports pending semantic refresh work. It does not
 extract semantic graph content. Semantic refreshes must run through the backend
 CLI pipeline:

@@ -181,29 +181,18 @@ Safety rules:
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+This project has historical knowledge graph artifacts at `graphify-out/`, but
+Graphify should not be executed automatically against its own source repo.
 
 When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
 
 Rules:
-- For codebase questions, first run `graphify query "<question>"` when
-  `graphify-out/graph.json` exists. Use `graphify path "<A>" "<B>"` for
-  relationships and `graphify explain "<concept>"` for focused concepts. These
-  return a scoped subgraph, usually much smaller than `GRAPH_REPORT.md` or raw
-  grep output.
-- Dirty `graphify-out/` files are expected after hooks or incremental updates;
-  dirty graph files are not a reason to skip Graphify. Only skip Graphify if
-  the task is about stale or incorrect graph output, or the user explicitly
-  says not to use it.
-- If `graphify-out/wiki/index.md` exists, use it for broad navigation instead
-  of raw source browsing.
-- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or
-  when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current
-  (AST-only, no API cost).
-- After modifying docs, media, images, or mixed corpus content, run backend
-  semantic refresh: `graphify extract . --backend <backend> --model <model>`,
-  then `graphify cluster-only . --backend <backend> --model <model>`, then
-  `graphify export wiki --graph graphify-out/graph.json`.
-- If both code and semantic content changed, run `graphify update .` first,
-  then run the backend semantic refresh sequence.
+- For codebase questions in this repo, prefer source inspection, tests, and
+  docs over Graphify output.
+- Dirty `graphify-out/` files may exist from older hooks or manual runs; do not
+  treat them as a required refresh signal in this repo.
+- Do not run `graphify update .`, `graphify extract .`, Graphify semantic
+  refreshes, or `graphify hook install` in this repo unless Mase explicitly
+  asks for a self-analysis run.
+- Existing `graphify-out/` files are retained as historical derived artifacts,
+  not as an always-fresh map.
