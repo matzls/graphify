@@ -128,6 +128,27 @@ def test_export_wiki_accepts_edges_only_graph_json(tmp_path):
     assert (out / "wiki" / "index.md").exists()
 
 
+def test_export_wiki_explicit_graph_uses_matching_analysis_sidecar(tmp_path):
+    """--graph must redirect labels/report/analysis lookup to that graph's output dir."""
+    external_root = tmp_path / "external"
+    cwd_root = tmp_path / "cwd"
+    external_root.mkdir()
+    cwd_root.mkdir()
+
+    external_out = _make_graph(external_root)
+    stale_out = cwd_root / "graphify-out"
+    stale_out.mkdir()
+    (stale_out / ".graphify_analysis.json").write_text(
+        json.dumps({"communities": {"0": ["ghost_node"]}, "cohesion": {}, "gods": []}),
+        encoding="utf-8",
+    )
+
+    r = _run(["export", "wiki", "--graph", str(external_out / "graph.json")], cwd_root)
+
+    assert r.returncode == 0, r.stderr
+    assert (external_out / "wiki" / "index.md").exists()
+
+
 # ── graphify export graphml ──────────────────────────────────────────────────
 
 def test_export_graphml_creates_file(tmp_path):
@@ -355,6 +376,35 @@ def test_extract_out_does_not_pollute_corpus(tmp_path):
     assert r.returncode == 0, r.stderr
     assert (out / "graphify-out" / "graph.json").exists()   # graph in --out
     assert not (corpus / "graphify-out").exists()           # corpus untouched
+
+
+def test_cluster_only_accepts_spaced_backend_flag(tmp_path, monkeypatch, capsys):
+    """`cluster-only . --backend ollama` should pass 'ollama' to label generation."""
+    from graphify.__main__ import main
+
+    out = _make_graph(tmp_path)
+    (out / ".graphify_labels.json").unlink()
+    seen: dict[str, str | None] = {}
+
+    def fake_generate_community_labels(G, communities, *, backend=None, model=None, gods=None, quiet=False):
+        seen["backend"] = backend
+        seen["model"] = model
+        return {cid: f"Named {cid}" for cid in communities}, "llm"
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["graphify", "cluster-only", ".", "--backend", "ollama", "--model", "phi4:latest", "--no-viz"],
+    )
+    monkeypatch.setattr("graphify.llm.generate_community_labels", fake_generate_community_labels)
+
+    main()
+
+    assert seen["backend"] == "ollama"
+    assert seen["model"] == "phi4:latest"
+    labels = json.loads((out / ".graphify_labels.json").read_text(encoding="utf-8"))
+    assert all(value.startswith("Named ") for value in labels.values())
 
 
 # Regression test for #1027 - cluster-only must remap labels via node overlap

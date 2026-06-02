@@ -114,6 +114,37 @@ def test_ambiguous_edge_preserved():
     data = G.edges["n_layernorm", "n_concept_attn"]
     assert data["confidence"] == "AMBIGUOUS"
 
+
+def test_invalid_edge_confidence_becomes_ambiguous(capsys):
+    """Malformed LLM confidence values must not survive into graph artifacts."""
+    ext = {
+        "nodes": [
+            {"id": "n1", "label": "A", "file_type": "document", "source_file": "a.md"},
+            {"id": "n2", "label": "B", "file_type": "document", "source_file": "a.md"},
+        ],
+        "edges": [
+            {
+                "source": "n1",
+                "target": "n2",
+                "relation": "conceptually_related_to",
+                "confidence": "INTRACTED",
+                "confidence_score": 1.0,
+                "source_file": "a.md",
+                "weight": 1.0,
+            }
+        ],
+        "input_tokens": 0,
+        "output_tokens": 0,
+    }
+
+    G = build_from_json(ext)
+    err = capsys.readouterr().err
+
+    data = G.edges["n1", "n2"]
+    assert "invalid confidence" not in err
+    assert data["confidence"] == "AMBIGUOUS"
+    assert data["confidence_score"] == 0.3
+
 def test_legacy_node_source_canonicalized():
     """Legacy 'source' key on nodes is renamed to 'source_file' before graph build."""
     ext = {"nodes": [{"id": "n1", "label": "A", "file_type": "code", "source": "a.py"}],

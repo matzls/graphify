@@ -1203,6 +1203,8 @@ def _resolves_under_root(path: Path, root: Path) -> bool:
 
 def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace: bool | None = None, extra_excludes: list[str] | None = None, cache_root: Path | None = None, gitignore: bool = True) -> dict:
     root = root.resolve()
+    single_file = root.is_file()
+    ignore_root = root.parent if single_file else root
     if follow_symlinks is None:
         follow_symlinks = False
     google_workspace = google_workspace_enabled() if google_workspace is None else google_workspace
@@ -1230,7 +1232,7 @@ def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace:
     # of silently vanishing from the graph (#1922). Directory-level entries keep
     # this bounded — a pruned `data/` is one entry, not one per contained file.
     ignored: list[str] = []
-    ignore_patterns = _load_graphifyignore(root, gitignore=gitignore)
+    ignore_patterns = _load_graphifyignore(ignore_root, gitignore=gitignore)
     ignore_cache: dict[Path, bool] = {}  # shared across all _is_ignored calls in this scan
     # CLI --exclude patterns are anchored at the scan root and appended last
     # so they win over any .graphifyignore/.gitignore rules (#947).
@@ -1238,12 +1240,12 @@ def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace:
         for pat in extra_excludes:
             line = _parse_gitignore_line(pat)
             if line:
-                ignore_patterns.append((root, line))
-    include_patterns = _load_graphifyinclude(root)
+                ignore_patterns.append((ignore_root, line))
+    include_patterns = _load_graphifyinclude(ignore_root)
 
     # Always include graphify-out/memory/ - query results filed back into the graph
-    memory_dir = root / GRAPHIFY_OUT / "memory"
-    scan_paths = [root]
+    memory_dir = ignore_root / GRAPHIFY_OUT / "memory"
+    scan_paths = [] if single_file else [root]
     if memory_dir.exists():
         scan_paths.append(memory_dir)
 
@@ -1329,7 +1331,7 @@ def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace:
 
     all_files.sort(key=lambda p: str(p))
 
-    converted_dir = root / GRAPHIFY_OUT / "converted"
+    converted_dir = ignore_root / GRAPHIFY_OUT / "converted"
 
     for p in all_files:
         # For memory dir files, skip hidden/noise filtering
@@ -1338,7 +1340,9 @@ def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace:
             # Skip files inside our own converted/ dir (avoid re-processing sidecars)
             if str(p).startswith(str(converted_dir)):
                 continue
-        if not in_memory and _is_ignored(p, root, ignore_patterns, _cache=ignore_cache):
+        if not in_memory and _is_ignored(
+            p, ignore_root, ignore_patterns, _cache=ignore_cache
+        ):
             ignored.append(str(p))
             continue
         if not _resolves_under_root(p, root):
@@ -1370,7 +1374,7 @@ def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace:
                     skipped_sensitive.append(str(p) + f" [Google Workspace export failed: {exc}]")
                     continue
                 if md_path:
-                    if _is_ignored(md_path, root, ignore_patterns, _cache=ignore_cache):
+                    if _is_ignored(md_path, ignore_root, ignore_patterns, _cache=ignore_cache):
                         continue
                     files[ftype].append(str(md_path))
                     total_words += _wc(md_path)
@@ -1381,7 +1385,7 @@ def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace:
             if p.suffix.lower() in OFFICE_EXTENSIONS:
                 md_path = convert_office_file(p, converted_dir)
                 if md_path:
-                    if _is_ignored(md_path, root, ignore_patterns, _cache=ignore_cache):
+                    if _is_ignored(md_path, ignore_root, ignore_patterns, _cache=ignore_cache):
                         continue
                     files[ftype].append(str(md_path))
                     total_words += _wc(md_path)
