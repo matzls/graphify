@@ -665,7 +665,9 @@ graphify claude install            # CLAUDE.md + PreToolUse hook (Claude Code)
 graphify claude uninstall
 graphify codebuddy install         # CODEBUDDY.md + PreToolUse hook (CodeBuddy)
 graphify codebuddy uninstall
-graphify codex install             # AGENTS.md + PreToolUse hook in .codex/hooks.json (Codex)
+graphify codex install             # AGENTS.md + SessionStart hook in .codex/config.toml (Codex)
+graphify codex reconcile           # dry-run audit of Codex/AGENTS/Git hook state
+graphify codex reconcile --state staged --apply  # remove active triggers, keep artifacts
 graphify opencode install          # AGENTS.md + tool.execute.before plugin (OpenCode)
 graphify kilo install              # native Kilo skill + /graphify command + AGENTS.md + .kilo plugin
 graphify kilo uninstall

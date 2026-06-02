@@ -746,3 +746,108 @@ def test_codex_install_removes_only_graphify_hook_check_near_miss(tmp_path):
     data = json.loads(hooks_json.read_text(encoding="utf-8"))
     commands = [hook["command"] for entry in data["hooks"]["PreToolUse"] for hook in entry["hooks"]]
     assert commands == ["cd /repos/graphify && ./lint.sh"]
+
+
+def test_codex_reconcile_staged_dry_run_does_not_mutate(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    _run_codex_install(repo)
+    subprocess.run(
+        [sys.executable, "-m", "graphify", "hook", "install"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    (repo / "graphify-out").mkdir()
+    (repo / "graphify-out" / "graph.json").write_text("{}", encoding="utf-8")
+    before_agents = (repo / "AGENTS.md").read_text(encoding="utf-8")
+    before_config = (repo / ".codex" / "config.toml").read_text(encoding="utf-8")
+    before_hook = (repo / ".git" / "hooks" / "post-commit").read_text(encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "reconcile", "--state", "staged"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "mode: dry-run" in result.stdout
+    assert "remove generated AGENTS.md" in result.stdout
+    assert (repo / "AGENTS.md").read_text(encoding="utf-8") == before_agents
+    assert (repo / ".codex" / "config.toml").read_text(encoding="utf-8") == before_config
+    assert (repo / ".git" / "hooks" / "post-commit").read_text(encoding="utf-8") == before_hook
+
+
+def test_codex_reconcile_does_not_treat_not_installed_as_installed(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "reconcile", "--state", "disabled"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Git hooks: missing" in result.stdout
+    assert "remove Graphify git post-commit/post-checkout hooks" not in result.stdout
+
+
+def test_codex_reconcile_disabled_agents_block_is_intentional(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    (repo / "AGENTS.md").write_text(
+        """# Notes
+
+## graphify
+
+Graphify should not be executed automatically against its own source repo.
+
+Rules:
+- Do not run Graphify unless Mase explicitly asks for a self-analysis run.
+""",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "reconcile", "--state", "disabled"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "AGENTS.md: disabled" in result.stdout
+    assert "remove generated AGENTS.md" not in result.stdout
+
+
+def test_codex_reconcile_staged_apply_removes_triggers_keeps_artifacts(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    _run_codex_install(repo)
+    subprocess.run(
+        [sys.executable, "-m", "graphify", "hook", "install"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    (repo / ".graphifyignore").write_text("graphify-out/\n", encoding="utf-8")
+    (repo / "GRAPHIFY.md").write_text("# Graphify\n", encoding="utf-8")
+    (repo / "graphify-out").mkdir()
+    (repo / "graphify-out" / "graph.json").write_text("{}", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "reconcile", "--state", "staged", "--apply"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "mode: apply" in result.stdout
+    assert not (repo / "AGENTS.md").exists()
+    assert not (repo / ".codex" / "config.toml").exists()
+    assert not (repo / ".git" / "hooks" / "post-commit").exists()
+    assert not (repo / ".git" / "hooks" / "post-checkout").exists()
+    assert (repo / ".graphifyignore").exists()
+    assert (repo / "GRAPHIFY.md").exists()
+    assert (repo / "graphify-out" / "graph.json").exists()
