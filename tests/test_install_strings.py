@@ -124,8 +124,12 @@ def test_report_is_still_referenced_as_fallback():
 
 
 def test_agents_section_does_not_skip_dirty_graph_output():
+    assert "<!-- graphify-guidance-start -->" in _AGENTS_MD_SECTION
+    assert "<!-- graphify-guidance-end -->" in _AGENTS_MD_SECTION
     assert "Dirty graphify-out/ files are expected" in _AGENTS_MD_SECTION
     assert "not a reason to skip graphify" in _AGENTS_MD_SECTION
+    assert "there is no separate Codex Graphify skill lane" in _AGENTS_MD_SECTION
+    assert "/Users/mase/.codex/docs/reference/graphify.md" in _AGENTS_MD_SECTION
 
 
 def test_agents_section_uses_generic_graphify_instruction():

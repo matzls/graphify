@@ -47,7 +47,9 @@ def test_install_codebuddy(tmp_path):
 
 def test_install_codex(tmp_path):
     _install(tmp_path, "codex")
-    assert (tmp_path / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
+    assert not (tmp_path / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
+    assert (tmp_path / "AGENTS.md").exists()
+    assert (tmp_path / ".codex" / "config.toml").exists()
 
 
 def test_install_opencode(tmp_path):
@@ -84,7 +86,7 @@ def test_install_project_claude_writes_project_scope(tmp_path, monkeypatch, caps
     assert "git add .claude/" in capsys.readouterr().out
 
 
-def test_install_project_codex_writes_skill_and_agents(tmp_path, monkeypatch):
+def test_install_project_codex_writes_agents_and_session_start(tmp_path, monkeypatch):
     from graphify.__main__ import main
     home = tmp_path / "home"
     project = tmp_path / "project"
@@ -139,7 +141,7 @@ def test_codex_subcommand_project_install_and_uninstall_are_project_scoped(tmp_p
     with patch("graphify.__main__.Path.home", return_value=home):
         monkeypatch.setattr(sys, "argv", ["graphify", "codex", "install", "--project"])
         main()
-        assert (project / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
+        assert not (project / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
         assert (project / "AGENTS.md").exists()
         assert (project / ".codex" / "config.toml").exists()
         assert not (project / ".codex" / "hooks.json").exists()
@@ -212,28 +214,22 @@ def test_install_unknown_platform_exits(tmp_path):
         _install(tmp_path, "unknown")
 
 
-def test_codex_skill_contains_spawn_agent():
-    """Codex skill file must reference spawn_agent."""
+def test_codex_skill_file_removed_from_package():
+    """Codex no longer ships a separate Graphify skill file."""
     import graphify
 
-    skill = (Path(graphify.__file__).parent / "skill-codex.md").read_text()
-    assert "spawn_agent" in skill
+    assert not (Path(graphify.__file__).parent / "skill-codex.md").exists()
 
 
-def test_codex_skill_uses_graphify_with_existing_graph():
-    """Codex skill must keep graph-first orientation in the lean-core split.
-
-    The progressive-disclosure split drops codex's old monolith-only "dirty
-    graph output" blurb; the graph-first intent now lives in the shared core's
-    fast-path block, which jumps straight to the query flow when a graph exists.
-    """
-    import graphify
-    skill = (Path(graphify.__file__).parent / "skill-codex.md").read_text()
-    assert "Fast path — existing graph" in skill
-    assert "skip Steps 1–5 entirely and jump straight to `## For /graphify query`" in skill
-    assert "graphify query" in skill
-    assert "graphify explain" in skill
-    assert "graphify path" in skill
+def test_codex_agents_guidance_uses_graphify_with_dirty_graph_output(tmp_path):
+    """Codex guidance must keep graph-first orientation even without a skill file."""
+    _agents_install(tmp_path, "codex")
+    content = (tmp_path / "AGENTS.md").read_text()
+    assert "Dirty graphify-out/ files are expected" in content
+    assert "not a reason to skip graphify" in content
+    assert "graphify query" in content
+    assert "graphify explain" in content
+    assert "graphify path" in content
 
 
 def test_codex_agents_install_mentions_dirty_graph_output(tmp_path):
@@ -313,7 +309,6 @@ def test_all_skill_files_exist_in_package():
     pkg = Path(graphify.__file__).parent
     for name in (
         "skill.md",
-        "skill-codex.md",
         "skill-opencode.md",
         "skill-kilo.md",
         "skill-claw.md",
@@ -451,6 +446,7 @@ def test_uninstall_project_removes_project_skill_only(tmp_path, monkeypatch):
     with patch("graphify.__main__.Path.home", return_value=home):
         monkeypatch.setattr(sys, "argv", ["graphify", "install", "--project", "--platform", "codex"])
         main()
+        assert not (project / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
         monkeypatch.setattr(sys, "argv", ["graphify", "uninstall", "--project", "--platform", "codex"])
         main()
     assert user_skill.exists()
@@ -594,8 +590,10 @@ def test_codex_agents_install_writes_agents_md(tmp_path):
     assert "graphify" in content
     assert "GRAPH_REPORT.md" in content
     assert "graphify update ." in content
-    assert "/graphify . --update" in content
-    assert "Do not run `graphify . --update` in the shell" in content
+    assert "graphify extract . --backend <backend> --model <model>" in content
+    assert "graphify cluster-only . --backend <backend> --model <model>" in content
+    assert "graphify export wiki --graph graphify-out/graph.json" in content
+    assert "/graphify . --update" not in content
 
 
 def test_opencode_agents_install_writes_agents_md(tmp_path):
@@ -614,6 +612,19 @@ def test_agents_install_idempotent(tmp_path):
     _agents_install(tmp_path, "codex")
     content = (tmp_path / "AGENTS.md").read_text()
     assert content.count("## graphify") == 1
+    assert content.count("<!-- graphify-guidance-start -->") == 1
+    assert content.count("<!-- graphify-guidance-end -->") == 1
+
+
+def test_agents_install_byte_idempotent_with_managed_markers(tmp_path):
+    """Reinstalling a managed AGENTS.md block does not create needless diffs."""
+    _agents_install(tmp_path, "codex")
+    agents_md = tmp_path / "AGENTS.md"
+    first = agents_md.read_text(encoding="utf-8")
+
+    _agents_install(tmp_path, "codex")
+
+    assert agents_md.read_text(encoding="utf-8") == first
 
 
 def test_agents_install_appends_to_existing(tmp_path):
@@ -624,6 +635,51 @@ def test_agents_install_appends_to_existing(tmp_path):
     content = agents_md.read_text()
     assert "Do not break things." in content
     assert "## graphify" in content
+    assert "<!-- graphify-guidance-start -->" in content
+
+
+def test_agents_install_replaces_generated_unmarked_section(tmp_path):
+    """Older generated sections are upgraded into the managed block in place."""
+    agents_md = tmp_path / "AGENTS.md"
+    agents_md.write_text(
+        "# Existing rules\n\n"
+        "## graphify\n\n"
+        "This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.\n\n"
+        "Rules:\n"
+        "- ALWAYS read graphify-out/GRAPH_REPORT.md before reading any source files.\n\n"
+        "## Other\n\n"
+        "Keep me.\n",
+        encoding="utf-8",
+    )
+
+    _agents_install(tmp_path, "codex")
+
+    content = agents_md.read_text(encoding="utf-8")
+    assert "<!-- graphify-guidance-start -->" in content
+    assert "ALWAYS read graphify-out/GRAPH_REPORT.md" not in content
+    assert "Keep me." in content
+    assert content.count("## graphify") == 1
+
+
+def test_agents_install_warns_and_preserves_ambiguous_manual_section(tmp_path, capsys):
+    """Manual Graphify guidance is not overwritten without explicit user action."""
+    agents_md = tmp_path / "AGENTS.md"
+    manual = (
+        "# Existing rules\n\n"
+        "## graphify\n\n"
+        "This repo uses a custom Graphify review process owned by the team.\n"
+        "Ask Mase before changing it.\n"
+    )
+    agents_md.write_text(manual, encoding="utf-8")
+
+    _agents_install(tmp_path, "codex")
+
+    content = agents_md.read_text(encoding="utf-8")
+    output = capsys.readouterr().out
+    assert content == manual
+    assert "warning: found an existing unmarked AGENTS.md `## graphify` section" in output
+    assert "<!-- graphify-guidance-start -->" not in content
+    assert content.count("## graphify") == 1
 
 
 def test_agents_uninstall_removes_section(tmp_path):
@@ -644,6 +700,21 @@ def test_agents_uninstall_preserves_other_content(tmp_path):
     content = agents_md.read_text()
     assert "Do not break things." in content
     assert "## graphify" not in content
+
+
+def test_agents_uninstall_warns_and_preserves_ambiguous_manual_section(tmp_path, capsys):
+    agents_md = tmp_path / "AGENTS.md"
+    manual = (
+        "# Existing rules\n\n"
+        "## graphify\n\n"
+        "This repo has manual Graphify instructions.\n"
+    )
+    agents_md.write_text(manual, encoding="utf-8")
+
+    _agents_uninstall(tmp_path)
+
+    assert agents_md.read_text(encoding="utf-8") == manual
+    assert "warning: found an existing unmarked AGENTS.md `## graphify` section" in capsys.readouterr().out
 
 
 def test_agents_uninstall_no_op_when_not_installed(tmp_path, capsys):

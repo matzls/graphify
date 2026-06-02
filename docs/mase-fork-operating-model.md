@@ -20,11 +20,10 @@ tags:
   - "graphify"
   - "fork"
   - "codex"
-  - "skills"
 retrieval_hints:
   - "Graphify local fork"
   - "Mase fork versus upstream"
-  - "Codex Graphify skill sync"
+  - "Codex Graphify backend guidance"
   - "graphify hook-check no-op"
 ---
 
@@ -37,8 +36,8 @@ normal Python project and an operator-owned integration surface for Codex.
 
 The main job of this document is to stop future agents from treating this repo
 as a generic upstream checkout. Local changes may exist to support Mase's Codex
-setup, and the installed CLI and installed Codex skill can drift from the source
-files in this repo unless explicitly synchronized.
+setup, and the installed CLI must stay pointed at this checkout while local
+fork fixes matter.
 
 ## When To Use
 
@@ -47,7 +46,6 @@ Read this document before:
 - changing Graphify code, skills, hooks, install behavior, or watcher behavior
 - explaining how Mase's Graphify install differs from upstream
 - reinstalling the active `graphify` CLI
-- changing `/Users/mase/.codex/skills/graphify/SKILL.md`
 - changing `/Users/mase/.codex/docs/reference/graphify.md`
 - running `graphify codex install` or advising that it creates an active Codex
   reminder
@@ -61,9 +59,10 @@ This checkout has three roles:
   changes.
 - Active install source: Mase's `graphify` CLI should be installed from this
   checkout, not from PyPI, while local fork fixes matter.
-- Skill source: `graphify/skill-codex.md` is the source material for the global
-  Codex skill at `/Users/mase/.codex/skills/graphify/SKILL.md`, plus local
-  operating notes from `/Users/mase/.codex/docs/reference/graphify.md`.
+- Codex guidance source: repo-local `AGENTS.md`, `.codex/config.toml`
+  SessionStart reminders, and `/Users/mase/.codex/docs/reference/graphify.md`
+  define Mase's Codex usage. Graphify no longer ships or installs a separate
+  Codex Graphify skill file.
 
 ## Branch And Remote Model
 
@@ -108,8 +107,7 @@ For each relevant item, compare upstream's claim to:
 - current local patch goals in this document and `AGENTS.md`
 - accepted or pending plans in `docs/plans/`
 - git history for the touched files, especially `graphify/__main__.py`,
-  `graphify/skill-codex.md`, `graphify/watch.py`, `graphify/transcribe.py`,
-  and their tests
+  `graphify/watch.py`, `graphify/transcribe.py`, and their tests
 - recent operator history or session notes when they are available in the
   active task context
 
@@ -135,8 +133,6 @@ Mase-specific or recently upstream-oriented changes in these areas:
 - `graphify/__main__.py`: install-source diagnostics via
   `graphify doctor --require-source`, Codex/agent install guidance, and related
   platform install behavior.
-- `graphify/skill-codex.md`: Mase/Codex-specific preflight, bounded root,
-  `.graphifyignore`, active fork verification, and freshness guidance.
 - `graphify/skill.md`: packaging or skill text alignment with the fork.
 - `graphify/transcribe.py`: stable transcript paths that include media suffix
   and a stable hash so same-stem media files such as `sample.mp3` and
@@ -235,10 +231,10 @@ Important current limitation:
 Practical compensation:
 
 - Repo-local `AGENTS.md` is the reliable always-loaded guidance surface.
-- The global skill at `/Users/mase/.codex/skills/graphify/SKILL.md` is the
-  explicit invocation surface.
 - Mase's global guide at `/Users/mase/.codex/docs/reference/graphify.md` is the
   operator policy surface.
+- There is no separate installed Codex Graphify skill; semantic refreshes use
+  the backend CLI pipeline.
 
 Do not tell Mase that Codex is actively reminded by `hook-check`; the active
 Codex hook surface is `graphify codex-session-start` in `.codex/config.toml`.
@@ -246,186 +242,35 @@ Codex hook surface is `graphify codex-session-start` in `.codex/config.toml`.
 The local Git hooks are active when installed. They refresh code graph outputs
 after commits and branch switches. After commits, docs/media/image changes
 write `graphify-out/needs_update`; they do not semantically refresh until
-the Graphify assistant skill runs `/graphify . --update`. Use native CLI
-`graphify update .` for cheap code-only refreshes, then the assistant skill
-semantic refresh when docs/media/image relationships matter.
+the backend semantic pipeline runs. Use native CLI `graphify update .` for
+cheap code-only refreshes, then run `graphify extract . --backend <backend>
+--model <model>`, `graphify cluster-only . --backend <backend> --model
+<model>`, and `graphify export wiki --graph graphify-out/graph.json` when
+docs/media/image relationships matter.
 
-## Skill And Guide Sync Rules
+## Codex Guidance Rules
 
-When Graphify skill behavior changes, compare and update these surfaces
-intentionally:
+Codex no longer has a separate Graphify skill lane. Keep these surfaces aligned
+instead:
 
-- `graphify/skill-codex.md`
-- `/Users/mase/.codex/skills/graphify/SKILL.md`
+- repo-local `AGENTS.md` graphify section
+- `.codex/config.toml` SessionStart hook installed by `graphify codex install`
 - `/Users/mase/.codex/docs/reference/graphify.md`
 
-The global installed skill may include local Codex operating sections that are
-not present in upstream `skill-codex.md`. Do not overwrite it blindly.
-
-Mase may edit the installed Codex skill directly in `/Users/mase/.codex` during
-workflow or skill-improvement sessions. Treat both copies as potentially
-valuable until proven otherwise. Before syncing, replacing, or deleting either
-copy, inspect:
-
-- file diffs between the repo source and installed skill
-- git history in this repo for `graphify/skill-codex.md`
-- git history in `/Users/mase/.codex` for `skills/graphify/SKILL.md` and
-  `docs/reference/graphify.md`
-- current working-tree status in both repositories
-
-Default rule: preserve both sides, then make an explicit sync decision. Do not
-silently prefer the repo copy or the `.codex` copy based only on path or
-packaging role.
-
-Freshness has three separate meanings:
-
-- CLI freshness: `graphify doctor --require-source` proves the active CLI is
-  installed from Mase's fork.
-- Package-version freshness: `.graphify_version` only records the package
-  version that last wrote a skill install. It can warn about stale package
-  installs, but it does not prove the installed Codex skill contains current
-  guidance.
-- Skill-content freshness: only a diff review plus explicit delta
-  classification proves `/Users/mase/.codex/skills/graphify/SKILL.md` has the
-  intended current behavior.
-
-Do not remove the packaged skill files from this repo as a drift workaround.
-They are part of Graphify's distributable platform support. If Mase wants a
-single source of truth, keep the repo skill as the package source and treat the
-installed `.codex` skill as a local deployment/overlay that must be reconciled
-back intentionally.
-
-Useful checks:
+The SessionStart hook only reports pending semantic refresh work. It does not
+extract semantic graph content. Semantic refreshes must run through the backend
+CLI pipeline:
 
 ```bash
-diff -u graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md
-git log --oneline -- graphify/skill-codex.md
-git -C /Users/mase/.codex log --oneline -- skills/graphify/SKILL.md docs/reference/graphify.md
-git -C /Users/mase/.codex status --short -- skills/graphify/SKILL.md docs/reference/graphify.md
-shasum -a 256 /Users/mase/.codex/skills/graphify/SKILL.md
-rg -n "codex install|hook-check|GRAPH_REPORT|community_labels|doctor" \
-  graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md \
-  /Users/mase/.codex/docs/reference/graphify.md
+graphify extract . --backend <backend> --model <model>
+graphify cluster-only . --backend <backend> --model <model>
+graphify export wiki --graph graphify-out/graph.json
 ```
 
-## Upstream Skill Sync Procedure
-
-Use this procedure after pulling or rebasing onto newer upstream Graphify when
-`graphify/skill-codex.md` may have changed. This is a repo maintenance task,
-not a separate skill: keep the procedure here and keep `AGENTS.md` pointing to
-it.
-
-Goal: decide what to carry from the packaged repo skill into the installed
-Codex skill without breaking local `.codex` guidance.
-
-Do not treat `.graphify_version` as proof that the installed Codex skill is
-current. It is only a package-version staleness signal. A skill sync is current
-only after the meaningful content diff has been reviewed and classified.
-
-1. Inspect both repositories before editing:
-
-```bash
-git status --short --branch
-git -C /Users/mase/.codex status --short -- skills/graphify/SKILL.md docs/reference/graphify.md
-git log --oneline --max-count=8 -- graphify/skill-codex.md
-git -C /Users/mase/.codex log --oneline --max-count=8 -- skills/graphify/SKILL.md docs/reference/graphify.md
-shasum -a 256 /Users/mase/.codex/skills/graphify/SKILL.md
-```
-
-2. Compare the packaged skill to the installed skill:
-
-```bash
-diff -u graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md
-rg -n "GRAPH_REPORT|graph.html|graph.json|community_labels|rationale|wiki|mcp|codex install|hook-check|doctor|graphify_semantic_new" \
-  graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md \
-  /Users/mase/.codex/docs/reference/graphify.md
-```
-
-3. Classify each delta before patching:
-
-- Port: upstream behavior that matches current code/tests and improves the
-  installed skill, such as new valid node types, output files, verification
-  commands, or corrected install guidance.
-- Adapt: upstream intent that is useful but path-, runtime-, or
-  Codex-specific details need correction for Mase's setup.
-- Preserve: local `.codex` operating guidance, especially bounded repo scans,
-  strict `.graphifyignore`, no PyPI fallback, active fork verification,
-  Second Brain separation, derived-output framing, and optional hook activation
-  only after output review.
-- Defer: output-surface expansion or product choices, such as advertising a new
-  optional export, unless Mase explicitly wants that behavior in the global
-  skill.
-
-4. Patch surgically. Do not copy `graphify/skill-codex.md` over
-   `/Users/mase/.codex/skills/graphify/SKILL.md`. Keep custom `.codex` sections
-   unless there is an explicit replacement decision.
-
-5. When importing an upstream procedure block, verify path contracts end to end.
-   For example, a semantic extraction merge step must write the same
-   `.graphify_semantic_new.json` path that later cache and graph-merge steps
-   read. If useful for auditability, mirror the same payload into
-   `graphify-out/.graphify_semantic_new.json`, but do not make the mirror the
-   only copy unless all later reads are updated too.
-
-6. Update the global operating guide only when the change affects operator
-   policy, not merely internal prompt wording:
-
-```bash
-/Users/mase/.codex/docs/reference/graphify.md
-```
-
-7. For non-trivial syncs, record a compact skill sync receipt in the relevant
-   task closeout, plan, or PR notes. Keep the receipt procedural and
-   checklist-sized; do not add runtime enforcement unless Mase explicitly asks
-   for it.
-
-```markdown
-## Skill Sync Receipt
-
-Date:
-Graphify package version:
-Repo branch + commit:
-Installed .codex skill git commit:
-Installed skill SHA256:
-Decision:
-- Port:
-- Adapt:
-- Preserve:
-- Defer:
-
-Validation:
-- diff reviewed:
-- keyword/invariant scan passed:
-- .codex diff --check passed:
-- remaining intentional divergences:
-```
-
-The closeout should state the reconciliation boundary plainly, for example:
-`Global Codex skill reconciled through repo commit <commit>, with intentional
-divergences: <summary>.`
-
-8. Validate the documentation sync:
-
-```bash
-git -C /Users/mase/.codex diff --check -- skills/graphify/SKILL.md docs/reference/graphify.md
-diff -u graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md
-rg -n "rationale|community_labels|graphify_semantic_new|wiki|GRAPH_REPORT|graph.html|graph.json" \
-  graphify/skill-codex.md /Users/mase/.codex/skills/graphify/SKILL.md \
-  /Users/mase/.codex/docs/reference/graphify.md
-```
-
-Keep single-use carry-over decisions out of this operating model. If a specific
-upstream-to-`.codex` skill upgrade has been accepted but not implemented yet,
-track it as a plan under `docs/plans/` and link to that plan from the task or
-PR instead of embedding the decision here.
-
-Store future accepted Graphify skill-sync plans in the same folder, using one
-plan file per upgrade decision. This keeps durable workflow rules in this
-operating model and implementation-specific decisions in `docs/plans/`.
-
-Current example plan:
-
-- `docs/plans/safe-graphify-skill-upgrade.md`
+If upstream changes Codex skill packaging in the future, treat it as a product
+decision: do not reintroduce `graphify/skill-codex.md` or
+`/Users/mase/.codex/skills/graphify/SKILL.md` unless Mase explicitly asks for a
+separate Codex skill again.
 
 ## Active Install Verification
 
@@ -512,5 +357,5 @@ This document is derived from:
 - `ARCHITECTURE.md`
 - `git diff upstream/v8..HEAD` as of 2026-05-16
 - `/Users/mase/.codex/docs/reference/graphify.md`
-- local inspection of `graphify/__main__.py`, `skill-codex.md`, `watch.py`,
-  `transcribe.py`, and related tests
+- local inspection of `graphify/__main__.py`, `watch.py`, `transcribe.py`, and
+  related tests

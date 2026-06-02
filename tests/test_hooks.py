@@ -719,9 +719,10 @@ def test_codex_session_start_outputs_pending_context(tmp_path):
     context = payload["hookSpecificOutput"]["additionalContext"]
     assert "Graphify graph refresh is pending" in context
     assert "native CLI `graphify update .` first" in context
-    assert "/graphify . --update" in context
-    assert "assistant-skill semantic refresh" in context
-    assert "graphify . --update` in the shell" in context
+    assert "graphify extract . --backend <backend> --model <model>" in context
+    assert "graphify cluster-only . --backend <backend> --model <model>" in context
+    assert "graphify export wiki --graph graphify-out/graph.json" in context
+    assert "/graphify . --update" not in context
 
 
 def _run_codex_install(repo: Path):
