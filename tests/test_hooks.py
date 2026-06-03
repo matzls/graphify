@@ -721,7 +721,8 @@ def test_codex_session_start_outputs_pending_context(tmp_path):
     assert "native CLI `graphify update .` first" in context
     assert "graphify extract . --backend <backend> --model <model>" in context
     assert "graphify cluster-only . --backend <backend> --model <model>" in context
-    assert "graphify export wiki --graph graphify-out/graph.json" in context
+    assert "refresh the wiki" in context
+    assert "graphify export wiki --graph graphify-out/graph.json" not in context
     assert "/graphify . --update" not in context
 
 
@@ -757,11 +758,13 @@ type = "command"
 command = "node .codex/hooks/gsd-check-update.js"
 
 # Graphify Hooks
+# graphify-pre-tool-use-hook-start
 [[hooks.PreToolUse]]
 matcher = "Bash"
 [[hooks.PreToolUse.hooks]]
 type = "command"
 command = "/Users/mase/.local/bin/graphify hook-check"
+# graphify-pre-tool-use-hook-end
 """,
         encoding="utf-8",
     )
@@ -773,8 +776,36 @@ command = "/Users/mase/.local/bin/graphify hook-check"
     assert "gsd-check-update.js" in config
     assert "graphify-session-start-hook-start" in config
     assert "codex-session-start" in config
+    assert "graphify-pre-tool-use-hook" not in config
     assert "PreToolUse" not in config
     assert "hook-check" not in config
+
+
+def test_codex_install_removes_empty_legacy_pretooluse_markers(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    config_toml = codex_dir / "config.toml"
+    config_toml.write_text(
+        """# GSD Hooks
+[[hooks.SessionStart]]
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "node .codex/hooks/gsd-check-update.js"
+
+# graphify-pre-tool-use-hook-start
+# graphify-pre-tool-use-hook-end
+""",
+        encoding="utf-8",
+    )
+
+    result = _run_codex_install(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    config = config_toml.read_text(encoding="utf-8")
+    assert "gsd-check-update.js" in config
+    assert "graphify-session-start-hook-start" in config
+    assert "codex-session-start" in config
+    assert "graphify-pre-tool-use-hook" not in config
 
 
 def test_codex_install_preserves_user_hooks_json(tmp_path):
@@ -905,6 +936,41 @@ Rules:
     assert result.returncode == 0, result.stderr
     assert "AGENTS.md: disabled" in result.stdout
     assert "remove generated AGENTS.md" not in result.stdout
+
+
+def test_codex_reconcile_active_removes_empty_legacy_pretooluse_markers(tmp_path):
+    repo = _make_git_repo(tmp_path)
+    _run_codex_install(repo)
+    config_toml = repo / ".codex" / "config.toml"
+    config_toml.write_text(
+        config_toml.read_text(encoding="utf-8").rstrip()
+        + "\n\n# graphify-pre-tool-use-hook-start\n# graphify-pre-tool-use-hook-end\n",
+        encoding="utf-8",
+    )
+
+    dry_run = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "reconcile", "--state", "active"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+    assert dry_run.returncode == 0, dry_run.stderr
+    assert "Legacy config.toml hook-check: present" in dry_run.stdout
+    assert "install/update AGENTS.md and .codex/config.toml" in dry_run.stdout
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "reconcile", "--state", "active", "--apply"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    config = config_toml.read_text(encoding="utf-8")
+    assert "graphify-pre-tool-use-hook" not in config
+    assert "graphify-session-start-hook-start" in config
+    assert "codex-session-start" in config
 
 
 def test_codex_reconcile_staged_apply_removes_triggers_keeps_artifacts(tmp_path):

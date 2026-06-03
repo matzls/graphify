@@ -245,8 +245,8 @@ write `graphify-out/needs_update`; they do not semantically refresh until
 the backend semantic pipeline runs. Use native CLI `graphify update .` for
 cheap code-only refreshes, then run `graphify extract . --backend <backend>
 --model <model>`, `graphify cluster-only . --backend <backend> --model
-<model>`, and `graphify export wiki --graph graphify-out/graph.json` when
-docs/media/image relationships matter.
+<model>` when docs/media/image relationships matter. `cluster-only` relabels
+communities and refreshes `graphify-out/wiki/` by default.
 
 ## Codex Guidance Rules
 
@@ -273,7 +273,6 @@ CLI pipeline:
 ```bash
 graphify extract . --backend <backend> --model <model>
 graphify cluster-only . --backend <backend> --model <model>
-graphify export wiki --graph graphify-out/graph.json
 ```
 
 If upstream changes Codex skill packaging in the future, treat it as a product

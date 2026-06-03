@@ -592,7 +592,8 @@ def test_codex_agents_install_writes_agents_md(tmp_path):
     assert "graphify update ." in content
     assert "graphify extract . --backend <backend> --model <model>" in content
     assert "graphify cluster-only . --backend <backend> --model <model>" in content
-    assert "graphify export wiki --graph graphify-out/graph.json" in content
+    assert "refresh the wiki" in content
+    assert "graphify export wiki --graph graphify-out/graph.json" not in content
     assert "/graphify . --update" not in content
 
 
