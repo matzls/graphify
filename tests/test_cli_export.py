@@ -407,6 +407,75 @@ def test_cluster_only_accepts_spaced_backend_flag(tmp_path, monkeypatch, capsys)
     assert all(value.startswith("Named ") for value in labels.values())
 
 
+def test_cluster_only_relabels_existing_placeholder_labels(tmp_path, monkeypatch):
+    """Existing ``Community N`` labels are placeholders, not curated names."""
+    from graphify.__main__ import main
+
+    out = _make_graph(tmp_path)
+    seen: dict[str, str | None] = {}
+
+    def fake_generate_community_labels(G, communities, *, backend=None, model=None, gods=None, quiet=False):
+        seen["backend"] = backend
+        return {cid: f"Named {cid}" for cid in communities}, "llm"
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["graphify", "cluster-only", ".", "--backend", "ollama", "--no-viz"],
+    )
+    monkeypatch.setattr("graphify.llm.generate_community_labels", fake_generate_community_labels)
+
+    main()
+
+    assert seen["backend"] == "ollama"
+    labels = json.loads((out / ".graphify_labels.json").read_text(encoding="utf-8"))
+    assert all(value.startswith("Named ") for value in labels.values())
+
+
+def test_cluster_only_preserves_curated_labels_while_filling_placeholders(tmp_path, monkeypatch):
+    """Curated labels survive, but placeholder entries are regenerated."""
+    from graphify.__main__ import main
+
+    out = _make_graph(tmp_path)
+    labels_path = out / ".graphify_labels.json"
+    original = json.loads(labels_path.read_text(encoding="utf-8"))
+    cids = sorted(int(cid) for cid in original)
+    assert len(cids) >= 2
+    labels_path.write_text(
+        json.dumps({str(cids[0]): "Curated Layer", str(cids[1]): f"Community {cids[1]}"}),
+        encoding="utf-8",
+    )
+
+    def fake_generate_community_labels(G, communities, *, backend=None, model=None, gods=None, quiet=False):
+        return {cid: f"Named {cid}" for cid in communities}, "llm"
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["graphify", "cluster-only", ".", "--backend", "ollama", "--no-viz"],
+    )
+    monkeypatch.setattr("graphify.llm.generate_community_labels", fake_generate_community_labels)
+
+    main()
+
+    labels = json.loads(labels_path.read_text(encoding="utf-8"))
+    assert labels[str(cids[0])] == "Curated Layer"
+    assert labels[str(cids[1])] == f"Named {cids[1]}"
+
+
+def test_cluster_only_exports_wiki_by_default(tmp_path):
+    out = _make_graph(tmp_path)
+
+    r = _run(["cluster-only", ".", "--no-viz", "--no-label"], tmp_path)
+
+    assert r.returncode == 0, r.stderr
+    wiki = out / "wiki"
+    assert wiki.exists()
+    assert (wiki / "index.md").exists()
+
+
 # Regression test for #1027 - cluster-only must remap labels via node overlap
 
 def test_cluster_only_persists_analysis_sidecar(tmp_path):

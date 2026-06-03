@@ -181,6 +181,33 @@ def test_label_communities_strips_code_fences(monkeypatch):
     assert labels == {0: "Orders", 1: "Pay"}
 
 
+def test_label_communities_batches_beyond_max_communities(monkeypatch):
+    G = nx.Graph()
+    communities = {}
+    for cid in range(5):
+        node_id = f"node_{cid}"
+        G.add_node(node_id, label=f"Concept {cid}")
+        communities[cid] = [node_id]
+
+    prompts = []
+
+    def fake_call(prompt, *, backend, model=None, max_tokens=200):
+        prompts.append(prompt)
+        out = {}
+        for line in prompt.splitlines():
+            if line.startswith("Community "):
+                cid = line.split(":", 1)[0].split()[1]
+                out[cid] = f"Named {cid}"
+        import json
+        return json.dumps(out)
+
+    monkeypatch.setattr("graphify.llm._call_llm", fake_call)
+    labels = label_communities(G, communities, backend="gemini", max_communities=2)
+
+    assert len(prompts) == 3
+    assert labels == {cid: f"Named {cid}" for cid in communities}
+
+
 def test_label_communities_malformed_raises(monkeypatch):
     G, communities = _graph()
     monkeypatch.setattr("graphify.llm._call_llm",

@@ -76,7 +76,8 @@ def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
     assert "native CLI `graphify update .`" in out
     assert "graphify extract . --backend <backend> --model <model>" in out
     assert "graphify cluster-only . --backend <backend> --model <model>" in out
-    assert "graphify export wiki --graph graphify-out/graph.json" in out
+    assert "refresh the wiki" in out
+    assert "graphify export wiki --graph graphify-out/graph.json" not in out
     assert "/graphify . --update" not in out
 
 
