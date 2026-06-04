@@ -243,10 +243,10 @@ The local Git hooks are active when installed. They refresh code graph outputs
 after commits and branch switches. After commits, docs/media/image changes
 write `graphify-out/needs_update`; they do not semantically refresh until
 the backend semantic pipeline runs. Use native CLI `graphify update .` for
-cheap code-only refreshes, then run `graphify extract . --backend <backend>
---model <model>`, `graphify cluster-only . --backend <backend> --model
-<model>` when docs/media/image relationships matter. `cluster-only` relabels
-communities and refreshes `graphify-out/wiki/` by default.
+cheap code-only refreshes, then run `graphify extract . --backend ollama
+--model minimax-m3:cloud`, `graphify cluster-only . --backend ollama --model
+minimax-m3:cloud` when docs/media/image relationships matter. `cluster-only`
+relabels communities and refreshes `graphify-out/wiki/` by default.
 
 ## Codex Guidance Rules
 
@@ -271,8 +271,8 @@ extract semantic graph content. Semantic refreshes must run through the backend
 CLI pipeline:
 
 ```bash
-graphify extract . --backend <backend> --model <model>
-graphify cluster-only . --backend <backend> --model <model>
+graphify extract . --backend ollama --model minimax-m3:cloud
+graphify cluster-only . --backend ollama --model minimax-m3:cloud
 ```
 
 If upstream changes Codex skill packaging in the future, treat it as a product

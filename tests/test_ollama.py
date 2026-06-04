@@ -66,25 +66,25 @@ def test_detect_backend_kimi_beats_ollama(monkeypatch):
     monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    assert detect_backend() == "kimi"
+    assert detect_backend() == "ollama"
 
 
 def test_detect_backend_claude_beats_ollama(monkeypatch):
-    # ANTHROPIC_API_KEY (paid, intentional) should win over OLLAMA_BASE_URL
-    # (env-driven, easy to set accidentally) -- security fix F-002/F-029.
+    # Mase's fork standardizes auto-detection on Ollama Minimax M3 Cloud.
+    # Hosted providers remain available through explicit --backend flags.
     monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
-    assert detect_backend() == "claude"
+    assert detect_backend() == "ollama"
 
 
 def test_detect_backend_none_without_envvars(monkeypatch):
     monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    assert detect_backend() is None
+    assert detect_backend() == "ollama"
 
 
 def test_ollama_api_key_sentinel(monkeypatch):

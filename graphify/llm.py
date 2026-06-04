@@ -2854,36 +2854,15 @@ def _validate_ollama_base_url(url: str, *, warn: bool = True) -> None:
 
 
 def detect_backend() -> str | None:
-    """Return the name of whichever backend has an API key set, or None.
+    """Return the default semantic backend for Mase's local fork.
 
-    Priority: gemini → kimi → claude → openai → deepseek → azure → bedrock → ollama (last, opt-in).
-
-    Ollama is intentionally checked LAST so a paid API key (Anthropic/OpenAI/etc.)
-    is never silently shadowed by an incidental OLLAMA_BASE_URL in the environment
-    — see security finding F-002/F-029. Setting OLLAMA_BASE_URL alongside a paid
-    key now keeps you on the paid backend; remove the paid key (or pass
-    --backend ollama explicitly) to route to the local model.
+    This fork standardizes semantic extraction and community labeling on
+    Ollama's OpenAI-compatible endpoint with ``minimax-m3:cloud`` as the model.
+    Hosted keys may still be used with an explicit ``--backend`` flag, but they
+    do not change the automatic default.
     """
-    for backend in ("gemini", "kimi", "claude", "openai", "deepseek"):
-        if _get_backend_api_key(backend):
-            return backend
-    if _get_backend_api_key("azure") and os.environ.get("AZURE_OPENAI_ENDPOINT"):
-        return "azure"
-    if os.environ.get("AWS_PROFILE") or os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION"):
-        return "bedrock"
-    # Honor Ollama's own OLLAMA_HOST here too, not just OLLAMA_BASE_URL (#1940) —
-    # otherwise a user who set the standard Ollama var but no --backend still
-    # gets "no LLM API key found". Empty default -> falsy when neither is set,
-    # so ollama stays opt-in and never shadows a paid key (checked first above).
-    ollama_url = _resolve_ollama_base_url("")
-    if ollama_url:
-        _validate_ollama_base_url(ollama_url)
-        return "ollama"
-    for name in BACKENDS:
-        if name not in ("gemini", "kimi", "claude", "openai", "deepseek", "azure", "bedrock", "ollama", "claude-cli"):
-            if _get_backend_api_key(name):
-                return name
-    return None
+    _validate_ollama_base_url(str(BACKENDS["ollama"].get("base_url") or ""))
+    return "ollama"
 
 
 # ── Community labeling ────────────────────────────────────────────────────────

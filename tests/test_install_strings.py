@@ -129,6 +129,8 @@ def test_agents_section_does_not_skip_dirty_graph_output():
     assert "Dirty graphify-out/ files are expected" in _AGENTS_MD_SECTION
     assert "not a reason to skip graphify" in _AGENTS_MD_SECTION
     assert "there is no separate Codex Graphify skill lane" in _AGENTS_MD_SECTION
+    assert "Mase explicitly authorizes use of the Ollama cloud model above" in _AGENTS_MD_SECTION
+    assert "does not authorize unrelated third-party uploads" in _AGENTS_MD_SECTION
     assert "/Users/mase/.codex/docs/reference/graphify.md" in _AGENTS_MD_SECTION
 
 
