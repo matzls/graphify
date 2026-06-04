@@ -18,6 +18,9 @@ def _clear_backend_env(monkeypatch):
         "DEEPSEEK_API_KEY",
         "AZURE_OPENAI_API_KEY",
         "AZURE_OPENAI_ENDPOINT",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_API_KEY",
+        "OLLAMA_MODEL",
     ):
         monkeypatch.delenv(env_key, raising=False)
 
@@ -26,7 +29,7 @@ def test_gemini_accepts_gemini_api_key(monkeypatch):
     _clear_backend_env(monkeypatch)
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
 
-    assert llm.detect_backend() == "gemini"
+    assert llm.detect_backend() == "ollama"
     assert llm._get_backend_api_key("gemini") == "gemini-key"
 
 
@@ -34,25 +37,25 @@ def test_gemini_accepts_google_api_key(monkeypatch):
     _clear_backend_env(monkeypatch)
     monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
 
-    assert llm.detect_backend() == "gemini"
+    assert llm.detect_backend() == "ollama"
     assert llm._get_backend_api_key("gemini") == "google-key"
 
 
-def test_backend_detection_prefers_gemini(monkeypatch):
+def test_backend_detection_prefers_ollama_minimax_standard(monkeypatch):
     _clear_backend_env(monkeypatch)
     monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-key")
     monkeypatch.setenv("MOONSHOT_API_KEY", "moonshot-key")
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
 
-    assert llm.detect_backend() == "gemini"
+    assert llm.detect_backend() == "ollama"
 
 
 def test_openai_backend_detected(monkeypatch):
     _clear_backend_env(monkeypatch)
     monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
 
-    assert llm.detect_backend() == "openai"
+    assert llm.detect_backend() == "ollama"
     assert llm._get_backend_api_key("openai") == "openai-key"
 
 

@@ -1312,8 +1312,8 @@ def semantic_update_notice(watch_path: Path) -> str:
         [
             f"[graphify check-update] Pending non-code changes in {watch_path}.",
             "[graphify check-update] First run native CLI `graphify update .` for a code graph refresh.",
-            "[graphify check-update] Then run backend semantic refresh: `graphify extract . --backend <backend> --model <model>`.",
-            "[graphify check-update] Finish with `graphify cluster-only . --backend <backend> --model <model>` to relabel communities and refresh the wiki.",
+            "[graphify check-update] Then run backend semantic refresh: `graphify extract . --backend ollama --model minimax-m3:cloud`.",
+            "[graphify check-update] Finish with `graphify cluster-only . --backend ollama --model minimax-m3:cloud` to relabel communities and refresh the wiki.",
         ]
     )
 
@@ -1331,7 +1331,7 @@ def codex_session_start_notice(watch_path: Path) -> str:
             "",
             "Action: tell the user this repo has pending Graphify semantic refresh work.",
             "Offer to run native CLI `graphify update .` first, then run the backend semantic refresh before relying on doc/media/image relationships.",
-            "`graphify update .` is code-only and no-LLM; `graphify extract . --backend <backend> --model <model>` is LLM-backed and may spend API or local inference budget.",
+            "`graphify update .` is code-only and no-LLM; `graphify extract . --backend ollama --model minimax-m3:cloud` is LLM-backed and may spend cloud inference budget.",
         ]
     )
 
@@ -1363,8 +1363,8 @@ def _notify_only(watch_path: Path) -> None:
     flag = mark_needs_update(watch_path)
     print(f"\n[graphify watch] New or changed files detected in {watch_path}")
     print("[graphify watch] Non-code files changed - semantic re-extraction requires LLM.")
-    print("[graphify watch] Run `graphify extract . --backend <backend> --model <model>` to update semantic relationships.")
-    print("[graphify watch] Then run `graphify cluster-only . --backend <backend> --model <model>` to relabel communities and refresh the wiki.")
+    print("[graphify watch] Run `graphify extract . --backend ollama --model minimax-m3:cloud` to update semantic relationships.")
+    print("[graphify watch] Then run `graphify cluster-only . --backend ollama --model minimax-m3:cloud` to relabel communities and refresh the wiki.")
     print(f"[graphify watch] Flag written to {flag}")
 
 
