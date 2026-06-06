@@ -78,8 +78,12 @@ Relevant code paths:
   Codex SessionStart notice text.
 - `graphify/hooks.py`: Git hook behavior; code changes trigger deterministic
   rebuilds, while docs/media/image changes write `graphify-out/needs_update`.
-- `graphify/skill-pi.md`: Pi skill surface. This should be kept aligned with
-  the backend CLI pipeline rather than old Codex worker/subagent extraction.
+- `graphify/skill-pi.md`: Pi skill source. The normal Pi setup is one current
+  global skill copied from this file to `~/.pi/agent/skills/graphify/SKILL.md`;
+  repo-local Graphify activation should stay lightweight and should not duplicate
+  the full skill unless a repo intentionally needs a pinned/custom workflow. This
+  skill should be kept aligned with the backend CLI pipeline rather than old
+  Codex worker/subagent extraction.
 
 Graphify's backend pipeline is:
 

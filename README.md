@@ -182,9 +182,9 @@ graphify install --project --platform codex
 ```
 
 Project-scoped installs write under the current directory, for example
-`.claude/skills/graphify/SKILL.md` or `.agents/skills/graphify/SKILL.md` (plus a
-`references/` sidecar the skill loads on demand), and
-print a `git add` hint for files that can be committed.
+`.claude/skills/graphify/SKILL.md`, `.agents/skills/graphify/SKILL.md`, or
+`.pi/skills/graphify/SKILL.md` (plus a `references/` sidecar the skill loads on
+demand), and print a `git add` hint for files that can be committed.
 Per-platform commands that support project-scoped installs accept the same flag,
 for example `graphify claude install --project` or `graphify codex install --project`.
 
@@ -679,8 +679,9 @@ graphify claude install            # CLAUDE.md + PreToolUse hook (Claude Code)
 graphify claude uninstall
 graphify codebuddy install         # CODEBUDDY.md + PreToolUse hook (CodeBuddy)
 graphify codebuddy uninstall
+graphify install --platform codex  # Codex skill file under ~/.codex/skills/
 graphify codex install             # AGENTS.md + SessionStart hook in .codex/config.toml (Codex)
-graphify codex reconcile           # dry-run audit of Codex/AGENTS/Git hook state
+graphify codex reconcile           # dry-run audit of Codex activation surfaces, not upstream Git sync
 graphify codex reconcile --state staged --apply  # remove active triggers, keep artifacts
 graphify opencode install          # AGENTS.md + tool.execute.before plugin (OpenCode)
 graphify kilo install              # native Kilo skill + /graphify command + AGENTS.md + .kilo plugin

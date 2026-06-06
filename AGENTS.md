@@ -69,11 +69,23 @@ cleans old `.codex/hooks.json` Graphify `hook-check` entries. `graphify
 hook-check` is retained only as a silent legacy/backcompat no-op for stale
 hook configs. Do not describe it as the active reminder path.
 
-For Codex, the reliable guidance surfaces are repo-local `AGENTS.md`, the
-SessionStart reminder, and Mase's global guide at
-`/Users/mase/.codex/docs/reference/graphify.md`. Graphify no longer installs or
-ships a separate Codex Graphify skill file. Semantic refreshes use the backend
-CLI pipeline, not Codex worker/subagent extraction.
+For Codex, keep three surfaces distinct: `graphify install --platform codex`
+installs the reusable Codex `/graphify` skill, `graphify codex install` writes
+repo-local activation guidance (`AGENTS.md` plus `.codex/config.toml`
+SessionStart), and Mase's global guide at
+`/Users/mase/.codex/docs/reference/graphify.md` defines operator policy. Semantic
+refreshes use the backend CLI pipeline or Pi handoff, not old Codex worker-only
+extraction assumptions.
+
+For Pi, prefer one current global Graphify skill installed from this checkout's
+`graphify/skill-pi.md` into `~/.pi/agent/skills/graphify/SKILL.md`. Per-repo
+Graphify propagation should stay lightweight: `AGENTS.md`, `.codex/config.toml`,
+Git hooks, `.graphifyignore`, and `graphify-out/` describe or activate that
+repo's graph; they should not duplicate the whole Pi skill unless a repo
+explicitly needs a pinned/custom workflow. Pi also discovers `~/.agents/skills/`,
+so any stale `~/.agents/skills/graphify` copy must be reviewed before deletion
+or replacement. Codex-specific skills should install under `.codex/skills/`, not
+the shared `.agents/skills/` tree, to avoid colliding with Pi discovery.
 
 If Codex blocks `graphify extract . --backend ollama --model minimax-m3:cloud`
 as private-data export, do not treat Codex YOLO mode as the normal fix. See
@@ -126,9 +138,12 @@ Current local fixes should stay small and upstream-friendly:
 - Keep Codex guidance explicit about the safe no-op hook behavior.
 - Preserve the Codex-to-Pi semantic refresh handoff for Ollama Cloud blocks;
   see `docs/codex-pi-semantic-refresh.md`.
+- Fail closed on degraded semantic refreshes unless `--allow-partial` is
+  explicit; partial markers must prevent wiki refreshes from looking clean.
 
-Prefer tests in `tests/test_watch.py`, `tests/test_transcribe.py`, and
-`tests/test_hooks.py` for these patches.
+Prefer tests in `tests/test_watch.py`, `tests/test_transcribe.py`,
+`tests/test_hooks.py`, `tests/test_cli_semantic_fail_closed.py`,
+`tests/test_llm_backends.py`, and `tests/test_cli_export.py` for these patches.
 
 <!-- gsd-routing-start -->
 <!-- template-version: 2026-05-11.1 -->

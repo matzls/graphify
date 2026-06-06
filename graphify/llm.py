@@ -2138,6 +2138,8 @@ def _extract_with_adaptive_retry(
             "model": model,
             "finish_reason": "stop",
             "_partial_files": _merged_partial_files(left, right),
+            "partial_chunks": left.get("partial_chunks", 0)
+            + right.get("partial_chunks", 0),
         }
 
     def _split_lone_slice() -> "tuple[FileSlice, FileSlice] | None":
@@ -2168,14 +2170,32 @@ def _extract_with_adaptive_retry(
                 f"and cannot be split further: {exc}",
                 file=sys.stderr,
             )
-            return {"nodes": [], "edges": [], "hyperedges": [], "input_tokens": 0, "output_tokens": 0, "model": model, "finish_reason": "stop"}
+            return {
+                "nodes": [],
+                "edges": [],
+                "hyperedges": [],
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "model": model,
+                "finish_reason": "stop",
+                "partial_chunks": 1,
+            }
         if _depth >= max_depth:
             print(
                 f"[graphify] chunk of {len(chunk)} still overflows context at "
                 f"recursion depth {_depth} (max {max_depth}) — dropping",
                 file=sys.stderr,
             )
-            return {"nodes": [], "edges": [], "hyperedges": [], "input_tokens": 0, "output_tokens": 0, "model": model, "finish_reason": "stop"}
+            return {
+                "nodes": [],
+                "edges": [],
+                "hyperedges": [],
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "model": model,
+                "finish_reason": "stop",
+                "partial_chunks": 1,
+            }
         print(
             f"[graphify] chunk of {len(chunk)} exceeded context at depth "
             f"{_depth} ({type(exc).__name__}); splitting in half and retrying",
@@ -2197,6 +2217,8 @@ def _extract_with_adaptive_retry(
             "model": model,
             "finish_reason": "stop",
             "_partial_files": _merged_partial_files(left, right),
+            "partial_chunks": left.get("partial_chunks", 0)
+            + right.get("partial_chunks", 0),
         }
 
     if result.get("finish_reason") != "length":
@@ -2222,8 +2244,10 @@ def _extract_with_adaptive_retry(
         # empty item set) still marks the file partial (#1950 empty-parse gap).
         _mark_partial(result)
         result["_partial_files"] = sorted(
-            set(_chunk_partial_files(chunk)) | set(result.get("_partial_files", []) or [])
+            set(_chunk_partial_files(chunk))
+            | set(result.get("_partial_files", []) or [])
         )
+        result["partial_chunks"] = result.get("partial_chunks", 0) + 1
         return result
 
     if _depth >= max_depth:
@@ -2238,8 +2262,10 @@ def _extract_with_adaptive_retry(
         # complete, so err toward re-extraction.
         _mark_partial(result)
         result["_partial_files"] = sorted(
-            set(_chunk_partial_files(chunk)) | set(result.get("_partial_files", []) or [])
+            set(_chunk_partial_files(chunk))
+            | set(result.get("_partial_files", []) or [])
         )
+        result["partial_chunks"] = result.get("partial_chunks", 0) + 1
         return result
 
     print(
@@ -2263,11 +2289,10 @@ def _extract_with_adaptive_retry(
         "input_tokens": left.get("input_tokens", 0) + right.get("input_tokens", 0),
         "output_tokens": left.get("output_tokens", 0) + right.get("output_tokens", 0),
         "model": result.get("model"),
-        # Both halves either succeeded or have already surfaced their own
-        # truncation warning; the merged result is no longer truncated as a
-        # logical unit.
         "finish_reason": "stop",
         "_partial_files": _merged_partial_files(left, right),
+        "partial_chunks": left.get("partial_chunks", 0)
+        + right.get("partial_chunks", 0),
     }
 
 
@@ -2344,6 +2369,7 @@ def extract_corpus_parallel(
         "nodes": [], "edges": [], "hyperedges": [],
         "input_tokens": 0, "output_tokens": 0,
         "failed_chunks": 0,  # count of chunks that raised — loud failure on chunk errors
+        "partial_chunks": 0,  # count of chunks kept after retry exhaustion/truncation
     }
     total = len(chunks)
     merged["total_chunks"] = total
@@ -2477,7 +2503,6 @@ def extract_corpus_parallel(
             " — see errors above. Partial results returned.",
             file=sys.stderr,
         )
-
     # Dispatch/return reconciliation (#1890). A chunk can return a clean, non-empty
     # response that simply omits some of the documents it was given; those docs then
     # vanish from the graph with no node, no warning, and no cache/manifest stamp, so
@@ -2570,6 +2595,12 @@ def extract_corpus_parallel(
             "returned a response but omitted them; a re-run will retry them.",
             file=sys.stderr,
         )
+    if merged["partial_chunks"] > 0:
+        print(
+            f"[graphify] WARNING: {merged['partial_chunks']} semantic chunk(s) returned "
+            "retry-exhausted partial output.",
+            file=sys.stderr,
+        )
     return merged
 
 
@@ -2580,6 +2611,7 @@ def _merge_into(merged: dict, result: dict) -> None:
     merged["hyperedges"].extend(result.get("hyperedges", []))
     merged["input_tokens"] += result.get("input_tokens", 0)
     merged["output_tokens"] += result.get("output_tokens", 0)
+    merged["partial_chunks"] += result.get("partial_chunks", 0)
     # Carry forward files a chunk truncated to an empty parse (#1950): these have
     # no items to ride the merge, so they'd otherwise be lost from the run-level
     # partial set the manifest stamp consults.
