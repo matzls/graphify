@@ -268,8 +268,6 @@ def test_allow_partial_writes_ast_output_when_fresh_semantic_chunks_fail(
         },
         ast_nodes=[{"id": "app_value", "label": "VALUE", "source_file": "app.py"}],
     )
-    monkeypatch.setattr("graphify.cache.save_semantic_cache", lambda *_, **__: None)
-
     rc = _run_main(
         monkeypatch,
         ["extract", str(root), "--backend", "ollama", "--no-cluster", "--allow-partial"],
@@ -284,6 +282,45 @@ def test_allow_partial_writes_ast_output_when_fresh_semantic_chunks_fail(
     assert marker["status"] == "partial"
     assert marker["failed_chunks"] == 1
     assert marker["total_chunks"] == 1
+
+
+def test_allow_partial_degraded_semantic_output_is_not_cached(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={
+            "nodes": [
+                {
+                    "id": "doc_concept",
+                    "label": "Doc Concept",
+                    "file_type": "document",
+                    "source_file": "doc.md",
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "failed_chunks": 0,
+            "partial_chunks": 1,
+            "total_chunks": 1,
+        },
+    )
+
+    rc = _run_main(
+        monkeypatch,
+        ["extract", str(root), "--backend", "ollama", "--no-cluster", "--allow-partial"],
+    )
+
+    assert rc == 0
+    marker = json.loads(
+        (root / "graphify-out" / ".graphify_semantic_marker").read_text(encoding="utf-8")
+    )
+    assert marker["status"] == "partial"
+    assert marker["partial_chunks"] == 1
 
 
 def test_allow_partial_marks_degraded_semantic_output(
@@ -311,7 +348,6 @@ def test_allow_partial_marks_degraded_semantic_output(
             "total_chunks": 3,
         },
     )
-    monkeypatch.setattr("graphify.cache.save_semantic_cache", lambda *_, **__: None)
 
     rc = _run_main(
         monkeypatch,
@@ -366,6 +402,110 @@ def test_code_only_extract_does_not_preflight_semantic_backend(
     data = json.loads((root / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
     assert rc == 0
     assert data["nodes"] == [{"id": "app_value", "label": "VALUE", "source_file": "app.py"}]
+    assert not (root / "graphify-out" / ".graphify_semantic_marker").exists()
+
+
+def test_code_only_extract_clears_stale_partial_semantic_marker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    import graphify.detect
+    import graphify.extract
+
+    root = tmp_path / "corpus"
+    root.mkdir()
+    code = root / "app.py"
+    code.write_text("VALUE = 1\n", encoding="utf-8")
+    out = root / "graphify-out"
+    out.mkdir()
+    (out / ".graphify_semantic_marker").write_text(
+        json.dumps({"status": "partial", "failed_chunks": 1}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        graphify.detect,
+        "detect",
+        lambda *_, **__: {"files": {"code": [str(code)], "document": []}},
+    )
+    monkeypatch.setattr(
+        graphify.extract,
+        "extract",
+        lambda *_, **__: {
+            "nodes": [{"id": "app_value", "label": "VALUE", "source_file": "app.py"}],
+            "edges": [],
+            "input_tokens": 0,
+            "output_tokens": 0,
+        },
+    )
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 0
+    assert not (out / ".graphify_semantic_marker").exists()
+
+
+def test_cache_only_semantic_extract_rewrites_stale_partial_marker_as_clean(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    import graphify.cache
+    import graphify.detect
+    import graphify.llm
+
+    root = tmp_path / "corpus"
+    root.mkdir()
+    doc = root / "doc.md"
+    doc.write_text("# Doc\n\nCached semantic input.\n", encoding="utf-8")
+    out = root / "graphify-out"
+    out.mkdir()
+    (out / ".graphify_semantic_marker").write_text(
+        json.dumps({"status": "partial", "failed_chunks": 1}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        graphify.detect,
+        "detect",
+        lambda *_, **__: {
+            "files": {"document": [str(doc)]},
+            "total_files": 1,
+            "total_words": 3,
+        },
+    )
+    monkeypatch.setattr(
+        graphify.cache,
+        "check_semantic_cache",
+        lambda paths, root: (
+            [
+                {
+                    "id": "doc_concept",
+                    "label": "Doc Concept",
+                    "file_type": "document",
+                    "source_file": str(doc),
+                }
+            ],
+            [],
+            [],
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        graphify.cache,
+        "save_semantic_cache",
+        lambda *_, **__: (_ for _ in ()).throw(AssertionError("cache should not be saved")),
+    )
+    monkeypatch.setattr(
+        graphify.llm,
+        "validate_backend_dependencies",
+        lambda backend: (_ for _ in ()).throw(AssertionError("semantic preflight called")),
+    )
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 0
+    marker = json.loads((out / ".graphify_semantic_marker").read_text(encoding="utf-8"))
+    assert marker["status"] == "clean"
+    assert marker["failed_chunks"] == 0
+    assert marker["partial_chunks"] == 0
 
 
 def test_extract_writes_graph_report_from_current_graph(
