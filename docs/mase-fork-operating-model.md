@@ -8,13 +8,14 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-05-13
-last_verified: 2026-05-13
+updated: 2026-06-04
+last_verified: 2026-06-04
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
   - "../ARCHITECTURE.md"
   - "../README.md"
+  - "./codex-pi-semantic-refresh.md"
   - "/Users/mase/.codex/docs/reference/graphify.md"
 tags:
   - "graphify"
@@ -274,6 +275,14 @@ CLI pipeline:
 graphify extract . --backend ollama --model minimax-m3:cloud
 graphify cluster-only . --backend ollama --model minimax-m3:cloud
 ```
+
+If Codex blocks that cloud semantic refresh as private-data export, use the
+Codex-to-Pi handoff model in `docs/codex-pi-semantic-refresh.md`: Codex can run
+or recommend `graphify update .`, then hand Mase a copy-pasteable Pi one-shot or
+direct terminal command for the Ollama Cloud semantic extraction and
+`cluster-only` label/wiki refresh. Do not treat Codex YOLO mode as the default
+solution; it may bypass local approvals/sandboxing but is not a durable or
+policy-clear answer to external corpus export.
 
 If upstream changes Codex skill packaging in the future, treat it as a product
 decision: do not reintroduce `graphify/skill-codex.md` or

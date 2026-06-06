@@ -75,6 +75,13 @@ SessionStart reminder, and Mase's global guide at
 ships a separate Codex Graphify skill file. Semantic refreshes use the backend
 CLI pipeline, not Codex worker/subagent extraction.
 
+If Codex blocks `graphify extract . --backend ollama --model minimax-m3:cloud`
+as private-data export, do not treat Codex YOLO mode as the normal fix. See
+`docs/codex-pi-semantic-refresh.md` and hand Mase a copy-pasteable Pi or direct
+terminal command for the semantic refresh. Future local-fork work should add a
+minimal `graphify` handoff command that prints that Pi/terminal payload without
+sending repo content itself.
+
 ## Upstream Sync
 
 To take upstream changes while preserving local fixes:
@@ -117,6 +124,8 @@ Current local fixes should stay small and upstream-friendly:
 - Avoid transcript filename collisions for same-stem media files.
 - Verify active install source with `graphify doctor --require-source`.
 - Keep Codex guidance explicit about the safe no-op hook behavior.
+- Preserve the Codex-to-Pi semantic refresh handoff for Ollama Cloud blocks;
+  see `docs/codex-pi-semantic-refresh.md`.
 
 Prefer tests in `tests/test_watch.py`, `tests/test_transcribe.py`, and
 `tests/test_hooks.py` for these patches.
