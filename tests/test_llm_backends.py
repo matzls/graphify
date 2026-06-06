@@ -1035,7 +1035,6 @@ def test_openai_compat_env_var_temperature_applied(tmp_path, monkeypatch):
 
     assert captured.get("temperature") == 0.3
 
-
 def test_native_extraction_prompt_requests_hyperedges():
     """The native-backend prompt must request hyperedges, like the skill's
     extraction-spec does — otherwise `graphify extract --backend X` silently
@@ -1265,3 +1264,33 @@ def test_call_llm_openai_compat_client_built_with_timeout_and_retries(monkeypatc
     llm._call_llm("hi", backend="kimi")
     assert ctor_kwargs.get("timeout") == 1.0, ctor_kwargs
     assert ctor_kwargs.get("max_retries", 0) >= 5, ctor_kwargs
+
+
+def test_adaptive_retry_propagates_retry_exhausted_partial_chunks(tmp_path):
+    files = [tmp_path / f"f{i}.md" for i in range(2)]
+    for f in files:
+        f.write_text("hello")
+
+    def fake_extract(chunk, *_, **__):
+        return {
+            "nodes": [{"id": f.stem} for f in chunk],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "model": "m",
+            "finish_reason": "length",
+        }
+
+    with patch("graphify.llm.extract_files_direct", side_effect=fake_extract):
+        result = llm._extract_with_adaptive_retry(
+            files,
+            backend="ollama",
+            api_key="ollama",
+            model="minimax-m3:cloud",
+            root=tmp_path,
+            max_depth=3,
+        )
+
+    assert len(result["nodes"]) == 2
+    assert result["partial_chunks"] == 2

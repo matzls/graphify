@@ -60,10 +60,23 @@ This checkout has three roles:
   changes.
 - Active install source: Mase's `graphify` CLI should be installed from this
   checkout, not from PyPI, while local fork fixes matter.
-- Codex guidance source: repo-local `AGENTS.md`, `.codex/config.toml`
+- Skill source: packaged assistant skills such as `graphify/skill-pi.md` live in
+  this repo and are copied into harness-specific skill locations by install
+  commands.
+- Pi global skill source: the normal Pi setup should use one current global
+  Graphify skill installed from this checkout into
+  `~/.pi/agent/skills/graphify/SKILL.md`. Repo-local Graphify activation should
+  remain lightweight and should not duplicate the full Pi skill unless a repo
+  intentionally needs a pinned/custom workflow.
+- Codex skill source: `graphify/skill-codex.md` and
+  `graphify/skills/codex/references/` provide the reusable Codex `/graphify`
+  skill. This fork installs that skill under `.codex/skills/graphify/`, not
+  upstream's shared `.agents/skills/graphify/`, so it does not collide with Pi's
+  shared-skill discovery.
+- Codex activation source: repo-local `AGENTS.md`, `.codex/config.toml`
   SessionStart reminders, and `/Users/mase/.codex/docs/reference/graphify.md`
-  define Mase's Codex usage. Graphify no longer ships or installs a separate
-  Codex Graphify skill file.
+  define Mase's per-repo Codex usage. These activation surfaces complement the
+  Codex skill; they do not replace upstream Git reconciliation.
 
 ## Branch And Remote Model
 
@@ -141,11 +154,15 @@ Mase-specific or recently upstream-oriented changes in these areas:
 - `graphify/hooks.py`: repo-local hooks classify code versus semantic changes,
   rebuild code graphs without spending LLM tokens, and write
   `graphify-out/needs_update` for docs/media/image changes.
+- `graphify/llm.py` and `graphify/__main__.py`: degraded semantic refreshes
+  propagate failed/partial chunk state, fail closed unless `--allow-partial`,
+  and mark partial outputs so wiki refreshes cannot look clean.
 - `graphify/watch.py`: code-only rebuilds preserve upstream v8's stable graph
   behavior while dropping stale edges from changed sources.
-- `tests/test_install.py`, `tests/test_transcribe.py`, and
-  `tests/test_watch.py`: coverage for the local install, transcript, and watcher
-  behavior above.
+- `tests/test_install.py`, `tests/test_transcribe.py`, `tests/test_watch.py`,
+  `tests/test_cli_semantic_fail_closed.py`, `tests/test_llm_backends.py`, and
+  `tests/test_cli_export.py`: coverage for the local install, transcript,
+  watcher, and local semantic-refresh safety behavior above.
 
 Refresh this section from `git diff upstream/v8..HEAD` before relying on it for
 shipping decisions.
@@ -251,17 +268,21 @@ relabels communities and refreshes `graphify-out/wiki/` by default.
 
 ## Codex Guidance Rules
 
-Codex no longer has a separate Graphify skill lane. Keep these surfaces aligned
-instead:
+Codex has both a reusable Graphify skill and repo-local activation surfaces.
+Keep these aligned but separate:
 
+- Codex skill installed by `graphify install --platform codex` into
+  `.codex/skills/graphify/`
 - repo-local `AGENTS.md` graphify section
 - `.codex/config.toml` SessionStart hook installed by `graphify codex install`
 - `/Users/mase/.codex/docs/reference/graphify.md`
 
-Use `graphify codex reconcile` as the safe one-repo primitive before or during
-multi-repo propagation. It audits repo-local AGENTS.md, Codex SessionStart
-config, legacy `.codex/hooks.json` entries, Git hooks, and graph artifacts in
-dry-run mode by default. Use `--state active`, `--state staged`, or
+Use `graphify codex reconcile` as the safe one-repo Codex activation-surface
+primitive before or during multi-repo propagation. It audits repo-local
+AGENTS.md, Codex SessionStart config, legacy `.codex/hooks.json` entries, Git
+hooks, and graph artifacts in dry-run mode by default. It is not an upstream
+fork reconciliation command; upstream reconciliation means Git fetch/release
+review/rebase/merge work. Use `--state active`, `--state staged`, or
 `--state disabled` to declare the target state, and add `--apply` only after
 reviewing the planned changes. Reconciliation removes active triggers for
 staged/disabled repos but leaves `graphify-out/`, `.graphifyignore`,
@@ -284,10 +305,11 @@ direct terminal command for the Ollama Cloud semantic extraction and
 solution; it may bypass local approvals/sandboxing but is not a durable or
 policy-clear answer to external corpus export.
 
-If upstream changes Codex skill packaging in the future, treat it as a product
-decision: do not reintroduce `graphify/skill-codex.md` or
-`/Users/mase/.codex/skills/graphify/SKILL.md` unless Mase explicitly asks for a
-separate Codex skill again.
+Codex skill packaging is intentionally present. If upstream changes Codex skill
+packaging in the future, preserve the local destination distinction unless Mase
+explicitly decides otherwise: Codex-specific skills install under
+`.codex/skills/graphify/`, while `.agents/skills/graphify/` is treated as a
+shared/legacy location that can collide with Pi discovery.
 
 ## Active Install Verification
 

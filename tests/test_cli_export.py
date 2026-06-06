@@ -476,6 +476,60 @@ def test_cluster_only_exports_wiki_by_default(tmp_path):
     assert (wiki / "index.md").exists()
 
 
+def test_cluster_only_skips_wiki_when_semantic_marker_is_partial(tmp_path):
+    out = _make_graph(tmp_path)
+    (out / ".graphify_semantic_marker").write_text(
+        json.dumps({"status": "partial", "output_tokens": 10}),
+        encoding="utf-8",
+    )
+
+    r = _run(["cluster-only", ".", "--no-viz", "--no-label"], tmp_path)
+
+    assert r.returncode == 0, r.stderr
+    assert "semantic marker is partial" in r.stderr
+    assert not (out / "wiki").exists()
+
+
+def test_cluster_only_allow_partial_exports_wiki_from_partial_marker(tmp_path):
+    out = _make_graph(tmp_path)
+    (out / ".graphify_semantic_marker").write_text(
+        json.dumps({"status": "partial", "output_tokens": 10}),
+        encoding="utf-8",
+    )
+
+    r = _run(["cluster-only", ".", "--no-viz", "--no-label", "--allow-partial"], tmp_path)
+
+    assert r.returncode == 0, r.stderr
+    assert (out / "wiki" / "index.md").exists()
+
+
+def test_export_wiki_refuses_partial_semantic_marker(tmp_path):
+    out = _make_graph(tmp_path)
+    (out / ".graphify_semantic_marker").write_text(
+        json.dumps({"status": "partial", "output_tokens": 10}),
+        encoding="utf-8",
+    )
+
+    r = _run(["export", "wiki"], tmp_path)
+
+    assert r.returncode == 1
+    assert "semantic marker is partial" in r.stderr
+    assert not (out / "wiki").exists()
+
+
+def test_export_wiki_allow_partial_uses_partial_semantic_marker(tmp_path):
+    out = _make_graph(tmp_path)
+    (out / ".graphify_semantic_marker").write_text(
+        json.dumps({"status": "partial", "output_tokens": 10}),
+        encoding="utf-8",
+    )
+
+    r = _run(["export", "wiki", "--allow-partial"], tmp_path)
+
+    assert r.returncode == 0, r.stderr
+    assert (out / "wiki" / "index.md").exists()
+
+
 # Regression test for #1027 - cluster-only must remap labels via node overlap
 
 def test_cluster_only_persists_analysis_sidecar(tmp_path):

@@ -256,6 +256,14 @@ def test_audit_coverage_passes_for_codex_and_windows():
         assert problems == [], f"[{key}]\n" + "\n".join(problems)
 
 
+def test_codex_is_a_skillgen_platform():
+    """Codex skill packaging is generated, while repo activation stays separate."""
+    platforms = gen.load_platforms()
+    assert "codex" in platforms
+    assert platforms["codex"].skill_dst == "graphify/skill-codex.md"
+    assert platforms["codex"].refs_dst == "graphify/skills/codex/references"
+
+
 UNIFIED_DESCRIPTION = (
     "Use for any question about a codebase, its architecture, file relationships, "
     "or project content — especially when graphify-out/ exists, where the question "
@@ -663,6 +671,8 @@ def test_extracted_constants_equal_the_packaged_always_on_files():
     for const_name, basename in pairs.items():
         on_disk = (pkg / "always_on" / f"{basename}.md").read_text(encoding="utf-8")
         assert getattr(mainmod, const_name) == on_disk, const_name
+    assert "Codex uses the reusable `.codex/skills/graphify/SKILL.md` skill" in mainmod._AGENTS_MD_SECTION
+    assert "AGENTS.md plus `.codex/config.toml` SessionStart guidance" in mainmod._AGENTS_MD_SECTION
 
 
 def test_always_on_files_are_guarded_by_check(tmp_path):

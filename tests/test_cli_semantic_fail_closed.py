@@ -178,6 +178,78 @@ def test_extract_preserves_existing_graph_when_fresh_semantic_output_is_empty(
     assert graph.read_text(encoding="utf-8") == '{"sentinel": true}'
 
 
+def test_extract_preserves_existing_graph_when_some_fresh_semantic_chunks_fail(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={
+            "nodes": [
+                {
+                    "id": "doc_concept",
+                    "label": "Doc Concept",
+                    "file_type": "document",
+                    "source_file": "doc.md",
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "failed_chunks": 1,
+            "partial_chunks": 0,
+            "total_chunks": 2,
+        },
+    )
+    out = root / "graphify-out"
+    out.mkdir()
+    graph = out / "graph.json"
+    graph.write_text('{"sentinel": true}', encoding="utf-8")
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 1
+    assert graph.read_text(encoding="utf-8") == '{"sentinel": true}'
+
+
+def test_extract_preserves_existing_graph_when_fresh_semantic_chunks_are_partial(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={
+            "nodes": [
+                {
+                    "id": "doc_concept",
+                    "label": "Doc Concept",
+                    "file_type": "document",
+                    "source_file": "doc.md",
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "failed_chunks": 0,
+            "partial_chunks": 1,
+            "total_chunks": 1,
+        },
+    )
+    out = root / "graphify-out"
+    out.mkdir()
+    graph = out / "graph.json"
+    graph.write_text('{"sentinel": true}', encoding="utf-8")
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 1
+    assert graph.read_text(encoding="utf-8") == '{"sentinel": true}'
+
+
 def test_allow_partial_writes_ast_output_when_fresh_semantic_chunks_fail(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -206,6 +278,54 @@ def test_allow_partial_writes_ast_output_when_fresh_semantic_chunks_fail(
     assert rc == 0
     data = json.loads((root / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
     assert data["nodes"] == [{"id": "app_value", "label": "VALUE", "source_file": "app.py"}]
+    marker = json.loads(
+        (root / "graphify-out" / ".graphify_semantic_marker").read_text(encoding="utf-8")
+    )
+    assert marker["status"] == "partial"
+    assert marker["failed_chunks"] == 1
+    assert marker["total_chunks"] == 1
+
+
+def test_allow_partial_marks_degraded_semantic_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={
+            "nodes": [
+                {
+                    "id": "doc_concept",
+                    "label": "Doc Concept",
+                    "file_type": "document",
+                    "source_file": "doc.md",
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 10,
+            "output_tokens": 20,
+            "failed_chunks": 1,
+            "partial_chunks": 1,
+            "total_chunks": 3,
+        },
+    )
+    monkeypatch.setattr("graphify.cache.save_semantic_cache", lambda *_, **__: None)
+
+    rc = _run_main(
+        monkeypatch,
+        ["extract", str(root), "--backend", "ollama", "--no-cluster", "--allow-partial"],
+    )
+
+    marker = json.loads(
+        (root / "graphify-out" / ".graphify_semantic_marker").read_text(encoding="utf-8")
+    )
+    assert rc == 0
+    assert marker["status"] == "partial"
+    assert marker["failed_chunks"] == 1
+    assert marker["partial_chunks"] == 1
+    assert marker["total_chunks"] == 3
 
 
 def test_code_only_extract_does_not_preflight_semantic_backend(
