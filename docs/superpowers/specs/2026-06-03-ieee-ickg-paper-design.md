@@ -1,9 +1,10 @@
 # IEEE ICKG 2026 Paper Design Spec
-**Date:** 2026-06-03  
-**Venue:** IEEE International Conference on Knowledge Graph (ICKG 2026), 17th edition  
-**Track:** SS03 - KG and Large Language Models  
-**Submission deadline:** June 19, 2026  
-**Format:** IEEE 2-column, 8 pages max (all-in), single-blind  
+
+**Date:** 2026-06-03
+**Venue:** IEEE International Conference on Knowledge Graph (ICKG 2026), 17th edition
+**Track:** SS03 - KG and Large Language Models
+**Submission deadline:** June 19, 2026
+**Format:** IEEE 2-column, 8 pages max (all-in), single-blind
 **Author:** Safi Shamsi, Graphify Labs (YC S26)
 
 ---

@@ -671,7 +671,7 @@ def test_extracted_constants_equal_the_packaged_always_on_files():
     for const_name, basename in pairs.items():
         on_disk = (pkg / "always_on" / f"{basename}.md").read_text(encoding="utf-8")
         assert getattr(mainmod, const_name) == on_disk, const_name
-    assert "Codex uses the reusable `.codex/skills/graphify/SKILL.md` skill" in mainmod._AGENTS_MD_SECTION
+    assert "Codex uses the Graphify skill for `/graphify`" in mainmod._AGENTS_MD_SECTION
     assert "AGENTS.md plus `.codex/config.toml` SessionStart guidance" in mainmod._AGENTS_MD_SECTION
 
 

@@ -181,7 +181,7 @@ def test_label_communities_strips_code_fences(monkeypatch):
     assert labels == {0: "Orders", 1: "Pay"}
 
 
-def test_label_communities_batches_beyond_max_communities(monkeypatch):
+def test_label_communities_batches_beyond_batch_size(monkeypatch):
     G = nx.Graph()
     communities = {}
     for cid in range(5):
@@ -202,7 +202,7 @@ def test_label_communities_batches_beyond_max_communities(monkeypatch):
         return json.dumps(out)
 
     monkeypatch.setattr("graphify.llm._call_llm", fake_call)
-    labels = label_communities(G, communities, backend="gemini", max_communities=2)
+    labels = label_communities(G, communities, backend="gemini", batch_size=2)
 
     assert len(prompts) == 3
     assert labels == {cid: f"Named {cid}" for cid in communities}
@@ -290,7 +290,7 @@ def test_label_communities_batches_when_over_batch_size(monkeypatch):
     G, communities = _wide_graph(250)
     calls = []
 
-    def fake_call(prompt, *, backend, max_tokens=200):
+    def fake_call(prompt, *, backend, model=None, max_tokens=200):
         # The fake reads which cids the prompt asks about and answers all of them.
         cids = [int(line.split(":", 1)[0].removeprefix("Community ").strip())
                 for line in prompt.splitlines() if line.startswith("Community ")]
@@ -312,7 +312,7 @@ def test_label_communities_partial_batch_failure_keeps_successful_batches(monkey
     G, communities = _wide_graph(150)
     n_calls = [0]
 
-    def fake_call(prompt, *, backend, max_tokens=200):
+    def fake_call(prompt, *, backend, model=None, max_tokens=200):
         n_calls[0] += 1
         cids = [int(line.split(":", 1)[0].removeprefix("Community ").strip())
                 for line in prompt.splitlines() if line.startswith("Community ")]
@@ -334,7 +334,7 @@ def test_label_communities_partial_batch_failure_keeps_successful_batches(monkey
 def test_label_communities_all_batches_fail_raises(monkeypatch):
     G, communities = _wide_graph(150)
 
-    def always_fail(prompt, *, backend, max_tokens=200):
+    def always_fail(prompt, *, backend, model=None, max_tokens=200):
         raise RuntimeError("backend down")
 
     monkeypatch.setattr("graphify.llm._call_llm", always_fail)
@@ -349,7 +349,7 @@ def test_label_communities_max_communities_caps_total(monkeypatch):
     G, communities = _wide_graph(150)
     captured_cids = []
 
-    def fake_call(prompt, *, backend, max_tokens=200):
+    def fake_call(prompt, *, backend, model=None, max_tokens=200):
         cids = [int(line.split(":", 1)[0].removeprefix("Community ").strip())
                 for line in prompt.splitlines() if line.startswith("Community ")]
         captured_cids.extend(cids)

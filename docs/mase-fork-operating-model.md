@@ -8,8 +8,8 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-06-04
-last_verified: 2026-06-04
+updated: 2026-06-08
+last_verified: 2026-06-08
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -137,6 +137,35 @@ Pay special attention to release bullets about Codex hooks, `AGENTS.md`,
 skill files, output paths, cache roots, graph freshness, and install commands.
 Those areas overlap with this fork's local operating model and are easy to
 misreport if the release page is not checked.
+
+## Upstream Reconciliation Briefing
+
+Upstream syncs must not be silent upgrades. After fetching release notes and
+before calling the work complete, produce a short operator briefing for Mase.
+The briefing must separate upstream product changes from local-fork conflict
+resolutions and must include:
+
+- Incoming release range and source links: list every upstream tag reviewed and
+  link the GitHub release pages used as evidence.
+- Functional changes: summarize new commands, backends, install surfaces,
+  extraction behavior, graph quality changes, and breaking or behavior-changing
+  fixes.
+- Local patch decisions: call out any local commit or custom behavior that was
+  kept, dropped, adapted, or skipped, with the reason. This is mandatory for
+  Codex skill, `AGENTS.md`, hook, backend, semantic-refresh, and generated skill
+  changes.
+- Recommended leverage: say whether Mase should change any settings or habits
+  to use the new functionality. If no settings should change, say that plainly
+  and name which features are automatic versus opt-in.
+- Suggested opt-ins: list concrete commands only for features that need
+  deliberate adoption, such as CodeBuddy install, HTTP MCP serving, PostgreSQL
+  introspection, Azure backend use, or extra dependency installs.
+- Validation and residual state: report targeted tests, generated-artifact
+  checks, dirty or clean state, whether the active CLI was reinstalled, and
+  whether anything remains uncommitted, unpushed, or operator-gated.
+
+The briefing should be concise, but it should answer: "What changed?", "What
+matters to this fork?", and "Should Mase do anything differently now?"
 
 ## Current Local Delta From Upstream
 

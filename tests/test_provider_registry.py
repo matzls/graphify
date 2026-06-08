@@ -138,8 +138,8 @@ def test_provider_base_url_ok_scheme_and_warnings(capsys):
     assert "plaintext" in capsys.readouterr().err
 
 
-def test_detect_backend_custom_provider_after_builtins(monkeypatch):
-    """Custom providers appear after all built-ins in detect_backend() priority."""
+def test_detect_backend_custom_provider_after_fork_default(monkeypatch):
+    """Custom providers do not override this fork's Ollama default."""
     from graphify import llm
 
     monkeypatch.setattr(llm, "BACKENDS", {
@@ -161,4 +161,4 @@ def test_detect_backend_custom_provider_after_builtins(monkeypatch):
     monkeypatch.delenv("AWS_DEFAULT_REGION", raising=False)
 
     result = llm.detect_backend()
-    assert result == "myprovider"
+    assert result == "ollama"

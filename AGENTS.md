@@ -128,6 +128,21 @@ uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graph
 If upstream includes equivalent fixes, drop the matching local commits from
 `mase/local-fixes`.
 
+Every upstream reconciliation must end with a non-silent operator briefing for
+Mase. Include:
+
+- release tags reviewed, with GitHub release links
+- functional changes and new commands/features Mase can use
+- local patch decisions: kept, dropped, adapted, skipped
+- settings or workflow recommendations, including when no change is advised
+- explicit opt-in commands for features such as CodeBuddy, HTTP MCP serving,
+  PostgreSQL introspection, Azure backend use, or extra installs
+- validation run plus remaining state: dirty/clean, committed/uncommitted,
+  pushed/unpushed, and whether the active CLI was reinstalled
+
+The briefing must distinguish upstream product changes from local-fork conflict
+resolutions so reconciliation is never just a silent version bump.
+
 ## Local Patch Goals
 
 Current local fixes should stay small and upstream-friendly:
