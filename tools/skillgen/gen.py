@@ -1025,7 +1025,16 @@ def always_on_roundtrip() -> list[str]:
     baseline = _always_on_constants(ALWAYS_ON_BASELINE_REF)
     problems: list[str] = []
     rendered = {a.path: a.content for a in render_always_on()}
+    local_overlays = {
+        # Mase's fork intentionally extends AGENTS.md guidance with managed
+        # SessionStart and Ollama semantic-refresh policy. Equality against the
+        # upstream pre-extraction literal is still guarded separately by the
+        # live-constant-vs-packaged-file test.
+        "agents-md",
+    }
     for basename, const_name in sorted(ALWAYS_ON_BLOCKS.items()):
+        if basename in local_overlays:
+            continue
         path = f"graphify/always_on/{basename}.md"
         if const_name not in baseline:
             problems.append(f"could not find constant {const_name} in {ALWAYS_ON_BASELINE_REF}")

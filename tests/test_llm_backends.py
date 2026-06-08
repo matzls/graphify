@@ -918,12 +918,12 @@ def test_call_azure_uses_correct_client_params_and_max_completion_tokens(monkeyp
     assert result["nodes"] == [{"id": "a"}]
 
 
-def test_detect_backend_returns_azure_when_both_vars_set(monkeypatch):
+def test_azure_credentials_available_for_explicit_backend(monkeypatch):
     _clear_backend_env(monkeypatch)
     monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-key")
     monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://my-resource.openai.azure.com/")
 
-    assert llm.detect_backend() == "azure"
+    assert llm.detect_backend() == "ollama"
     assert llm._get_backend_api_key("azure") == "azure-key"
 
 

@@ -1,0 +1,32 @@
+{
+  "nodes": [
+    {"id": "n1", "label": "Payment Retry Policy", "source_file": "retry_policy.md"},
+    {"id": "n2", "label": "Support Runbook", "source_file": "support_runbook.md"},
+    {"id": "n3", "label": "Billing Service", "source_file": "retry_policy.md"},
+    {"id": "n4", "label": "Card Payments", "source_file": "retry_policy.md"},
+    {"id": "n5", "label": "Attempt Number", "source_file": "retry_policy.md"},
+    {"id": "n6", "label": "Gateway Response", "source_file": "retry_policy.md"},
+    {"id": "n7", "label": "Retry Schedule", "source_file": "retry_policy.md"},
+    {"id": "n8", "label": "Subscription", "source_file": "retry_policy.md"},
+    {"id": "n9", "label": "Grace Period", "source_file": "support_runbook.md"},
+    {"id": "n10", "label": "Payment Update Link", "source_file": "support_runbook.md"},
+    {"id": "n11", "label": "Account Risk", "source_file": "support_runbook.md"},
+    {"id": "n12", "label": "Retry Schedule", "source_file": "support_runbook.md"},
+    {"id": "n13", "label": "Escalation Queue", "source_file": "support_runbook.md"},
+    {"id": "n14", "label": "Customer Email", "source_file": "support_runbook.md"},
+    {"id": "n15", "label": "Invoice State", "source_file": "retry_policy.md"}
+  ],
+  "links": [
+    {"source": "n1", "target": "n7", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n1", "target": "n3", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n3", "target": "n4", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n3", "target": "n5", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n4", "target": "n6", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n2", "target": "n9", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n2", "target": "n10", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n2", "target": "n11", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n8", "target": "n9", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n12", "target": "n13", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0},
+    {"source": "n15", "target": "n8", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0}
+  ]
+}
