@@ -437,7 +437,7 @@ def _install_fake_openai(monkeypatch, fake_resp):
             return fake_resp
 
     fake_module = types.ModuleType("openai")
-    fake_module.OpenAI = _FakeOpenAI
+    setattr(fake_module, "OpenAI", _FakeOpenAI)
     monkeypatch.setitem(sys.modules, "openai", fake_module)
 
 
@@ -564,7 +564,7 @@ def _install_capturing_openai(monkeypatch):
             )
 
     fake_module = types.ModuleType("openai")
-    fake_module.OpenAI = _FakeOpenAI
+    setattr(fake_module, "OpenAI", _FakeOpenAI)
     monkeypatch.setitem(sys.modules, "openai", fake_module)
     return captured
 
@@ -887,7 +887,7 @@ def _install_fake_azure_openai(monkeypatch, fake_resp):
             return fake_resp
 
     fake_module = types.ModuleType("openai")
-    fake_module.AzureOpenAI = _FakeAzureOpenAI
+    setattr(fake_module, "AzureOpenAI", _FakeAzureOpenAI)
     monkeypatch.setitem(sys.modules, "openai", fake_module)
     return captured
 

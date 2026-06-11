@@ -47,7 +47,7 @@ def _get_tokenizer():
     Estimates only need to be within ~5%, not exact.
     """
     try:
-        import tiktoken
+        import tiktoken  # pyright: ignore[reportMissingImports]
     except ImportError:
         return None
     try:
@@ -1176,7 +1176,7 @@ def _call_openai_compat(
 ) -> dict:
     """Call any OpenAI-compatible API (Kimi, OpenAI, etc.) and return parsed JSON."""
     try:
-        from openai import OpenAI
+        from openai import OpenAI  # pyright: ignore[reportMissingImports]
     except ImportError as exc:
         extra = backend if backend in ("kimi", "gemini", "openai", "ollama") else "openai"
         raise ImportError(_backend_pkg_hint("openai", extra)) from exc
@@ -1351,7 +1351,7 @@ def _call_openai_compat(
 def _call_claude(api_key: str, model: str, user_message: str, max_tokens: int = 8192, *, deep_mode: bool = False, images: list[_ImageRef] | None = None) -> dict:
     """Call Anthropic Claude directly (not via OpenAI compat layer)."""
     try:
-        import anthropic
+        import anthropic  # pyright: ignore[reportMissingImports]
     except ImportError as exc:
         raise ImportError(_backend_pkg_hint("anthropic", "anthropic")) from exc
 
@@ -1550,7 +1550,7 @@ def _call_claude_cli(user_message: str, max_tokens: int = 8192, *, deep_mode: bo
 def _azure_client(api_key: str, endpoint: str):
     """Construct an AzureOpenAI client with env-driven api_version and timeout."""
     try:
-        from openai import AzureOpenAI
+        from openai import AzureOpenAI  # pyright: ignore[reportMissingImports]
     except ImportError as exc:
         raise ImportError(
             "Azure OpenAI requires the openai package. Run: pip install openai"
@@ -1613,8 +1613,8 @@ def _call_azure(
 def _call_bedrock(model: str, user_message: str, max_tokens: int = 8192, *, deep_mode: bool = False, images: list[_ImageRef] | None = None) -> dict:
     """Call AWS Bedrock via boto3 Converse API using the standard AWS credential chain."""
     try:
-        import boto3
-        import botocore.exceptions
+        import boto3  # pyright: ignore[reportMissingImports]
+        import botocore.exceptions  # pyright: ignore[reportMissingImports]
     except ImportError as exc:
         raise ImportError(
             "AWS Bedrock extraction requires boto3. Run: pip install graphifyy[bedrock]"
@@ -1694,7 +1694,7 @@ def extract_files_direct(
         # Ollama ignores auth but the OpenAI client library requires a non-empty
         # string. Use a placeholder and surface a visible warning so this never
         # silently routes traffic without the user realising — see F-029.
-        ollama_url = os.environ.get("OLLAMA_BASE_URL", cfg.get("base_url", ""))
+        ollama_url = os.environ.get("OLLAMA_BASE_URL") or str(cfg.get("base_url") or "")
         _validate_ollama_base_url(ollama_url)
         print(
             "[graphify] WARNING: ollama backend selected with no OLLAMA_API_KEY set; "
@@ -2534,7 +2534,7 @@ def _call_llm(
     cfg = BACKENDS[backend]
     key = _get_backend_api_key(backend)
     if not key and backend == "ollama":
-        ollama_url = os.environ.get("OLLAMA_BASE_URL", cfg.get("base_url", ""))
+        ollama_url = os.environ.get("OLLAMA_BASE_URL") or str(cfg.get("base_url") or "")
         _validate_ollama_base_url(ollama_url)
         key = "ollama"
     if not key and backend not in ("bedrock", "claude-cli"):
@@ -2550,7 +2550,7 @@ def _call_llm(
 
     if backend == "claude":
         try:
-            import anthropic
+            import anthropic  # pyright: ignore[reportMissingImports]
         except ImportError as exc:
             raise ImportError(_backend_pkg_hint("anthropic", "anthropic")) from exc
         client = anthropic.Anthropic(api_key=key, base_url=cfg["base_url"], timeout=_resolve_api_timeout(), max_retries=_resolve_max_retries())
@@ -2608,7 +2608,7 @@ def _call_llm(
 
     if backend == "bedrock":
         try:
-            import boto3
+            import boto3  # pyright: ignore[reportMissingImports]
         except ImportError as exc:
             raise ImportError(_backend_pkg_hint("boto3", "bedrock")) from exc
         region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or "us-east-1"
@@ -2650,7 +2650,7 @@ def _call_llm(
 
     # OpenAI-compatible (kimi, openai, gemini, ollama)
     try:
-        from openai import OpenAI
+        from openai import OpenAI  # pyright: ignore[reportMissingImports]
     except ImportError as exc:
         raise ImportError(_backend_pkg_hint("openai", "openai")) from exc
     client = OpenAI(api_key=key, base_url=cfg["base_url"], timeout=_resolve_api_timeout(), max_retries=_resolve_max_retries())
@@ -2776,7 +2776,7 @@ def detect_backend() -> str | None:
     Hosted keys may still be used with an explicit ``--backend`` flag, but they
     do not change the automatic default.
     """
-    _validate_ollama_base_url(BACKENDS["ollama"].get("base_url", ""))
+    _validate_ollama_base_url(str(BACKENDS["ollama"].get("base_url") or ""))
     return "ollama"
 
 
