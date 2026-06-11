@@ -514,7 +514,7 @@ def extract_pdf_text(path: Path) -> str:
     if not _file_within_size_cap(path):
         return ""
     try:
-        from pypdf import PdfReader
+        from pypdf import PdfReader  # pyright: ignore[reportMissingImports]
         reader = PdfReader(str(path))
         pages = []
         for page in reader.pages:
@@ -531,8 +531,8 @@ def docx_to_markdown(path: Path) -> str:
     if not _zip_within_caps(path):
         return ""
     try:
-        from docx import Document
-        from docx.oxml.ns import qn
+        from docx import Document  # pyright: ignore[reportMissingImports]
+        from docx.oxml.ns import qn  # pyright: ignore[reportMissingImports]
         doc = Document(str(path))
         lines = []
         for para in doc.paragraphs:
@@ -573,7 +573,7 @@ def xlsx_to_markdown(path: Path) -> str:
     if not _zip_within_caps(path):
         return ""
     try:
-        import openpyxl
+        import openpyxl  # pyright: ignore[reportMissingModuleSource]
         wb = openpyxl.load_workbook(str(path), read_only=True, data_only=True)
         sections = []
         for sheet_name in wb.sheetnames:
@@ -610,7 +610,7 @@ def xlsx_extract_structure(path: Path) -> dict:
         return re.sub(r"[^a-z0-9_]", "_", "_".join(p.lower() for p in parts).strip("_"))
 
     try:
-        import openpyxl
+        import openpyxl  # pyright: ignore[reportMissingModuleSource]
     except ImportError:
         return {"nodes": [], "edges": []}
 
@@ -659,7 +659,7 @@ def xlsx_extract_structure(path: Path) -> dict:
                 ref = tbl.ref  # e.g. "A1:D10"
                 if ref:
                     try:
-                        from openpyxl.utils import range_boundaries
+                        from openpyxl.utils import range_boundaries  # pyright: ignore[reportMissingModuleSource]
                         min_col, min_row, max_col, _ = range_boundaries(ref)
                         header_row = list(ws.iter_rows(min_row=min_row, max_row=min_row,
                                                        min_col=min_col, max_col=max_col,

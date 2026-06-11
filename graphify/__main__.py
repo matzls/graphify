@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import errno
+# pyright: reportGeneralTypeIssues=false
 import functools
 import json
 import os

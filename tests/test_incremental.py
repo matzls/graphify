@@ -6,7 +6,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 PYTHON = sys.executable
 
@@ -23,6 +22,10 @@ _LLM_ENV_KEYS = (
 
 def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     env = {k: v for k, v in os.environ.items() if k not in _LLM_ENV_KEYS}
+    # Mase's local fork intentionally defaults semantic extraction to Ollama.
+    # Keep these no-working-backend tests deterministic even when a developer has
+    # a real local Ollama server on the default localhost:11434 endpoint.
+    env["OLLAMA_BASE_URL"] = "http://127.0.0.1:9/v1"
     return subprocess.run(
         [PYTHON, "-m", "graphify"] + args,
         cwd=cwd,
