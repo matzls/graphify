@@ -1,4 +1,5 @@
 """Integration tests for incremental graphify extract behavior."""
+
 from __future__ import annotations
 import json
 import os
@@ -14,9 +15,17 @@ PYTHON = sys.executable
 # ANTHROPIC_API_KEY / OPENAI_API_KEY / etc. exported does not make a docs extract
 # succeed and break the "no backend" path. CI has none of these set anyway.
 _LLM_ENV_KEYS = (
-    "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
-    "MOONSHOT_API_KEY", "DEEPSEEK_API_KEY", "OLLAMA_BASE_URL",
-    "AWS_PROFILE", "AWS_REGION", "AWS_DEFAULT_REGION", "AWS_ACCESS_KEY_ID",
+    "ANTHROPIC_API_KEY",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "MOONSHOT_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "OLLAMA_BASE_URL",
+    "AWS_PROFILE",
+    "AWS_REGION",
+    "AWS_DEFAULT_REGION",
+    "AWS_ACCESS_KEY_ID",
 )
 
 
