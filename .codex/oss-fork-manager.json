@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "managed": true,
+  "fork_id": "graphify",
+  "kind": "oss-fork",
+  "adapter": "graphify",
+  "registry": "/Users/mase/.codex/oss-fork-manager/registry.json",
+  "remotes": {
+    "origin": {
+      "role": "mase-fork"
+    },
+    "upstream": {
+      "role": "read-only-original",
+      "push_url": "DISABLED"
+    }
+  },
+  "branches": {
+    "upstream_primary": "v8",
+    "mirror": "upstream-v8",
+    "local_fixes": "mase/local-fixes",
+    "task_prefix": "mase/task/"
+  },
+  "bootstrap": {
+    "created_by": "my-oss-fork-manager",
+    "created_at": "2026-06-08",
+    "source": "registry"
+  }
+}
