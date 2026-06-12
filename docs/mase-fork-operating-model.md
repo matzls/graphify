@@ -8,8 +8,8 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-06-08
-last_verified: 2026-06-08
+updated: 2026-06-12
+last_verified: 2026-06-12
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -107,9 +107,14 @@ git log --oneline --decorate --max-count=12
 
 ## Upstream Release Review Gate
 
-Before rebasing local fixes onto a newer upstream branch, inspect the GitHub
-release pages for every incoming tag between the current local mirror and the
-target upstream head:
+Before rebasing local fixes onto a newer upstream branch, follow the global OSS
+fork manager upstream-intake workflow, including its dry-run, release impact
+memo, feature adoption matrix, and operator briefing requirements. This document
+adds Graphify-specific surfaces and validation expectations; it does not replace
+the shared process for Mase-managed OSS forks.
+
+Inspect the GitHub release pages for every incoming tag between the current
+local mirror and the target upstream head:
 
 ```text
 https://github.com/safishamsi/graphify/releases
@@ -138,6 +143,27 @@ skill files, output paths, cache roots, graph freshness, and install commands.
 Those areas overlap with this fork's local operating model and are easy to
 misreport if the release page is not checked.
 
+For Graphify, the release impact memo should explicitly inspect these surfaces
+when touched by the incoming release:
+
+- CLI flags/help and command routing in `graphify/__main__.py`, especially
+  `extract`, `update`, `cluster-only`, `codex`, `hook`, `install`, and `doctor`.
+- Backend and semantic extraction behavior in `graphify/llm.py`, including
+  provider routing, retry/degraded-output handling, trace output, and cache use.
+- Graph freshness behavior in `graphify/watch.py`, `graphify/hooks.py`, and
+  generated repo-local guidance.
+- Generated or installed skill surfaces, including Codex and Pi destination
+  paths, progressive references, and always-on activation prose.
+- Cache, manifest, graph output, wiki/report, and semantic-label behavior under
+  `graphify-out/`.
+- Optional dependency or install-extra changes that affect Mase's active
+  `uv tool install --force --reinstall` command.
+
+Classify each relevant upstream feature or behavior change as `automatic`,
+`adapt`, `opt-in`, `defer`, or `reject`. If an incoming release only improves
+correctness or performance and requires no setting or workflow change, say that
+plainly and separate it from features that need deliberate opt-in.
+
 ## Upstream Reconciliation Briefing
 
 Upstream syncs must not be silent upgrades. After fetching release notes and
@@ -156,7 +182,7 @@ resolutions and must include:
   changes.
 - Recommended leverage: say whether Mase should change any settings or habits
   to use the new functionality. If no settings should change, say that plainly
-  and name which features are automatic versus opt-in.
+  and name which features are automatic, adapted, opt-in, deferred, or rejected.
 - Suggested opt-ins: list concrete commands only for features that need
   deliberate adoption, such as CodeBuddy install, HTTP MCP serving, PostgreSQL
   introspection, Azure backend use, or extra dependency installs.

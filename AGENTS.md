@@ -98,15 +98,20 @@ sending repo content itself.
 
 To take upstream changes while preserving local fixes:
 
-Before rebasing, review the upstream GitHub release pages for every tag being
-pulled in. Match release-note bullets and linked issues against this repo's
-local patch goals, `docs/mase-fork-operating-model.md`, `docs/plans/`, and the
-relevant git history. Treat overlaps as explicit decisions:
+Before rebasing, follow the global OSS fork manager upstream-intake workflow:
+run or inspect the dry-run/handoff, prepare a release impact memo, and classify
+feature adoption as automatic, adapted, opt-in, deferred, or rejected. Review the
+upstream GitHub release pages for every tag being pulled in. Match release-note
+bullets and linked issues against this repo's local patch goals,
+`docs/mase-fork-operating-model.md`, `docs/plans/`, and the relevant git
+history. Treat overlaps as explicit decisions:
 
 - keep the local patch if it still adds Mase-specific behavior
 - drop it if upstream now contains the same fix
 - adapt it if upstream fixed the general case but Mase's Codex setup still
   needs local guidance
+- defer or reject upstream features when they are not needed, conflict with
+  Mase's local workflow, or require an unapproved opt-in
 
 ```bash
 git fetch upstream
@@ -134,7 +139,8 @@ Mase. Include:
 - release tags reviewed, with GitHub release links
 - functional changes and new commands/features Mase can use
 - local patch decisions: kept, dropped, adapted, skipped
-- settings or workflow recommendations, including when no change is advised
+- settings or workflow recommendations, including when no change is advised and
+  which features are automatic versus opt-in/adapted/deferred/rejected
 - explicit opt-in commands for features such as CodeBuddy, HTTP MCP serving,
   PostgreSQL introspection, Azure backend use, or extra installs
 - validation run plus remaining state: dirty/clean, committed/uncommitted,
