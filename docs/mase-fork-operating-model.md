@@ -183,9 +183,15 @@ resolutions and must include:
 - Recommended leverage: say whether Mase should change any settings or habits
   to use the new functionality. If no settings should change, say that plainly
   and name which features are automatic, adapted, opt-in, deferred, or rejected.
+- Graphify adoption audit: after reinstalling the reconciled fork, run or
+  recommend `graphify adoption audit --root /Users/mase/Codebase` so the same
+  Pi/Codex session can show which repos need propagation, semantic refresh,
+  hooks, wiki output, or candidate bootstrap. Keep this report inline in chat;
+  do not require Mase to open a separate plan artifact for the normal workflow.
 - Suggested opt-ins: list concrete commands only for features that need
   deliberate adoption, such as CodeBuddy install, HTTP MCP serving, PostgreSQL
-  introspection, Azure backend use, or extra dependency installs.
+  introspection, Azure backend use, extra dependency installs, or explicit
+  `graphify adoption apply ...` propagation.
 - Validation and residual state: report targeted tests, generated-artifact
   checks, dirty or clean state, whether the active CLI was reinstalled, and
   whether anything remains uncommitted, unpushed, or operator-gated.
@@ -320,6 +326,34 @@ cheap code-only refreshes, then run `graphify extract . --backend ollama
 --model minimax-m3:cloud`, `graphify cluster-only . --backend ollama --model
 minimax-m3:cloud` when docs/media/image relationships matter. `cluster-only`
 relabels communities and refreshes `graphify-out/wiki/` by default.
+
+## Adoption Audit And Propagation
+
+Use the adoption scanner when Mase wants a one-session overview of where
+Graphify is installed, stale, incomplete, or newly useful:
+
+```bash
+graphify adoption audit --root /Users/mase/Codebase
+```
+
+The default report is intentionally chat-native: summary counts, a compact repo
+table, blockers, recommended propagation groups, and exact follow-up commands.
+Use `--json` only for automation and `--verbose` only when the compact report is
+not enough.
+
+Apply remains explicit and re-runs the audit before mutating selected repos:
+
+```bash
+graphify adoption apply --root /Users/mase/Codebase --scope adopted --local
+graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama --model minimax-m3:cloud
+```
+
+`--local` is for cheap repo-local fixes such as managed guidance, Codex
+activation, hooks, code-only update, and wiki refresh from existing clean graph
+state. `--semantic` is the explicit approval to run the standard Ollama Cloud
+semantic refresh and then `cluster-only`/wiki refresh. The scanner skips the
+Graphify fork itself by default and skips dirty source/config repos unless the
+operator passes an explicit dirty override.
 
 ## Codex Guidance Rules
 

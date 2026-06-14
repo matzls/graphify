@@ -380,6 +380,8 @@ graphify export callflow-html      # Mermaid architecture/call-flow HTML (auto-r
 /graphify add <youtube-url>                       # transcribe and add a video
 
 graphify hook install              # auto-rebuild on git commit
+graphify adoption audit            # chat-native multi-repo adoption report + suggestions
+graphify adoption apply --scope adopted --local   # explicitly apply local adoption fixes
 graphify merge-graphs a.json b.json              # combine two graphs
 
 graphify prs                       # PR dashboard: CI state, review status, worktree mapping
@@ -739,6 +741,11 @@ graphify global add graphify-out/graph.json --as myrepo   # register a project g
 graphify global remove myrepo                         # remove a project from the global graph
 graphify global list                                  # show all registered repos + node/edge counts
 graphify global path                                  # print path to the global graph file
+
+graphify adoption audit --root /Users/mase/Codebase   # inline report: full/partial/candidate/skipped repos
+graphify adoption audit --root /Users/mase/Codebase --json
+graphify adoption apply --root /Users/mase/Codebase --scope adopted --local
+graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama --model minimax-m3:cloud
 
 graphify prs                              # PR dashboard: CI, review, worktree, graph impact
 graphify prs 42                           # deep dive on PR #42
