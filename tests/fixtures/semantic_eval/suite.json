@@ -1,0 +1,60 @@
+{
+  "name": "graphify-semantic-model-suite",
+  "version": 2,
+  "description": "Privacy-safe synthetic, public-realistic, and multimodal fixture suite for recurring Graphify semantic model comparisons.",
+  "quality_gate": {
+    "critical_dimensions": [
+      "concept_recall",
+      "expected_edge_coverage",
+      "forbidden_concepts_absent",
+      "forbidden_edges_absent",
+      "source_coverage"
+    ],
+    "minimum_overall": 0.7,
+    "minimum_critical_dimension": 0.8
+  },
+  "fixtures": [
+    {
+      "id": "payment_retry",
+      "corpus": "payment_retry",
+      "expected": "payment_retry/expected.json",
+      "profiles": ["synthetic", "workflow", "runbook", "baseline"],
+      "weight": 1.0
+    },
+    {
+      "id": "router_privacy",
+      "corpus": "router_privacy",
+      "expected": "router_privacy/expected.json",
+      "profiles": ["synthetic", "privacy", "routing", "operations"],
+      "weight": 1.5
+    },
+    {
+      "id": "workflow_migration",
+      "corpus": "workflow_migration",
+      "expected": "workflow_migration/expected.json",
+      "profiles": ["synthetic", "migration", "agent-workflow", "validation"],
+      "weight": 1.25
+    },
+    {
+      "id": "integration_gateway",
+      "corpus": "integration_gateway",
+      "expected": "integration_gateway/expected.json",
+      "profiles": ["synthetic", "integration", "doc-to-code", "traceability"],
+      "weight": 1.25
+    },
+    {
+      "id": "graphify_public_slice",
+      "corpus": "graphify_public_slice",
+      "expected": "graphify_public_slice/expected.json",
+      "profiles": ["public-realistic", "graphify", "architecture", "backend"],
+      "weight": 1.5
+    },
+    {
+      "id": "diagram_workflow",
+      "corpus": "diagram_workflow",
+      "expected": "diagram_workflow/expected.json",
+      "profiles": ["multimodal", "image", "diagram", "routing"],
+      "weight": 1.5
+    }
+  ]
+}

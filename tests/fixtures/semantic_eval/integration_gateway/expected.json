@@ -1,0 +1,60 @@
+{
+  "required_concepts": [
+    {"name": "Integration Gateway", "aliases": ["Gateway Service"], "weight": 1.5},
+    {"name": "Provider Client", "aliases": ["ProviderClient"], "weight": 1.5},
+    {"name": "Token Budget", "weight": 1.5},
+    {"name": "Retry Envelope", "weight": 1.5},
+    {"name": "Embedding Job", "aliases": ["EmbeddingJob"], "weight": 1.5},
+    {"name": "Vector Index", "aliases": ["VectorIndex"], "weight": 1.5},
+    {"name": "Trace Event", "aliases": ["TraceEvent"]},
+    {"name": "Index Namespace", "aliases": ["Namespace"]},
+    {"name": "Lookup Id", "aliases": ["Lookup IDs"]},
+    {"name": "Raw Document Text"}
+  ],
+  "dedup_watchlist": [
+    {"name": "Provider Client", "aliases": ["ProviderClient"]},
+    {"name": "Vector Index", "aliases": ["VectorIndex"]},
+    {"name": "Token Budget"},
+    {"name": "Retry Envelope"}
+  ],
+  "expected_edges": [
+    {"source": "Integration Gateway", "target": "Provider Client", "relation_terms": ["sends", "calls", "owns", "uses"], "weight": 1.5},
+    {"source": "Integration Gateway", "target": "Token Budget", "relation_terms": ["applies", "bounds", "uses"], "weight": 1.5},
+    {"source": "Integration Gateway", "target": "Retry Envelope", "relation_terms": ["builds", "uses"], "weight": 1.5},
+    {"source": "Provider Client", "target": "Embedding Job", "relation_terms": ["creates", "submits", "returns"]},
+    {"source": "Embedding Job", "target": "Vector Index", "relation_terms": ["writes", "stores", "upserts"], "weight": 1.5},
+    {"source": "Vector Index", "target": "Lookup Id", "relation_terms": ["returns", "stores"]},
+    {"source": "Trace Event", "target": "Provider Client", "relation_terms": ["connects", "records"]},
+    {"source": "Trace Event", "target": "Vector Index", "relation_terms": ["connects", "records"]}
+  ],
+  "forbidden_concepts": [
+    "Raw Document Log",
+    "Unlimited Prompt",
+    "Retry Budget Merger"
+  ],
+  "forbidden_edges": [
+    {"source": "Trace Event", "target": "Raw Document Text", "relation_terms": ["logs", "stores"]},
+    {"source": "Retry Envelope", "target": "Token Budget", "relation_terms": ["same", "identical", "merged"]}
+  ],
+  "expected_source_files": [
+    "README.md",
+    "architecture.md",
+    "src/gateway.py",
+    "src/vector_index.py"
+  ],
+  "expected_community_label_terms": [
+    ["gateway", "provider"],
+    ["embedding", "vector"],
+    ["trace"],
+    ["retry", "token"]
+  ],
+  "generic_relations": ["references", "related_to"],
+  "score_weights": {
+    "concept_recall": 2,
+    "expected_edge_coverage": 2,
+    "forbidden_edges_absent": 1.5,
+    "community_labels": 1,
+    "relation_specificity": 1,
+    "source_coverage": 1
+  }
+}

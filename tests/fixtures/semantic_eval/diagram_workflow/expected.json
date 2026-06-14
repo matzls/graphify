@@ -1,0 +1,50 @@
+{
+  "required_concepts": [
+    {"name": "Visual Routing Workflow", "weight": 1.5},
+    {"name": "Intake Queue", "weight": 2.0},
+    {"name": "Redaction Gate", "weight": 2.0},
+    {"name": "Classifier Branch", "weight": 2.0},
+    {"name": "Auto Route", "weight": 1.5},
+    {"name": "Review Queue", "weight": 1.5},
+    {"name": "Audit Trail", "weight": 1.5},
+    {"name": "Low Risk", "weight": 1.0},
+    {"name": "Manual Review", "weight": 1.0}
+  ],
+  "dedup_watchlist": [
+    "Intake Queue",
+    "Redaction Gate",
+    "Classifier Branch",
+    "Audit Trail"
+  ],
+  "expected_edges": [
+    {"source": "Intake Queue", "target": "Redaction Gate", "relation_terms": ["sanitize", "flows", "precedes"], "weight": 2},
+    {"source": "Redaction Gate", "target": "Classifier Branch", "relation_terms": ["classify", "flows", "feeds"], "weight": 2},
+    {"source": "Classifier Branch", "target": "Auto Route", "relation_terms": ["low risk", "routes", "branch"], "weight": 1.5},
+    {"source": "Classifier Branch", "target": "Review Queue", "relation_terms": ["manual review", "routes", "branch"], "weight": 1.5},
+    {"source": "Auto Route", "target": "Audit Trail", "relation_terms": ["record", "decision", "audit"], "weight": 1.5},
+    {"source": "Review Queue", "target": "Audit Trail", "relation_terms": ["record", "decision", "audit"], "weight": 1.5}
+  ],
+  "forbidden_concepts": [
+    "Payment Gateway",
+    "Raw Mailbox Export",
+    "Vector Index"
+  ],
+  "expected_source_files": [
+    "diagram.png"
+  ],
+  "expected_community_label_terms": [
+    ["routing", "workflow"],
+    ["redaction"],
+    ["classifier"],
+    ["audit"]
+  ],
+  "generic_relations": ["references", "related_to"],
+  "score_weights": {
+    "concept_recall": 3,
+    "expected_edge_coverage": 3,
+    "source_coverage": 2,
+    "forbidden_concepts_absent": 2,
+    "community_labels": 1,
+    "deduplication": 1
+  }
+}

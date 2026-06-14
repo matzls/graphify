@@ -1,0 +1,56 @@
+{
+  "required_concepts": [
+    {"name": "Detect Stage", "aliases": ["Detect Files"], "weight": 1.5},
+    {"name": "Extract Stage", "aliases": ["Extract Nodes And Edges"], "weight": 1.5},
+    {"name": "NetworkX Graph", "aliases": ["Build Graph"]},
+    {"name": "Cluster Communities", "aliases": ["Community Labels"]},
+    {"name": "God Nodes"},
+    {"name": "Graph Outputs", "aliases": ["graphify-out"]},
+    {"name": "Semantic Extraction", "weight": 1.5},
+    {"name": "LLM Backend", "aliases": ["Direct Semantic Backend"], "weight": 1.5},
+    {"name": "Ollama Backend", "aliases": ["Ollama"]},
+    {"name": "minimax-m3:cloud", "aliases": ["MiniMax M3 Cloud"]},
+    {"name": "Trace Mode"},
+    {"name": "Semantic Cache"}
+  ],
+  "dedup_watchlist": [
+    "Semantic Extraction",
+    "LLM Backend",
+    "Ollama Backend",
+    "Trace Mode"
+  ],
+  "expected_edges": [
+    {"source": "Detect Stage", "target": "Extract Stage", "relation_terms": ["precedes", "pipeline", "then"], "weight": 1.5},
+    {"source": "Extract Stage", "target": "NetworkX Graph", "relation_terms": ["build", "feeds", "then"], "weight": 1.5},
+    {"source": "NetworkX Graph", "target": "Cluster Communities", "relation_terms": ["cluster", "communities"]},
+    {"source": "Semantic Extraction", "target": "LLM Backend", "relation_terms": ["through", "uses", "handles"], "weight": 1.5},
+    {"source": "Ollama Backend", "target": "minimax-m3:cloud", "relation_terms": ["default", "model"], "weight": 1.5},
+    {"source": "Trace Mode", "target": "LLM Backend", "relation_terms": ["prints", "reports", "logs"]},
+    {"source": "Semantic Cache", "target": "Semantic Extraction", "relation_terms": ["prevents", "cache", "re-extracted"]}
+  ],
+  "forbidden_concepts": [
+    "Raw API Key Logging",
+    "Prompt Body Trace",
+    "Model Output Trace"
+  ],
+  "expected_source_files": [
+    "architecture_excerpt.md",
+    "backend_excerpt.md",
+    "llm_backend_excerpt.py"
+  ],
+  "expected_community_label_terms": [
+    ["pipeline", "architecture"],
+    ["backend", "ollama"],
+    ["cache"],
+    ["trace"]
+  ],
+  "generic_relations": ["references", "related_to"],
+  "score_weights": {
+    "concept_recall": 2,
+    "expected_edge_coverage": 2,
+    "forbidden_concepts_absent": 1.5,
+    "source_coverage": 1,
+    "community_labels": 1,
+    "deduplication": 1
+  }
+}

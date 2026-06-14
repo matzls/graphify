@@ -1,0 +1,21 @@
+{
+  "nodes": [
+    {"id": "visual_routing_workflow", "label": "Visual Routing Workflow", "source_file": "diagram.png", "file_type": "image"},
+    {"id": "intake_queue", "label": "Intake Queue", "source_file": "diagram.png", "file_type": "image"},
+    {"id": "redaction_gate", "label": "Redaction Gate", "source_file": "diagram.png", "file_type": "image"},
+    {"id": "classifier_branch", "label": "Classifier Branch", "source_file": "diagram.png", "file_type": "image"},
+    {"id": "auto_route", "label": "Auto Route", "source_file": "diagram.png", "file_type": "image"},
+    {"id": "review_queue", "label": "Review Queue", "source_file": "diagram.png", "file_type": "image"},
+    {"id": "audit_trail", "label": "Audit Trail", "source_file": "diagram.png", "file_type": "image"},
+    {"id": "low_risk", "label": "Low Risk", "source_file": "diagram.png", "file_type": "image"},
+    {"id": "manual_review", "label": "Manual Review", "source_file": "diagram.png", "file_type": "image"}
+  ],
+  "links": [
+    {"source": "intake_queue", "target": "redaction_gate", "relation": "sanitize flow", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "diagram.png"},
+    {"source": "redaction_gate", "target": "classifier_branch", "relation": "classify flow", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "diagram.png"},
+    {"source": "classifier_branch", "target": "auto_route", "relation": "low risk branch", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "diagram.png"},
+    {"source": "classifier_branch", "target": "review_queue", "relation": "manual review branch", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "diagram.png"},
+    {"source": "auto_route", "target": "audit_trail", "relation": "record decision audit", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "diagram.png"},
+    {"source": "review_queue", "target": "audit_trail", "relation": "record decision audit", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "diagram.png"}
+  ]
+}
