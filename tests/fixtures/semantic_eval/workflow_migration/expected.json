@@ -1,0 +1,54 @@
+{
+  "required_concepts": [
+    {"name": "Source Memory Packet", "aliases": ["Source Memory"], "weight": 1.5},
+    {"name": "Hydration Packet", "aliases": ["Handoff Packet"], "weight": 2.0},
+    {"name": "Migration Adapter", "weight": 1.5},
+    {"name": "Validation Gate", "weight": 2.0},
+    {"name": "Rollback Note"},
+    {"name": "Operator Approval", "weight": 1.5},
+    {"name": "Durable State"},
+    {"name": "Decision Record", "aliases": ["Decision Records"]},
+    {"name": "Stale-State Marker", "aliases": ["Stale State Marker"], "weight": 1.5},
+    {"name": "Source Id", "aliases": ["Source IDs"]}
+  ],
+  "dedup_watchlist": [
+    {"name": "Hydration Packet", "aliases": ["Handoff Packet"]},
+    {"name": "Stale-State Marker", "aliases": ["Stale State Marker"]},
+    "Operator Approval",
+    "Validation Gate"
+  ],
+  "expected_edges": [
+    {"source": "Source Memory Packet", "target": "Hydration Packet", "relation_terms": ["converts", "maps", "builds"], "weight": 2},
+    {"source": "Migration Adapter", "target": "Source Id", "relation_terms": ["preserves"], "weight": 1.5},
+    {"source": "Migration Adapter", "target": "Decision Record", "relation_terms": ["preserves", "maps"]},
+    {"source": "Validation Gate", "target": "Decision Record", "relation_terms": ["checks", "validates"], "weight": 1.5},
+    {"source": "Validation Gate", "target": "Stale-State Marker", "relation_terms": ["rejects", "checks", "requires"], "weight": 1.5},
+    {"source": "Rollback Note", "target": "Hydration Packet", "relation_terms": ["cites", "names", "explains"]},
+    {"source": "Operator Approval", "target": "Durable State", "relation_terms": ["required", "before", "gates"], "weight": 1.5}
+  ],
+  "forbidden_concepts": [
+    "Silent Migration",
+    "Generic Notes",
+    "Unapproved Durable Write"
+  ],
+  "expected_source_files": [
+    "operating_model.md",
+    "migration_plan.md",
+    "validation_checklist.md"
+  ],
+  "expected_community_label_terms": [
+    ["migration", "adapter"],
+    ["validation"],
+    ["rollback"],
+    ["approval"]
+  ],
+  "generic_relations": ["references", "related_to"],
+  "score_weights": {
+    "concept_recall": 2,
+    "expected_edge_coverage": 2,
+    "forbidden_concepts_absent": 1.5,
+    "community_labels": 1,
+    "deduplication": 1,
+    "source_coverage": 1
+  }
+}

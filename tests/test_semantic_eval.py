@@ -1,12 +1,21 @@
 """Tests for graphify.semantic_eval."""
+
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from graphify.semantic_eval import score_graph
+from graphify import semantic_eval
+from graphify.semantic_eval import (
+    compare_suite_runs,
+    judge_compare_suite_runs,
+    judge_suite_run,
+    run_suite,
+    score_graph,
+)
 
 
 FIXTURES = Path(__file__).parent / "fixtures" / "semantic_eval"
@@ -52,3 +61,659 @@ def test_score_graph_cli_outputs_json(tmp_path):
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["scores"]["concept_recall"] == 1.0
     assert "overall" in payload["scores"]
+
+
+def test_score_graph_supports_aliases_edges_forbidden_and_source_coverage():
+    result = score_graph(
+        FIXTURES / "router_privacy_graph" / "graph.json",
+        FIXTURES / "router_privacy" / "expected.json",
+        labels_path=FIXTURES / "router_privacy_graph" / "labels.json",
+    )
+
+    assert result["scores"]["concept_recall"] == 1.0
+    assert result["scores"]["deduplication"] == 1.0
+    assert result["scores"]["expected_edge_coverage"] == 1.0
+    assert result["scores"]["forbidden_concepts_absent"] == 1.0
+    assert result["scores"]["forbidden_edges_absent"] == 1.0
+    assert result["scores"]["source_coverage"] == 1.0
+    assert result["details"]["missing_expected_edges"] == []
+    assert result["details"]["forbidden_concept_hits"] == {}
+
+
+def test_score_graph_penalizes_degraded_router_graph():
+    result = score_graph(
+        FIXTURES / "router_privacy_bad_graph" / "graph.json",
+        FIXTURES / "router_privacy" / "expected.json",
+        labels_path=FIXTURES / "router_privacy_bad_graph" / "labels.json",
+    )
+
+    assert result["scores"]["concept_recall"] < 1.0
+    assert result["scores"]["deduplication"] < 1.0
+    assert result["scores"]["expected_edge_coverage"] < 1.0
+    assert result["scores"]["forbidden_concepts_absent"] == 0.0
+    assert result["scores"]["forbidden_edges_absent"] == 0.0
+    assert result["scores"]["inferred_confidence_calibration"] == 0.0
+    assert "redaction stage" in result["details"]["duplicate_watchlist_hits"]
+    assert result["details"]["forbidden_edge_hits"]
+
+
+def test_score_graph_covers_public_realistic_graphify_slice():
+    result = score_graph(
+        FIXTURES / "graphify_public_slice_graph" / "graph.json",
+        FIXTURES / "graphify_public_slice" / "expected.json",
+        labels_path=FIXTURES / "graphify_public_slice_graph" / "labels.json",
+    )
+
+    assert result["scores"]["overall"] == 1.0
+    assert result["scores"]["source_coverage"] == 1.0
+    assert result["details"]["forbidden_concept_hits"] == {}
+
+
+def test_score_graph_covers_image_diagram_fixture():
+    diagram = FIXTURES / "diagram_workflow" / "diagram.png"
+    assert diagram.read_bytes().startswith(b"\x89PNG")
+
+    result = score_graph(
+        FIXTURES / "diagram_workflow_graph" / "graph.json",
+        FIXTURES / "diagram_workflow" / "expected.json",
+        labels_path=FIXTURES / "diagram_workflow_graph" / "labels.json",
+    )
+
+    assert result["scores"]["overall"] == 1.0
+    assert result["scores"]["expected_edge_coverage"] == 1.0
+    assert result["scores"]["source_coverage"] == 1.0
+
+
+def test_suite_manifest_paths_resolve():
+    suite = semantic_eval._load_suite(FIXTURES / "suite.json")
+
+    assert [fixture["id"] for fixture in suite["fixtures"]] == [
+        "payment_retry",
+        "router_privacy",
+        "workflow_migration",
+        "integration_gateway",
+        "graphify_public_slice",
+        "diagram_workflow",
+    ]
+    for fixture in suite["fixtures"]:
+        assert fixture["corpus_path"].is_dir()
+        assert fixture["expected_path"].is_file()
+
+
+def test_suite_manifest_validation_rejects_duplicate_ids(tmp_path):
+    suite = tmp_path / "suite.json"
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    expected = tmp_path / "expected.json"
+    expected.write_text("{}", encoding="utf-8")
+    suite.write_text(
+        json.dumps(
+            {
+                "fixtures": [
+                    {"id": "dup", "corpus": "corpus", "expected": "expected.json"},
+                    {"id": "dup", "corpus": "corpus", "expected": "expected.json"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    try:
+        semantic_eval._load_suite(suite)
+    except ValueError as exc:
+        assert "duplicated" in str(exc)
+    else:
+        raise AssertionError("duplicate suite fixture ids should be rejected")
+
+
+def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, monkeypatch):
+    def fake_run_harness(corpus, expected, out_dir, *, backend, model, timeout, token_budget):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        fixture_id = out_dir.name
+        overall = 1.0 if fixture_id == "payment_retry" else 0.5
+        return {
+            "backend": backend,
+            "model": model,
+            "commands": [
+                {
+                    "returncode": 0,
+                    "elapsed_seconds": 2.5,
+                    "stdout": "[graphify extract] tokens: 10 in / 20 out",
+                    "stderr": "",
+                }
+            ],
+            "score": {
+                "scores": {
+                    "overall": overall,
+                    "concept_recall": overall,
+                    "expected_edge_coverage": overall,
+                }
+            },
+        }
+
+    monkeypatch.setattr(semantic_eval, "run_harness", fake_run_harness)
+
+    summary = run_suite(
+        FIXTURES / "suite.json",
+        tmp_path / "suite-run",
+        backend="ollama",
+        model="test-model:cloud",
+        timeout=1,
+        token_budget=100,
+    )
+
+    assert summary["scores"]["overall"] == 0.562
+    assert summary["profile_scores"]["public-realistic"] == 0.5
+    assert summary["profile_scores"]["multimodal"] == 0.5
+    assert summary["gate_passed"] is False
+    assert summary["total_elapsed_seconds"] == 15.0
+    assert summary["total_input_tokens"] == 60
+    assert summary["total_output_tokens"] == 120
+    assert summary["failures"] == []
+    assert (tmp_path / "suite-run" / "suite-run.json").exists()
+    assert (tmp_path / "suite-run" / "SUMMARY.md").exists()
+
+
+def test_run_suite_records_fixture_failures_without_live_model_calls(tmp_path, monkeypatch):
+    def fake_run_harness(corpus, expected, out_dir, *, backend, model, timeout, token_budget):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        if out_dir.name == "router_privacy":
+            (out_dir / "run.json").write_text(
+                json.dumps(
+                    {
+                        "backend": backend,
+                        "model": model,
+                        "commands": [{"returncode": 1, "elapsed_seconds": 1.0}],
+                        "score": {"scores": {}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            raise SystemExit("router failed")
+        return {
+            "backend": backend,
+            "model": model,
+            "commands": [{"returncode": 0, "elapsed_seconds": 1.0}],
+            "score": {"scores": {"overall": 1.0}},
+        }
+
+    monkeypatch.setattr(semantic_eval, "run_harness", fake_run_harness)
+
+    summary = run_suite(
+        FIXTURES / "suite.json",
+        tmp_path / "suite-run-failure",
+        backend="ollama",
+        model="test-model:cloud",
+        timeout=1,
+        token_budget=100,
+    )
+
+    assert summary["failures"] == [{"id": "router_privacy", "error": "router failed"}]
+    assert summary["fixtures"][1]["error"] == "router failed"
+    summary_md = (tmp_path / "suite-run-failure" / "SUMMARY.md").read_text(encoding="utf-8")
+    assert summary_md.count("router failed") == 1
+    assert summary_md.count("## Fixture Scores") == 1
+
+
+def test_parse_judge_spec_allows_colon_in_model_name():
+    assert semantic_eval._parse_judge_spec("ollama:kimi-k2.7-code:cloud") == {
+        "backend": "ollama",
+        "model": "kimi-k2.7-code:cloud",
+        "id": "ollama:kimi-k2.7-code:cloud",
+    }
+
+
+def test_compare_suite_runs_reports_fixture_and_dimension_deltas(tmp_path):
+    baseline = tmp_path / "baseline.json"
+    candidate = tmp_path / "candidate.json"
+    baseline.write_text(
+        json.dumps(
+            {
+                "backend": "ollama",
+                "model": "baseline-model",
+                "gate_passed": True,
+                "scores": {"overall": 0.7, "concept_recall": 0.8},
+                "fixtures": [
+                    {"id": "a", "overall": 0.8},
+                    {"id": "b", "overall": 0.6},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    candidate.write_text(
+        json.dumps(
+            {
+                "backend": "ollama",
+                "model": "candidate-model",
+                "gate_passed": True,
+                "scores": {"overall": 0.75, "concept_recall": 0.7},
+                "fixtures": [
+                    {"id": "a", "overall": 0.9},
+                    {"id": "b", "overall": 0.5},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    comparison = compare_suite_runs(baseline, candidate)
+
+    assert comparison["score_deltas"] == {"concept_recall": -0.1, "overall": 0.05}
+    assert comparison["improvements"] == [
+        {
+            "id": "a",
+            "baseline_overall": 0.8,
+            "candidate_overall": 0.9,
+            "delta": 0.1,
+            "baseline_error": None,
+            "candidate_error": None,
+        }
+    ]
+    assert comparison["regressions"][0]["id"] == "b"
+
+
+def test_compare_cli_writes_json_and_markdown(tmp_path):
+    baseline = tmp_path / "baseline.json"
+    candidate = tmp_path / "candidate.json"
+    out = tmp_path / "comparison.json"
+    baseline.write_text(
+        json.dumps({"model": "baseline", "scores": {"overall": 0.5}, "fixtures": []}),
+        encoding="utf-8",
+    )
+    candidate.write_text(
+        json.dumps({"model": "candidate", "scores": {"overall": 0.75}, "fixtures": []}),
+        encoding="utf-8",
+    )
+
+    assert (
+        semantic_eval.main(
+            [
+                "compare",
+                "--baseline",
+                str(baseline),
+                "--candidate",
+                str(candidate),
+                "--out",
+                str(out),
+            ]
+        )
+        == 0
+    )
+    assert json.loads(out.read_text(encoding="utf-8"))["score_deltas"]["overall"] == 0.25
+    assert out.with_suffix(".md").exists()
+
+
+def test_run_suite_cli_returns_one_when_fixture_fails(tmp_path, monkeypatch):
+    def fake_run_suite(suite_path, out_dir, *, backend, model, timeout, token_budget):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        summary = {
+            "backend": backend,
+            "model": model,
+            "suite": "test-suite",
+            "scores": {},
+            "total_elapsed_seconds": 0,
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "fixtures": [{"id": "fixture", "error": "failed"}],
+            "failures": [{"id": "fixture", "error": "failed"}],
+        }
+        (out_dir / "SUMMARY.md").write_text("failed", encoding="utf-8")
+        return summary
+
+    monkeypatch.setattr(semantic_eval, "run_suite", fake_run_suite)
+
+    assert (
+        semantic_eval.main(
+            [
+                "run-suite",
+                "--suite",
+                str(FIXTURES / "suite.json"),
+                "--out-dir",
+                str(tmp_path / "cli-suite"),
+                "--backend",
+                "ollama",
+                "--model",
+                "test-model:cloud",
+            ]
+        )
+        == 1
+    )
+
+
+def _write_fake_suite_run(tmp_path, *, name="run", model="model-a"):
+    artifact_dir = tmp_path / name / "router_privacy"
+    graph_out = artifact_dir / "corpus" / "graphify-out"
+    graph_out.mkdir(parents=True)
+    shutil.copyfile(FIXTURES / "router_privacy_graph" / "graph.json", graph_out / "graph.json")
+    shutil.copyfile(
+        FIXTURES / "router_privacy_graph" / "labels.json", graph_out / ".graphify_labels.json"
+    )
+    suite = tmp_path / f"{name}-suite.json"
+    suite.write_text(
+        json.dumps(
+            {
+                "name": f"{name}-suite",
+                "fixtures": [
+                    {
+                        "id": "router_privacy",
+                        "corpus": str(FIXTURES / "router_privacy"),
+                        "expected": str(FIXTURES / "router_privacy" / "expected.json"),
+                        "profiles": ["synthetic", "privacy"],
+                        "weight": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    suite_run = tmp_path / f"{name}-suite-run.json"
+    suite_run.write_text(
+        json.dumps(
+            {
+                "suite_path": str(suite),
+                "model": model,
+                "fixtures": [
+                    {
+                        "id": "router_privacy",
+                        "artifact_dir": str(artifact_dir),
+                        "scores": {"overall": 1.0, "concept_recall": 1.0},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return suite_run
+
+
+def test_judge_cli_requires_external_export_acknowledgement(tmp_path):
+    try:
+        semantic_eval.main(
+            [
+                "judge-suite",
+                "--suite-run",
+                str(tmp_path / "missing.json"),
+                "--out-dir",
+                str(tmp_path / "judge"),
+                "--judge",
+                "openai:gpt-test",
+            ]
+        )
+    except SystemExit as exc:
+        assert "--allow-external-judge" in str(exc)
+    else:
+        raise AssertionError("judge-suite should require explicit external judge acknowledgement")
+
+
+def test_judge_suite_run_uses_configured_judge_without_live_call(tmp_path, monkeypatch):
+    suite_run = _write_fake_suite_run(tmp_path)
+
+    def fake_call(judge, system_prompt, user_prompt, *, image_paths=None):
+        assert judge == {"backend": "openai", "model": "gpt-test", "id": "openai:gpt-test"}
+        assert "Graphify semantic extraction quality" in system_prompt
+        assert "What Graphify is" in system_prompt
+        assert "router_privacy" in user_prompt
+        return {
+            "scores": {
+                "faithfulness": 5,
+                "semantic_completeness": 5,
+                "relation_quality": 4,
+                "abstraction_quality": 4,
+                "graph_usefulness": 5,
+                "community_label_quality": 4,
+                "source_grounding": 5,
+                "risk_handling": 5,
+            },
+            "executive_summary": "The graph is source-grounded and useful for routing analysis.",
+            "strengths": ["Preserves the redaction-to-classifier flow."],
+            "weaknesses": ["Some labels could be more specific."],
+            "evidence_examples": [
+                {
+                    "finding": "Redaction flow is preserved.",
+                    "source_evidence": "README.md",
+                    "graph_evidence": "redaction_stage -> classifier",
+                }
+            ],
+            "critical_failures": [],
+            "recommended_decision": "accept",
+            "rationale": ["source-grounded graph"],
+            "confidence": "high",
+        }
+
+    monkeypatch.setattr(semantic_eval, "_call_judge_model", fake_call)
+
+    summary = judge_suite_run(suite_run, tmp_path / "judge", judges=["openai:gpt-test"])
+
+    assert summary["results"][0]["average_score"] == 4.625
+    assert (tmp_path / "judge" / "judge-run.json").exists()
+    assert (tmp_path / "judge" / "JUDGE_REPORT.md").exists()
+
+
+def test_call_judge_model_supports_pi_subscription_backend(monkeypatch):
+    monkeypatch.setattr(semantic_eval.shutil, "which", lambda cmd: "/usr/local/bin/pi")
+    calls = []
+
+    def fake_run(args, **kwargs):
+        prompt_args = [
+            arg for arg in args if str(arg).startswith("@") and "judge-prompt" in str(arg)
+        ]
+        assert len(prompt_args) == 1
+        prompt_path = Path(prompt_args[0][1:])
+        assert prompt_path.read_text(encoding="utf-8") == "user"
+        assert "user" not in args
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=json.dumps(
+                {
+                    "scores": {key: 5 for key in semantic_eval._JUDGE_SCORE_KEYS},
+                    "executive_summary": "Pi subscription judge worked.",
+                    "strengths": ["specific"],
+                    "weaknesses": [],
+                    "evidence_examples": [],
+                    "critical_failures": [],
+                    "recommended_decision": "accept",
+                    "rationale": ["valid JSON"],
+                    "confidence": "high",
+                }
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(semantic_eval.subprocess, "run", fake_run)
+
+    result = semantic_eval._call_judge_model(
+        {"backend": "pi", "model": "openai-codex/gpt-5.5:high", "id": "pi:test"},
+        "system",
+        "user",
+    )
+
+    assert result["executive_summary"] == "Pi subscription judge worked."
+    args, kwargs = calls[0]
+    assert args[:2] == ["pi", "--no-session"]
+    assert "openai-codex/gpt-5.5:high" in args
+    assert "--api-key" not in args
+    assert any(str(arg).startswith("@") and "judge-prompt" in str(arg) for arg in args)
+    assert kwargs["capture_output"] is True
+
+
+def test_call_judge_model_supports_claude_cli_subscription_backend(monkeypatch):
+    monkeypatch.setattr(semantic_eval.shutil, "which", lambda cmd: "/usr/local/bin/claude")
+    calls = []
+
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=json.dumps(
+                {
+                    "result": json.dumps(
+                        {
+                            "scores": {key: 4 for key in semantic_eval._JUDGE_SCORE_KEYS},
+                            "executive_summary": "Claude subscription judge worked.",
+                            "strengths": ["grounded"],
+                            "weaknesses": [],
+                            "evidence_examples": [],
+                            "critical_failures": [],
+                            "recommended_decision": "accept",
+                            "rationale": ["valid JSON envelope"],
+                            "confidence": "medium",
+                        }
+                    )
+                }
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(semantic_eval.subprocess, "run", fake_run)
+
+    result = semantic_eval._call_judge_model(
+        {"backend": "claude-cli", "model": "opus", "id": "claude-cli:opus"},
+        "system",
+        "user",
+    )
+
+    assert result["executive_summary"] == "Claude subscription judge worked."
+    args, kwargs = calls[0]
+    assert args[:2] == ["claude", "-p"]
+    assert "opus" in args
+    assert "--setting-sources" in args
+    assert "--strict-mcp-config" in args
+    assert "--tools" in args
+    assert kwargs["input"] == "user"
+
+
+def test_claude_cli_judge_images_are_staged_in_isolated_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(semantic_eval.shutil, "which", lambda cmd: "/usr/local/bin/claude")
+    image_dir = tmp_path / "fixture"
+    image_dir.mkdir()
+    image = image_dir / "diagram.png"
+    image.write_bytes(b"fake-png")
+    secret_sibling = image_dir / "secret.txt"
+    secret_sibling.write_text("do not expose", encoding="utf-8")
+    seen = {}
+
+    def fake_run(args, **kwargs):
+        add_dir_index = args.index("--add-dir")
+        allowed_dir = Path(args[add_dir_index + 1])
+        staged_files = sorted(path.name for path in allowed_dir.iterdir())
+        seen["allowed_dir"] = allowed_dir
+        seen["staged_files"] = staged_files
+        seen["input"] = kwargs["input"]
+        assert allowed_dir != image_dir.resolve()
+        assert staged_files == ["judge-image-1.png"]
+        assert "secret.txt" not in staged_files
+        assert str(image.resolve()) not in kwargs["input"]
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=json.dumps(
+                {
+                    "result": json.dumps(
+                        {
+                            "scores": {key: 4 for key in semantic_eval._JUDGE_SCORE_KEYS},
+                            "executive_summary": "Claude image staging worked.",
+                            "strengths": [],
+                            "weaknesses": [],
+                            "evidence_examples": [],
+                            "critical_failures": [],
+                            "recommended_decision": "accept",
+                            "rationale": [],
+                            "confidence": "medium",
+                        }
+                    )
+                }
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr(semantic_eval.subprocess, "run", fake_run)
+
+    result = semantic_eval._call_judge_model(
+        {"backend": "claude-cli", "model": "opus", "id": "claude-cli:opus"},
+        "system",
+        "user",
+        image_paths=[image],
+    )
+
+    assert result["executive_summary"] == "Claude image staging worked."
+    assert "IMAGE ATTACHMENT PATHS" in seen["input"]
+    assert "judge-image-1.png" in seen["input"]
+
+
+def test_judge_suite_run_records_invalid_judge_scores_as_failures(tmp_path, monkeypatch):
+    suite_run = _write_fake_suite_run(tmp_path)
+
+    def fake_call(judge, system_prompt, user_prompt, *, image_paths=None):
+        return {
+            "scores": {
+                "faithfulness": 6,
+                "semantic_completeness": 5,
+                "relation_quality": 4,
+                "abstraction_quality": 4,
+                "graph_usefulness": 5,
+                "community_label_quality": 4,
+                "source_grounding": 5,
+                "risk_handling": 5,
+            },
+            "executive_summary": "The graph would be good except the score is invalid.",
+            "strengths": [],
+            "weaknesses": [],
+            "evidence_examples": [],
+            "critical_failures": [],
+            "recommended_decision": "accept",
+            "rationale": [],
+            "confidence": "high",
+        }
+
+    monkeypatch.setattr(semantic_eval, "_call_judge_model", fake_call)
+
+    summary = judge_suite_run(suite_run, tmp_path / "judge", judges=["openai:gpt-test"])
+
+    assert summary["results"] == []
+    assert "must be in [1, 5]" in summary["failures"][0]["error"]
+    assert (tmp_path / "judge" / "judge-run.json").exists()
+
+
+def test_judge_compare_runs_both_orders_and_normalizes_votes(tmp_path, monkeypatch):
+    baseline = _write_fake_suite_run(tmp_path, name="baseline", model="baseline-model")
+    candidate = _write_fake_suite_run(tmp_path, name="candidate", model="candidate-model")
+    calls = []
+
+    def fake_call(judge, system_prompt, user_prompt, *, image_paths=None):
+        calls.append(user_prompt)
+        # Prefer candidate in both orders: first call baseline=A/candidate=B -> B;
+        # second call candidate=A/baseline=B -> A.
+        winner = "B" if len(calls) == 1 else "A"
+        return {
+            "winner": winner,
+            "confidence": "medium",
+            "dimension_winners": {key: winner for key in semantic_eval._JUDGE_SCORE_KEYS},
+            "executive_summary": "The candidate graph is better for this fixture.",
+            "graph_a_strengths": ["good coverage"],
+            "graph_b_strengths": ["better relations"],
+            "graph_a_weaknesses": [],
+            "graph_b_weaknesses": [],
+            "candidate_regressions_if_identifiable_from_context": [],
+            "critical_failures": [],
+            "human_review_needed": False,
+            "rationale": ["candidate is better"],
+        }
+
+    monkeypatch.setattr(semantic_eval, "_call_judge_model", fake_call)
+
+    summary = judge_compare_suite_runs(
+        baseline,
+        candidate,
+        tmp_path / "pairwise",
+        judges=["claude:opus-test"],
+    )
+
+    assert len(calls) == 2
+    assert summary["vote_counts"] == {"baseline": 0, "candidate": 2, "tie": 0}
+    assert summary["consensus"] == "candidate"
+    assert (tmp_path / "pairwise" / "pairwise-judge.json").exists()
+    assert (tmp_path / "pairwise" / "PAIRWISE_REPORT.md").exists()

@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {"id": "intake_adapter", "label": "Intake Adapter", "source_file": "README.md"},
+    {"id": "redacted_summary", "label": "Redacted Summary", "source_file": "README.md"},
+    {"id": "redaction_stage", "label": "Redaction Stage", "source_file": "privacy_contract.md"},
+    {"id": "classifier", "label": "Classifier", "source_file": "README.md"},
+    {"id": "routing_decision", "label": "Routing Decision", "source_file": "README.md"},
+    {"id": "raw_mailbox_export", "label": "Raw Mailbox Export", "source_file": "privacy_contract.md"},
+    {"id": "consent_bypass", "label": "Consent Bypass", "source_file": "privacy_contract.md"}
+  ],
+  "links": [
+    {"source": "intake_adapter", "target": "redacted_summary", "relation": "references", "confidence": "INFERRED", "confidence_score": 1.0, "source_file": "README.md"},
+    {"source": "classifier", "target": "raw_mailbox_export", "relation": "stores", "confidence": "INFERRED", "confidence_score": 1.0, "source_file": "privacy_contract.md"},
+    {"source": "redaction_stage", "target": "consent_bypass", "relation": "bypasses", "confidence": "INFERRED", "confidence_score": 1.0, "source_file": "privacy_contract.md"}
+  ]
+}

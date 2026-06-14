@@ -1,0 +1,59 @@
+{
+  "required_concepts": [
+    {"name": "Intake Adapter", "aliases": ["Inbound Message Intake"], "weight": 1.5},
+    {"name": "Redaction Stage", "aliases": ["Redacted Summary"], "weight": 2.0},
+    {"name": "Classifier", "aliases": ["Classification Label"]},
+    {"name": "Routing Decision", "weight": 1.5},
+    {"name": "Audit Event", "weight": 1.5},
+    {"name": "Escalation Queue"},
+    {"name": "Consent Boundary", "weight": 2.0},
+    {"name": "Retention Marker", "weight": 1.5},
+    {"name": "Privacy Contract", "weight": 1.5},
+    {"name": "Trace Event"}
+  ],
+  "dedup_watchlist": [
+    {"name": "Redaction Stage", "aliases": ["Redacted Summary"]},
+    "Routing Decision",
+    "Audit Event",
+    "Retention Marker"
+  ],
+  "expected_edges": [
+    {"source": "Intake Adapter", "target": "Redaction Stage", "relation_terms": ["before", "feeds", "precedes"], "weight": 2},
+    {"source": "Redaction Stage", "target": "Classifier", "relation_terms": ["receives", "feeds", "uses"], "weight": 2},
+    {"source": "Classifier", "target": "Routing Decision", "relation_terms": ["emits", "produces"], "weight": 1.5},
+    {"source": "Routing Decision", "target": "Audit Event", "relation_terms": ["writes", "records", "references"], "weight": 1.5},
+    {"source": "Audit Event", "target": "Retention Marker", "relation_terms": ["references", "records"], "weight": 1.5},
+    {"source": "Consent Boundary", "target": "Privacy Contract", "relation_terms": ["requires", "governs"]}
+  ],
+  "forbidden_concepts": [
+    {"name": "Raw Mailbox Export", "aliases": ["Raw Mailbox Exports"]},
+    "External Vendor Secret Sharing",
+    "Consent Bypass"
+  ],
+  "forbidden_edges": [
+    {"source": "Classifier", "target": "Raw Mailbox Export", "relation_terms": ["stores", "sends", "uses"]},
+    {"source": "Redaction Stage", "target": "Consent Bypass", "relation_terms": ["bypasses"]}
+  ],
+  "expected_source_files": [
+    "README.md",
+    "privacy_contract.md",
+    "router_runbook.md"
+  ],
+  "expected_community_label_terms": [
+    ["privacy", "redaction"],
+    ["routing", "classifier"],
+    ["audit", "retention"],
+    ["escalation"]
+  ],
+  "generic_relations": ["references", "related_to"],
+  "score_weights": {
+    "concept_recall": 2,
+    "expected_edge_coverage": 2,
+    "forbidden_concepts_absent": 2,
+    "forbidden_edges_absent": 2,
+    "community_labels": 1,
+    "relation_specificity": 1,
+    "deduplication": 1,
+    "source_coverage": 1
+  }
+}

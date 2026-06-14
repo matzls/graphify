@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {"id": "detect_stage", "label": "Detect Stage", "source_file": "architecture_excerpt.md"},
+    {"id": "extract_stage", "label": "Extract Stage", "source_file": "architecture_excerpt.md"},
+    {"id": "networkx_graph", "label": "NetworkX Graph", "source_file": "architecture_excerpt.md"},
+    {"id": "cluster_communities", "label": "Cluster Communities", "source_file": "architecture_excerpt.md"},
+    {"id": "god_nodes", "label": "God Nodes", "source_file": "architecture_excerpt.md"},
+    {"id": "graph_outputs", "label": "Graph Outputs", "source_file": "architecture_excerpt.md"},
+    {"id": "semantic_extraction", "label": "Semantic Extraction", "source_file": "backend_excerpt.md"},
+    {"id": "llm_backend", "label": "LLM Backend", "source_file": "backend_excerpt.md"},
+    {"id": "ollama_backend", "label": "Ollama Backend", "source_file": "llm_backend_excerpt.py"},
+    {"id": "minimax_m3_cloud", "label": "minimax-m3:cloud", "source_file": "llm_backend_excerpt.py"},
+    {"id": "trace_mode", "label": "Trace Mode", "source_file": "backend_excerpt.md"},
+    {"id": "semantic_cache", "label": "Semantic Cache", "source_file": "backend_excerpt.md"}
+  ],
+  "links": [
+    {"source": "detect_stage", "target": "extract_stage", "relation": "precedes in pipeline", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "architecture_excerpt.md"},
+    {"source": "extract_stage", "target": "networkx_graph", "relation": "feeds build graph", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "architecture_excerpt.md"},
+    {"source": "networkx_graph", "target": "cluster_communities", "relation": "clusters communities", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "architecture_excerpt.md"},
+    {"source": "semantic_extraction", "target": "llm_backend", "relation": "uses backend", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "backend_excerpt.md"},
+    {"source": "ollama_backend", "target": "minimax_m3_cloud", "relation": "default model", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "llm_backend_excerpt.py"},
+    {"source": "trace_mode", "target": "llm_backend", "relation": "reports backend diagnostics", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "backend_excerpt.md"},
+    {"source": "semantic_cache", "target": "semantic_extraction", "relation": "prevents re-extracted files", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "backend_excerpt.md"}
+  ]
+}
