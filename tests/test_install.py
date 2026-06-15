@@ -332,8 +332,11 @@ def test_codex_agents_guidance_uses_graphify_with_dirty_graph_output(tmp_path):
     """Codex guidance must keep graph-first orientation even without a skill file."""
     _agents_install(tmp_path, "codex")
     content = (tmp_path / "AGENTS.md").read_text()
+    assert "graphify-out/ is a derived local output directory" in content
+    assert "do not stage or commit it" in content
     assert "Dirty graphify-out/ files are expected" in content
     assert "not a reason to skip graphify" in content
+    assert "untracked/ignored" in content
     assert "graphify query" in content
     assert "graphify explain" in content
     assert "graphify path" in content
@@ -343,6 +346,7 @@ def test_codex_agents_install_mentions_dirty_graph_output(tmp_path):
     _agents_install(tmp_path, "codex")
     content = (tmp_path / "AGENTS.md").read_text()
     assert "Dirty graphify-out/ files are expected" in content
+    assert "untracked/ignored" in content
     assert "not a reason to skip graphify" in content
 
 

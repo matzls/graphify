@@ -241,3 +241,6 @@ Rules:
   asks for a self-analysis run.
 - Existing `graphify-out/` files are retained as historical derived artifacts,
   not as an always-fresh map.
+- For consumer repos managed by Mase, the default policy is now: keep
+  `graphify-out/` generated locally, ignored, and untracked while preserving
+  Graphify hooks for local refreshes.

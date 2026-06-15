@@ -259,17 +259,21 @@ Main modules:
 - `transcribe.py`: local faster-whisper transcription for media inputs.
 - `ingest.py` and `security.py`: URL ingestion and local security guards.
 
-Tracked graph outputs:
+Graph output git policy:
 
-- Treat `graphify-out/graph.json`, `graphify-out/GRAPH_REPORT.md`,
-  `graphify-out/manifest.json`, `graphify-out/community_labels.json`, and
-  `graphify-out/.graphify_analysis.json` as durable Graphify outputs when a
-  consumer repo tracks `graphify-out/`.
-- Treat `graphify-out/cache/**`, lock files, and `graphify-out/needs_update` as
-  local/runtime state unless a repo explicitly documents a different policy.
-- `graphify-out/.graphify_analysis.json` is intentionally tracked: export/wiki
-  flows use it as structured analysis, while `GRAPH_REPORT.md` is the
-  human/agent-readable summary.
+- Treat `graphify-out/` as derived local output for Mase's personal/local repos.
+  Keep it on disk for agents to query, but keep it ignored and untracked so
+  hook refreshes do not create commit churn.
+- Keep Graphify hooks installed when a repo uses Graphify. Hooks should refresh
+  local ignored graph files after commits/checkouts; they do not require graph
+  files to be tracked.
+- If a consumer repo already tracks root `graphify-out/`, migrate it with
+  `git rm -r --cached --ignore-unmatch graphify-out` after adding `graphify-out/`
+  to `.gitignore`; this removes files from the index without deleting local
+  graph output.
+- Treat `graphify-out/cache/**`, lock files, `graphify-out/cost.json`, and
+  `graphify-out/needs_update` as local/runtime state. Committing Graphify output
+  for a team/shared graph is an explicit repo policy, not Mase's default.
 
 Graph outputs are derived evidence, not source of truth. For exact edits, read
 the real source files even when graph context is available.

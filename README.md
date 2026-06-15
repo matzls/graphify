@@ -416,23 +416,28 @@ dist/
 
 ---
 
-## Team setup
+## Git policy
 
-`graphify-out/` is meant to be committed to git so everyone on the team starts with a map.
+For personal/local repos, treat `graphify-out/` as derived local output. Keep it on disk for your assistant to query, but keep it ignored and untracked so hook refreshes do not create commit churn.
 
-**Recommended `.gitignore` additions:**
+**Recommended `.gitignore` addition:**
 ```
-graphify-out/cost.json        # local only
-# graphify-out/cache/         # optional: commit for speed, skip to keep repo small
+graphify-out/
 ```
 
-> `manifest.json` is now portable — keys are stored as relative paths and re-anchored on load, so committing it is safe and avoids a full rebuild on first checkout.
+If a repo already tracks Graphify output, `.gitignore` alone is not enough. Remove it from the index while keeping local files on disk:
 
-**Workflow:**
-1. One person runs `/graphify .` and commits `graphify-out/`.
-2. Everyone pulls — their assistant reads the graph immediately.
-3. Run `graphify hook install` to auto-rebuild after each commit (AST only, no API cost). This also sets up a git merge driver so `graph.json` is never left with conflict markers — two devs committing in parallel get their graphs union-merged automatically.
-4. When docs or papers change, run `/graphify --update` to refresh those nodes.
+```bash
+git rm -r --cached --ignore-unmatch graphify-out
+```
+
+Then keep hooks installed so the graph continues to refresh locally:
+
+```bash
+graphify hook install
+```
+
+`graphify-out/cost.json`, caches, and `graphify-out/needs_update` are local runtime state by default. If you later need a shared/team graph, make that an explicit repo policy and commit the selected graph artifacts intentionally.
 
 ---
 

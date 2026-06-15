@@ -67,11 +67,16 @@ def _write_hooks(repo: Path) -> None:
     (hooks / "post-checkout").write_text("#!/bin/sh\n# graphify hook\n", encoding="utf-8")
 
 
+def _ignore_graphify(repo: Path) -> None:
+    (repo / ".gitignore").write_text("graphify-out/\n", encoding="utf-8")
+
+
 def test_audit_classifies_full_repo(tmp_path: Path):
     repo = _init_repo(tmp_path / "full")
     _write_graph(repo, wiki=True)
     _write_managed_guidance(repo)
     _write_hooks(repo)
+    _ignore_graphify(repo)
     _commit_all(repo)
 
     result = adoption.audit(tmp_path)
@@ -80,12 +85,15 @@ def test_audit_classifies_full_repo(tmp_path: Path):
     assert rows["full"].status == "full"
     assert rows["full"].wiki is True
     assert rows["full"].hooks is True
+    assert rows["full"].graphify_out_ignored is True
+    assert rows["full"].tracked_graphify_out_count == 0
 
 
 def test_audit_reports_missing_hooks_and_wiki(tmp_path: Path):
     repo = _init_repo(tmp_path / "partial")
     _write_graph(repo, wiki=False)
     _write_managed_guidance(repo)
+    _git(repo, "add", "-f", "graphify-out")
     _commit_all(repo)
 
     row = adoption.audit(tmp_path).repos[0]
@@ -93,6 +101,10 @@ def test_audit_reports_missing_hooks_and_wiki(tmp_path: Path):
     assert row.status == "activation-partial"
     assert "install Graphify git hooks" in row.actions
     assert "refresh wiki" in row.actions
+    assert "ignore graphify-out/ in git" in row.actions
+    assert "untrack root graphify-out with git rm --cached" in row.actions
+    assert row.graphify_out_ignored is False
+    assert row.tracked_graphify_out_count >= 1
 
 
 def test_audit_skips_graphify_self_marker_and_worktree_cache(tmp_path: Path):
@@ -143,6 +155,31 @@ def test_dirty_source_blocks_but_dirty_graph_can_be_allowed(tmp_path: Path, monk
 
     assert allowed[0].status == "applied"
     assert calls
+
+
+def test_local_apply_adds_graphify_gitignore_without_deleting_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    repo = _init_repo(tmp_path / "needs-ignore")
+    _write_graph(repo, wiki=True)
+    _write_managed_guidance(repo)
+    _write_hooks(repo)
+    _git(repo, "add", "-f", "graphify-out")
+    _commit_all(repo)
+
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(args: list[str], *, cwd: Path):
+        calls.append(tuple(args))
+        return True, "ok"
+
+    monkeypatch.setattr(adoption, "_run_command", fake_run)
+    results = adoption.apply(adoption.ApplyOptions(root=tmp_path, local=True))
+
+    assert results[0].status == "applied"
+    assert (repo / "graphify-out" / "graph.json").exists()
+    assert "graphify-out/" in (repo / ".gitignore").read_text(encoding="utf-8")
+    row = adoption.audit(tmp_path).repos[0]
+    assert row.graphify_out_ignored is True
+    assert "untrack root graphify-out with git rm --cached" in row.actions
 
 
 def test_json_shape_and_chat_report(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
@@ -197,12 +234,14 @@ def test_local_apply_does_not_touch_full_repo_or_use_backend_for_wiki_refresh(
     _write_graph(full, wiki=True)
     _write_managed_guidance(full)
     _write_hooks(full)
+    _ignore_graphify(full)
     _commit_all(full)
 
     missing_wiki = _init_repo(tmp_path / "missing-wiki")
     _write_graph(missing_wiki, wiki=False)
     _write_managed_guidance(missing_wiki)
     _write_hooks(missing_wiki)
+    _ignore_graphify(missing_wiki)
     _commit_all(missing_wiki)
 
     calls: list[tuple[str, ...]] = []
