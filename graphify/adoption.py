@@ -80,6 +80,8 @@ class RepoAdoption:
     codex_session: bool = False
     pi_project_skill: bool = False
     hooks: bool = False
+    graphify_out_ignored: bool = False
+    tracked_graphify_out_count: int = 0
     dirty_source: bool = False
     dirty_graphify_out: bool = False
     dirty_count: int = 0
@@ -105,6 +107,8 @@ class RepoAdoption:
             "codex_session": self.codex_session,
             "pi_project_skill": self.pi_project_skill,
             "hooks": self.hooks,
+            "graphify_out_ignored": self.graphify_out_ignored,
+            "tracked_graphify_out_count": self.tracked_graphify_out_count,
             "dirty_source": self.dirty_source,
             "dirty_graphify_out": self.dirty_graphify_out,
             "dirty_count": self.dirty_count,
@@ -344,6 +348,48 @@ def _dirty_state(repo: Path) -> tuple[bool, bool, int]:
     return dirty_source, dirty_graph, count
 
 
+def _graphify_out_ignored(repo: Path) -> bool:
+    """Return whether the repo-local .gitignore ignores root graphify-out.
+
+    Deliberately inspect the repository policy instead of `git check-ignore` so
+    a user-global excludesfile does not hide repos that still need durable local
+    propagation.
+    """
+    patterns = {
+        "graphify-out",
+        "graphify-out/",
+        "/graphify-out",
+        "/graphify-out/",
+    }
+    for line in _read_text(repo / ".gitignore").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("!"):
+            continue
+        if stripped in patterns:
+            return True
+    return False
+
+
+def _tracked_graphify_out_count(repo: Path) -> int:
+    """Count root graphify-out files already tracked in the Git index."""
+    result = _run_git(repo, ["ls-files", "-z", "graphify-out"], timeout=10)
+    if result.returncode != 0 or not result.stdout:
+        return 0
+    return len([item for item in result.stdout.split("\0") if item])
+
+
+def _ensure_graphify_out_ignored(repo: Path) -> None:
+    """Append an idempotent .gitignore rule for local Graphify output."""
+    if _graphify_out_ignored(repo):
+        return
+    ignore_path = repo / ".gitignore"
+    existing = _read_text(ignore_path)
+    addition = "# Graphify local derived output\ngraphify-out/\n"
+    prefix = "" if not existing or existing.endswith("\n") else "\n"
+    separator = "" if not existing else "\n"
+    ignore_path.write_text(existing + prefix + separator + addition, encoding="utf-8")
+
+
 def _candidate_score(repo: Path) -> int:
     score = 0
     for name in CANDIDATE_FILES:
@@ -384,12 +430,18 @@ def inspect_repo(repo: Path) -> RepoAdoption:
     codex_session = _codex_has_graphify_session(repo)
     pi_project_skill = (repo / ".pi" / "skills" / "graphify" / "SKILL.md").exists()
     hooks = _has_graphify_hooks(repo)
+    graphify_out_ignored = _graphify_out_ignored(repo)
+    tracked_graphify_out_count = _tracked_graphify_out_count(repo)
     dirty_source, dirty_graph, dirty_count = _dirty_state(repo)
     score = _candidate_score(repo)
     active = managed_agents or agents_graphify or codex_session or hooks
 
     actions: list[str] = []
     blockers: list[str] = []
+    if (graph or active) and not graphify_out_ignored:
+        actions.append("ignore graphify-out/ in git")
+    if tracked_graphify_out_count:
+        actions.append("untrack root graphify-out with git rm --cached")
     if dirty_source:
         blockers.append("dirty source/config files")
     if dirty_graph:
@@ -454,6 +506,8 @@ def inspect_repo(repo: Path) -> RepoAdoption:
         codex_session=codex_session,
         pi_project_skill=pi_project_skill,
         hooks=hooks,
+        graphify_out_ignored=graphify_out_ignored,
+        tracked_graphify_out_count=tracked_graphify_out_count,
         dirty_source=dirty_source,
         dirty_graphify_out=dirty_graph,
         dirty_count=dirty_count,
@@ -504,7 +558,7 @@ def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
 
     if adopted:
         lines.append("Adopted / in-use repos:")
-        lines.append("status               repo                            graph wiki hooks stale dirty  actions")
+        lines.append("status               repo                            graph wiki hooks ignore tracked stale dirty  actions")
         display = adopted if verbose else adopted[:18]
         for r in display:
             dirty = "src" if r.dirty_source else ("graph" if r.dirty_graphify_out else "no")
@@ -514,7 +568,8 @@ def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
             lines.append(
                 f"{r.status:<20} {r.name[:30]:<30} "
                 f"{_flag(r.graph, 'yes', 'no ')}   {_flag(r.wiki, 'yes', 'no ')}  "
-                f"{_flag(r.hooks, 'yes', 'no ')}   {_flag(r.stale_marker, 'yes', 'no ')}  "
+                f"{_flag(r.hooks, 'yes', 'no ')}   {_flag(r.graphify_out_ignored, 'yes', 'no ')}    "
+                f"{r.tracked_graphify_out_count:<7} {_flag(r.stale_marker, 'yes', 'no ')}  "
                 f"{dirty:<5}  {actions}"
             )
         if not verbose and len(adopted) > len(display):
@@ -654,6 +709,13 @@ def apply(options: ApplyOptions) -> list[ApplyResult]:
         )
 
         if options.local:
+            if (repo.graph or repo.hooks or repo.managed_agents or repo.codex_session) and not repo.graphify_out_ignored:
+                try:
+                    _ensure_graphify_out_ignored(repo_path)
+                    commands.append("ensure .gitignore ignores graphify-out/")
+                except OSError as exc:
+                    outputs.append(ApplyResult(repo=repo.name, status="failed", commands=commands, message=str(exc)))
+                    continue
             if repo.status == "candidate" and not repo.graph and not options.semantic:
                 outputs.append(
                     ApplyResult(

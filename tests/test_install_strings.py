@@ -126,8 +126,11 @@ def test_report_is_still_referenced_as_fallback():
 def test_agents_section_does_not_skip_dirty_graph_output():
     assert "<!-- graphify-guidance-start -->" in _AGENTS_MD_SECTION
     assert "<!-- graphify-guidance-end -->" in _AGENTS_MD_SECTION
+    assert "graphify-out/ is a derived local output directory" in _AGENTS_MD_SECTION
+    assert "do not stage or commit it" in _AGENTS_MD_SECTION
     assert "Dirty graphify-out/ files are expected" in _AGENTS_MD_SECTION
     assert "not a reason to skip graphify" in _AGENTS_MD_SECTION
+    assert "untracked/ignored" in _AGENTS_MD_SECTION
     assert "Codex uses the Graphify skill for `/graphify`" in _AGENTS_MD_SECTION
     assert "Mase explicitly authorizes use of the Ollama cloud model above" in _AGENTS_MD_SECTION
     assert "does not authorize unrelated third-party uploads" in _AGENTS_MD_SECTION
