@@ -250,8 +250,29 @@ def test_semantic_apply_uses_default_ollama_model_without_real_call(
 
     assert results[0].status == "applied"
     rendered = [" ".join(c) for c in calls]
-    assert any("extract . --backend ollama --model minimax-m3:cloud" in c for c in rendered)
-    assert any("cluster-only . --backend ollama --model minimax-m3:cloud" in c for c in rendered)
+    assert any("extract . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
+    assert any("cluster-only . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
+
+
+def test_semantic_apply_builds_active_repo_without_graph(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    repo = _init_repo(tmp_path / "active-no-graph")
+    _write_managed_guidance(repo)
+    _write_hooks(repo)
+    _commit_all(repo)
+
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(args: list[str], *, cwd: Path):
+        calls.append(tuple(args))
+        return True, "ok"
+
+    monkeypatch.setattr(adoption, "_run_command", fake_run)
+    results = adoption.apply(adoption.ApplyOptions(root=tmp_path, semantic=True))
+
+    assert results[0].status == "applied"
+    rendered = [" ".join(c) for c in calls]
+    assert any("extract . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
+    assert any("cluster-only . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
 
 
 def test_candidate_apply_requires_explicit_target_for_semantic_bootstrap(
@@ -285,4 +306,4 @@ def test_candidate_apply_requires_explicit_target_for_semantic_bootstrap(
     )
     assert targeted[0].status == "applied"
     rendered = [" ".join(c) for c in calls]
-    assert any("extract . --backend ollama --model minimax-m3:cloud" in c for c in rendered)
+    assert any("extract . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)

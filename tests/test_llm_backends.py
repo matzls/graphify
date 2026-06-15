@@ -182,7 +182,7 @@ def test_probe_backend_returns_safe_summary(monkeypatch):
             "hyperedges": [],
             "input_tokens": 10,
             "output_tokens": 20,
-            "model": "minimax-m3:cloud",
+            "model": "kimi-k2.7-code:cloud",
             "finish_reason": "stop",
         },
     )
@@ -191,7 +191,7 @@ def test_probe_backend_returns_safe_summary(monkeypatch):
 
     assert result == {
         "backend": "ollama",
-        "model": "minimax-m3:cloud",
+        "model": "kimi-k2.7-code:cloud",
         "nodes": 1,
         "edges": 0,
         "hyperedges": 0,

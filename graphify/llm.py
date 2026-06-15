@@ -87,7 +87,7 @@ BACKENDS: dict[str, dict] = {
     },
     "ollama": {
         "base_url": os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
-        "default_model": os.environ.get("OLLAMA_MODEL", "minimax-m3:cloud"),
+        "default_model": os.environ.get("OLLAMA_MODEL", "kimi-k2.7-code:cloud"),
         "env_key": "OLLAMA_API_KEY",
         "pricing": {"input": 0.0, "output": 0.0},
         "temperature": 0,
@@ -2772,7 +2772,7 @@ def detect_backend() -> str | None:
     """Return the default semantic backend for Mase's local fork.
 
     This fork standardizes semantic extraction and community labeling on
-    Ollama's OpenAI-compatible endpoint with ``minimax-m3:cloud`` as the model.
+    Ollama's OpenAI-compatible endpoint with ``kimi-k2.7-code:cloud`` as the model.
     Hosted keys may still be used with an explicit ``--backend`` flag, but they
     do not change the automatic default.
     """

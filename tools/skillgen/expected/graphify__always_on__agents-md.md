@@ -14,7 +14,7 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - Codex uses the Graphify skill for `/graphify`; AGENTS.md plus `.codex/config.toml` SessionStart guidance are repo-local activation surfaces.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
-- After modifying docs, media, images, or mixed corpus content, run backend semantic refresh with the standard cloud model: `graphify extract . --backend ollama --model minimax-m3:cloud`, then `graphify cluster-only . --backend ollama --model minimax-m3:cloud` to relabel communities and refresh the wiki.
+- After modifying docs, media, images, or mixed corpus content, run backend semantic refresh with the standard cloud model: `graphify extract . --backend ollama --model kimi-k2.7-code:cloud`, then `graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud` to relabel communities and refresh the wiki.
 - Mase explicitly authorizes use of the Ollama cloud model above for Graphify semantic analysis in repositories where this managed Graphify guidance is installed. This authorization is limited to Graphify semantic extraction, clustering, labels, and wiki refresh for the checked-in docs/code/media corpus; it does not authorize unrelated third-party uploads or arbitrary external-service use.
 - If both code and semantic content changed, run `graphify update .` first, then run the backend semantic refresh sequence.
 - Full operating guidance: /Users/mase/.codex/docs/reference/graphify.md
