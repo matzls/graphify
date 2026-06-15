@@ -9,7 +9,7 @@
     {"name": "Semantic Extraction", "weight": 1.5},
     {"name": "LLM Backend", "aliases": ["Direct Semantic Backend"], "weight": 1.5},
     {"name": "Ollama Backend", "aliases": ["Ollama"]},
-    {"name": "minimax-m3:cloud", "aliases": ["MiniMax M3 Cloud"]},
+    {"name": "kimi-k2.7-code:cloud", "aliases": ["Kimi K2.7 Code Cloud"]},
     {"name": "Trace Mode"},
     {"name": "Semantic Cache"}
   ],
@@ -24,7 +24,7 @@
     {"source": "Extract Stage", "target": "NetworkX Graph", "relation_terms": ["build", "feeds", "then"], "weight": 1.5},
     {"source": "NetworkX Graph", "target": "Cluster Communities", "relation_terms": ["cluster", "communities"]},
     {"source": "Semantic Extraction", "target": "LLM Backend", "relation_terms": ["through", "uses", "handles"], "weight": 1.5},
-    {"source": "Ollama Backend", "target": "minimax-m3:cloud", "relation_terms": ["default", "model"], "weight": 1.5},
+    {"source": "Ollama Backend", "target": "kimi-k2.7-code:cloud", "relation_terms": ["default", "model"], "weight": 1.5},
     {"source": "Trace Mode", "target": "LLM Backend", "relation_terms": ["prints", "reports", "logs"]},
     {"source": "Semantic Cache", "target": "Semantic Extraction", "relation_terms": ["prevents", "cache", "re-extracted"]}
   ],

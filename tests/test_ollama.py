@@ -70,8 +70,9 @@ def test_detect_backend_kimi_beats_ollama(monkeypatch):
 
 
 def test_detect_backend_claude_beats_ollama(monkeypatch):
-    # Mase's fork standardizes auto-detection on Ollama Minimax M3 Cloud.
-    # Hosted providers remain available through explicit --backend flags.
+    # Mase's fork standardizes auto-detection on Ollama Cloud with the current
+    # standard model configured in graphify.llm. Hosted providers remain
+    # available through explicit --backend flags.
     monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)

@@ -759,7 +759,7 @@ graphify global path                                  # print path to the global
 graphify adoption audit --root /Users/mase/Codebase   # inline report: full/partial/candidate/skipped repos
 graphify adoption audit --root /Users/mase/Codebase --json
 graphify adoption apply --root /Users/mase/Codebase --scope adopted --local
-graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama --model minimax-m3:cloud
+graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama --model kimi-k2.7-code:cloud
 
 graphify prs                              # PR dashboard: CI, review, worktree, graph impact
 graphify prs 42                           # deep dive on PR #42

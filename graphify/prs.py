@@ -20,6 +20,7 @@ import os
 import re
 import subprocess
 import sys
+from importlib import import_module
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -138,7 +139,7 @@ def _ci_icon(status: str) -> str:
 
 # ── GitHub data fetching ──────────────────────────────────────────────────────
 
-def _gh(*args: str) -> list | dict | None:
+def _gh(*args: str) -> object | None:
     try:
         result = subprocess.run(
             ["gh", *args],
@@ -161,8 +162,12 @@ def _detect_default_branch(repo: str | None = None) -> str:
     if repo:
         args += ["--repo", repo]
     data = _gh(*args)
-    if data and data.get("defaultBranchRef", {}).get("name"):
-        return data["defaultBranchRef"]["name"]
+    if isinstance(data, dict):
+        default_branch_ref = data.get("defaultBranchRef")
+        if isinstance(default_branch_ref, dict):
+            name = default_branch_ref.get("name")
+            if isinstance(name, str) and name:
+                return name
     # Fall back to git symbolic-ref for the current repo
     try:
         result = subprocess.run(
@@ -206,7 +211,7 @@ def fetch_prs(repo: str | None = None, base: str | None = None, limit: int = 50)
         args += ["--repo", repo]
 
     raw = _gh(*args)
-    if raw is None:
+    if not isinstance(raw, list):
         raise RuntimeError("gh CLI not found or not authenticated. Run: gh auth login")
 
     prs = []
@@ -624,7 +629,7 @@ def triage_with_opus(prs: list[PRInfo], base: str) -> None:
 
     try:
         if backend == "claude":
-            import anthropic
+            anthropic = import_module("anthropic")
             client = anthropic.Anthropic(api_key=_get_backend_api_key("claude"))
             with client.messages.stream(
                 model=model, max_tokens=1024,

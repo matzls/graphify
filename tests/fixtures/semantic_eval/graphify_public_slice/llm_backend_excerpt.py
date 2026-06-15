@@ -1,7 +1,7 @@
 BACKENDS = {
     "ollama": {
         "base_url": "http://localhost:11434/v1",
-        "default_model": "minimax-m3:cloud",
+        "default_model": "kimi-k2.7-code:cloud",
         "env_key": "OLLAMA_API_KEY",
         "pricing": {"input": 0.0, "output": 0.0},
     },

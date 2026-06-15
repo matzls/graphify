@@ -32,8 +32,8 @@ prose, email content, customer data, operator notes, secrets, or exact
 project-specific plans into committed fixtures.
 
 Live `run` and `run-suite` calls send fixture text and images to the selected
-backend. With Ollama Cloud models such as `minimax-m3:cloud` or
-`kimi-k2.7-code:cloud`, that means the fixture corpus leaves the machine through
+backend. With Ollama Cloud models such as `kimi-k2.7-code:cloud` or
+`minimax-m3:cloud`, that means the fixture corpus leaves the machine through
 the local Ollama endpoint. Keep CI and normal tests offline by scoring
 handcrafted graph fixtures instead of calling live models.
 
@@ -64,9 +64,9 @@ Example with Ollama Cloud:
 OLLAMA_API_KEY=ollama uv run python -m graphify.semantic_eval run \
   --corpus tests/fixtures/semantic_eval/payment_retry \
   --expected tests/fixtures/semantic_eval/payment_retry/expected.json \
-  --out-dir .semantic-evals/minimax-m3-cloud-payment-retry \
+  --out-dir .semantic-evals/kimi-k2.7-code-cloud-payment-retry \
   --backend ollama \
-  --model minimax-m3:cloud \
+  --model kimi-k2.7-code:cloud \
   --timeout 300 \
   --token-budget 1200
 ```
@@ -82,9 +82,9 @@ The harness writes:
 ```bash
 OLLAMA_API_KEY=ollama uv run python -m graphify.semantic_eval run-suite \
   --suite tests/fixtures/semantic_eval/suite.json \
-  --out-dir .semantic-evals/minimax-m3-cloud-suite-$(date +%Y%m%d-%H%M%S) \
+  --out-dir .semantic-evals/kimi-k2.7-code-cloud-suite-$(date +%Y%m%d-%H%M%S) \
   --backend ollama \
-  --model minimax-m3:cloud \
+  --model kimi-k2.7-code:cloud \
   --timeout 300 \
   --token-budget 1200
 ```
@@ -304,8 +304,17 @@ When adding a fixture:
 
 ## Model Comparison Protocol
 
-Keep `minimax-m3:cloud` as the default until a candidate beats it on the broader
-suite.
+Current interim standard: use `kimi-k2.7-code:cloud` for Ollama Cloud semantic
+refreshes when Mase prioritizes concept recall and relation specificity over
+exact expected-edge coverage. The 2026-06-14 suite showed Kimi slightly ahead of
+`minimax-m3:cloud` on those prioritized dimensions, while Qwen should still be
+reviewed if a fresh run materially outperforms Kimi.
+
+Keep the proposed hybrid workflow on hold: Kimi primary extraction plus Minimax
+secondary edge augmentation should not be implemented unless benchmark evidence
+shows that a single available model cannot meet the prioritized quality target.
+If Qwen or another model clearly outperforms Kimi, prefer that single model
+instead of adding ensemble complexity.
 
 For a serious candidate comparison:
 
@@ -326,8 +335,9 @@ A candidate should not replace the default unless it:
 
 - completes the suite without extraction, parse, cluster, or wiki failures
 - passes the suite quality gate
-- beats `minimax-m3:cloud` on weighted overall quality or is clearly
-  non-inferior while materially improving operational concerns
+- beats the active standard model (`kimi-k2.7-code:cloud` as of 2026-06-14) on
+  prioritized quality dimensions or is clearly non-inferior while materially
+  improving operational concerns
 - has no severe regression in critical dimensions: concept recall, expected-edge
   coverage, forbidden-concept absence, forbidden-edge absence, and source
   coverage

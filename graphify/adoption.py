@@ -22,7 +22,7 @@ MANAGED_AGENTS_END = "<!-- graphify-guidance-end -->"
 DEFAULT_MASE_ROOT = Path("/Users/mase/Codebase")
 DEFAULT_SELF_PATH = Path("/Users/mase/Codebase/Personal-Projects/graphify")
 DEFAULT_BACKEND = "ollama"
-DEFAULT_MODEL = "minimax-m3:cloud"
+DEFAULT_MODEL = "kimi-k2.7-code:cloud"
 
 PRUNE_DIRS = {
     ".git",
@@ -648,7 +648,7 @@ def apply(options: ApplyOptions) -> list[ApplyResult]:
         )
         needs_local_wiki_refresh = bool(repo.graph and not repo.stale_marker and not repo.wiki)
         needs_semantic_refresh = bool(
-            (repo.status == "candidate" and not repo.graph)
+            not repo.graph
             or repo.stale_marker
             or repo.semantic_partial
         )

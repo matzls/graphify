@@ -74,8 +74,8 @@ def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
     assert result is True
     out = capsys.readouterr().out
     assert "native CLI `graphify update .`" in out
-    assert "graphify extract . --backend ollama --model minimax-m3:cloud" in out
-    assert "graphify cluster-only . --backend ollama --model minimax-m3:cloud" in out
+    assert "graphify extract . --backend ollama --model kimi-k2.7-code:cloud" in out
+    assert "graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud" in out
     assert "refresh the wiki" in out
     assert "graphify export wiki --graph graphify-out/graph.json" not in out
     assert "/graphify . --update" not in out
