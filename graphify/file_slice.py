@@ -105,7 +105,7 @@ def slice_boundaries(text: str, max_chars: int) -> list[tuple[int, int]]:
 
 
 def expand_oversized_files(
-    files: list[Path], max_chars: int
+    files: list["Path | FileSlice"], max_chars: int
 ) -> list["Path | FileSlice"]:
     """Replace each oversized splittable-text file with a list of ``FileSlice``s.
 
@@ -115,7 +115,7 @@ def expand_oversized_files(
     """
     out: list["Path | FileSlice"] = []
     for f in files:
-        if not is_splittable_text(f):
+        if isinstance(f, FileSlice) or not is_splittable_text(f):
             out.append(f)
             continue
         try:
@@ -136,7 +136,7 @@ def expand_oversized_files(
 def read_slice_text(fs: FileSlice) -> str:
     """Read just this slice's characters from its parent file."""
     text = fs.path.read_text(encoding="utf-8", errors="replace")
-    return text[fs.start:fs.end]
+    return text[fs.start : fs.end]
 
 
 def bisect_slice(fs: FileSlice) -> tuple[FileSlice, FileSlice] | None:

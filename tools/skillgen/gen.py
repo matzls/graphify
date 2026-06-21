@@ -21,6 +21,7 @@ The render is idempotent: the core template's per-platform slots are filled in a
 fixed order, the reference index is sorted by name, output is LF-newline, and no
 timestamp or version is ever written into a generated file.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,6 +29,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
+
 try:
     import tomllib  # Python 3.11+ stdlib
 except ModuleNotFoundError:  # Python 3.10 - graphify supports >=3.10
@@ -57,6 +59,7 @@ PLATFORMS_TOML = SKILLGEN_DIR / "platforms.toml"
 # is an ancestor of origin/v8 and is fetched under the CI `fetch-depth: 0`.
 _V8_BASELINE_SHA = "47042beb05d1f6dd2186c0c499ae2840ce604ead"
 
+
 def _v8_baseline_ref(platform_key: str) -> str:
     """The git ref for a split host's own pre-split skill body."""
     if platform_key == "claude":
@@ -68,6 +71,7 @@ def _v8_baseline_ref(platform_key: str) -> str:
         # so amp's v8 body is the correct per-host coverage baseline.
         return f"{_V8_BASELINE_SHA}:graphify/skill-amp.md"
     return f"{_V8_BASELINE_SHA}:graphify/skill-{platform_key}.md"
+
 
 # Immutable baseline for --always-on-roundtrip. The six always-on instruction
 # blocks used to be triple-quoted constants in graphify/__main__.py; they are now
@@ -224,9 +228,11 @@ _HOOKS_TARGET = {
 #
 # Adding a heading here is a deliberate, reviewed act: it asserts "this v8
 # heading was consolidated on purpose and its content is covered elsewhere."
-SHARED_INTRO_ALLOWLIST: frozenset[str] = frozenset({
-    "## What graphify is for",  # lean intro; v8 hosts had verbose intro prose, no heading.
-})
+SHARED_INTRO_ALLOWLIST: frozenset[str] = frozenset(
+    {
+        "## What graphify is for",  # lean intro; v8 hosts had verbose intro prose, no heading.
+    }
+)
 
 _CONSOLIDATION_ALLOWLIST: dict[str, frozenset[str]] = {
     # kilo's terse v8 step/part/section headings, renamed/re-leveled by the
@@ -234,25 +240,48 @@ _CONSOLIDATION_ALLOWLIST: dict[str, frozenset[str]] = {
     # (Step 4 build/cluster/analyze, Step 5 label, Step 6 HTML, Step 9 report)
     # and the query stub + references/query.md; "### Kilo-specific rules" is the
     # same content promoted to "## Kilo-specific rules".
-    "kilo": frozenset({
-        "### Step 2.5 - Transcribe video or audio files (only if video files were detected)",
-        "#### Part B - Semantic extraction for docs, papers, and images",
-        "#### Part C - Merge AST and semantic extraction",
-        "### Step 4 - Build the graph and generate outputs",
-        "### Step 5 - Save manifest, clean up, and report",
-        "### Query mode",
-        "### Kilo-specific rules",
-    }),
+    "kilo": frozenset(
+        {
+            "### Step 2.5 - Transcribe video or audio files (only if video files were detected)",
+            "#### Part B - Semantic extraction for docs, papers, and images",
+            "#### Part C - Merge AST and semantic extraction",
+            "### Step 4 - Build the graph and generate outputs",
+            "### Step 5 - Save manifest, clean up, and report",
+            "### Query mode",
+            "### Kilo-specific rules",
+        }
+    ),
     # vscode's minimal v8 step/part headings, renamed by the shared lean core.
     # The build/cluster, report/visualization, and completion-summary content is
     # all present under the core's Step 4/5/6/9 headings.
-    "vscode": frozenset({
-        "#### Part A - Structural extraction (AST, free, no API cost)",
-        "#### Part B - Semantic extraction (AI, costs tokens)",
-        "### Step 4 - Build graph and cluster",
-        "### Step 5 - Generate report and visualization",
-        "### After completing all steps",
-    }),
+    "vscode": frozenset(
+        {
+            "#### Part A - Structural extraction (AST, free, no API cost)",
+            "#### Part B - Semantic extraction (AI, costs tokens)",
+            "### Step 4 - Build graph and cluster",
+            "### Step 5 - Generate report and visualization",
+            "### After completing all steps",
+        }
+    ),
+    # Pi intentionally no longer preserves the v8 host-agent extraction section.
+    # Its platform-specific core routes full builds through the CLI backend path
+    # (`graphify extract` + `graphify cluster-only`) so Pi, direct terminal use,
+    # and repo propagation share the same backend/model policy. The old AST /
+    # semantic-subagent / manual merge / label/export/manifest-cost headings are
+    # replaced by the new CLI-first Step 3/4/5/6/9 headings in
+    # tools/skillgen/fragments/core/pi.md.
+    "pi": frozenset(
+        {
+            "### Step 3 - Extract entities and relationships",
+            "#### Part A - Structural extraction for code files",
+            "#### Part B - Semantic extraction (parallel subagents)",
+            "#### Part C - Merge AST + semantic into final extraction",
+            "### Step 4 - Build graph, cluster, analyze, generate outputs",
+            "### Step 5 - Label communities",
+            "### Step 6 - Generate Obsidian vault (opt-in) + HTML",
+            "### Step 9 - Save manifest, update cost tracker, clean up, and report",
+        }
+    ),
 }
 
 
@@ -483,7 +512,9 @@ def render_all(platforms: dict[str, Platform], only: str | None = None) -> list[
     out: list[RenderedArtifact] = []
     for key in keys:
         if key not in platforms:
-            raise SystemExit(f"error: unknown platform '{key}'. Known: {', '.join(sorted(platforms))}")
+            raise SystemExit(
+                f"error: unknown platform '{key}'. Known: {', '.join(sorted(platforms))}"
+            )
         out.extend(render(platforms[key]))
     if only is None:
         out.extend(render_always_on())
@@ -533,15 +564,23 @@ def check(artifacts: list[RenderedArtifact]) -> list[str]:
     for art in artifacts:
         committed = REPO_ROOT / art.path
         if not committed.exists():
-            problems.append(f"missing committed artifact: {art.path} (run: python -m tools.skillgen)")
+            problems.append(
+                f"missing committed artifact: {art.path} (run: python -m tools.skillgen)"
+            )
         elif committed.read_text(encoding="utf-8") != art.content:
-            problems.append(f"committed artifact out of date: {art.path} (run: python -m tools.skillgen)")
+            problems.append(
+                f"committed artifact out of date: {art.path} (run: python -m tools.skillgen)"
+            )
 
         snapshot = _expected_path(art.path)
         if not snapshot.exists():
-            problems.append(f"missing expected/ snapshot: {art.path} (run: python -m tools.skillgen --bless)")
+            problems.append(
+                f"missing expected/ snapshot: {art.path} (run: python -m tools.skillgen --bless)"
+            )
         elif snapshot.read_text(encoding="utf-8") != art.content:
-            problems.append(f"expected/ snapshot out of date: {art.path} (run: python -m tools.skillgen --bless)")
+            problems.append(
+                f"expected/ snapshot out of date: {art.path} (run: python -m tools.skillgen --bless)"
+            )
     return problems
 
 
@@ -570,7 +609,7 @@ def headings(markdown: str) -> list[str]:
         # An ATX heading is 1-6 '#' then a space then text.
         if stripped.startswith("#"):
             hashes = len(stripped) - len(stripped.lstrip("#"))
-            if 1 <= hashes <= 6 and stripped[hashes:hashes + 1] == " ":
+            if 1 <= hashes <= 6 and stripped[hashes : hashes + 1] == " ":
                 out.append(stripped.strip())
     return out
 
@@ -660,11 +699,7 @@ def audit_coverage(platform: Platform) -> list[str]:
 
 def _enum_lines(content: str) -> list[str]:
     """Return every line in a rendered artifact that carries the file_type enum."""
-    return [
-        line
-        for line in content.splitlines()
-        if ENUM_VALUES in line or ENUM_PROSE in line
-    ]
+    return [line for line in content.splitlines() if ENUM_VALUES in line or ENUM_PROSE in line]
 
 
 # Legacy enum fragments that must never survive the six-value unification. Each
@@ -753,7 +788,9 @@ def _is_chunk_cleanup_line(line: str) -> bool:
     s = line.lstrip()
     if not s.startswith("rm -f"):
         return False
-    return ".graphify_chunk_*.json" in line or ("find " in line and "-name '.graphify_chunk_" in line)
+    return ".graphify_chunk_*.json" in line or (
+        "find " in line and "-name '.graphify_chunk_" in line
+    )
 
 
 def _is_trigger_line(line: str) -> bool:
@@ -775,9 +812,9 @@ def _is_directed_fix_line(line: str) -> bool:
     new threaded call (added) match here, plus the substitution instruction.
     """
     return (
-        "build_from_json(" in line and "import" not in line
-    ) or "directed=IS_DIRECTED" in line or (
-        "IS_DIRECTED" in line and "Substitute it everywhere" in line
+        ("build_from_json(" in line and "import" not in line)
+        or "directed=IS_DIRECTED" in line
+        or ("IS_DIRECTED" in line and "Substitute it everywhere" in line)
     )
 
 
@@ -970,7 +1007,8 @@ def monolith_roundtrip(platform: Platform) -> list[str]:
     # Strip trigger lines from the original — they are non-spec and their removal
     # (#1180) is a permitted diff.
     original_lines = [
-        l for l in _normalise(_git_show(platform.roundtrip_ref)).splitlines()
+        l
+        for l in _normalise(_git_show(platform.roundtrip_ref)).splitlines()
         if not _is_trigger_line(l)
     ]
 
@@ -981,9 +1019,7 @@ def monolith_roundtrip(platform: Platform) -> list[str]:
     for line in list(added.elements()) + list(removed.elements()):
         if _is_sanctioned_monolith_diff(line):
             continue
-        problems.append(
-            f"[{platform.key}] unsanctioned monolith change vs pristine v8: {line!r}"
-        )
+        problems.append(f"[{platform.key}] unsanctioned monolith change vs pristine v8: {line!r}")
     return problems
 
 
@@ -1007,7 +1043,11 @@ def _always_on_constants(ref: str) -> dict[str, str]:
         if len(node.targets) != 1 or not isinstance(node.targets[0], ast.Name):
             continue
         name = node.targets[0].id
-        if name in wanted and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+        if (
+            name in wanted
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
             out[name] = node.value.value
     return out
 
@@ -1061,11 +1101,31 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         description="Render and guard graphify's committed skill artifacts.",
     )
     p.add_argument("--platform", help="render or check just this platform key")
-    p.add_argument("--check", action="store_true", help="byte-diff render vs committed + expected/, exit 1 on drift")
-    p.add_argument("--audit-coverage", action="store_true", help="per host: assert every heading of that host's own v8 body single-homes in its render")
-    p.add_argument("--schema-singleton", action="store_true", help="assert the file_type enum is byte-identical everywhere")
-    p.add_argument("--monolith-roundtrip", action="store_true", help="assert each monolith == v8 modulo the enum unification")
-    p.add_argument("--always-on-roundtrip", action="store_true", help="assert each always_on/*.md reproduces its former __main__.py constant byte for byte")
+    p.add_argument(
+        "--check",
+        action="store_true",
+        help="byte-diff render vs committed + expected/, exit 1 on drift",
+    )
+    p.add_argument(
+        "--audit-coverage",
+        action="store_true",
+        help="per host: assert every heading of that host's own v8 body single-homes in its render",
+    )
+    p.add_argument(
+        "--schema-singleton",
+        action="store_true",
+        help="assert the file_type enum is byte-identical everywhere",
+    )
+    p.add_argument(
+        "--monolith-roundtrip",
+        action="store_true",
+        help="assert each monolith == v8 modulo the enum unification",
+    )
+    p.add_argument(
+        "--always-on-roundtrip",
+        action="store_true",
+        help="assert each always_on/*.md reproduces its former __main__.py constant byte for byte",
+    )
     p.add_argument("--bless", action="store_true", help="rewrite expected/ from the current render")
     return p.parse_args(argv)
 
@@ -1134,7 +1194,9 @@ def main(argv: list[str] | None = None) -> int:
             for m in problems:
                 print(f"  {m}", file=sys.stderr)
             return 1
-        print("always-on-roundtrip OK: each always_on/*.md reproduces its former constant byte for byte.")
+        print(
+            "always-on-roundtrip OK: each always_on/*.md reproduces its former constant byte for byte."
+        )
         return 0
 
     artifacts = render_all(platforms, only=args.platform)

@@ -234,6 +234,7 @@ def _apply_resource_limits() -> None:
         return
     try:
         import resource
+
         which = resource.RLIMIT_DATA if sys.platform == "darwin" else resource.RLIMIT_AS
         soft, hard = resource.getrlimit(which)
         new_hard = hard if hard != resource.RLIM_INFINITY and hard < limit else limit
@@ -245,6 +246,7 @@ def _apply_resource_limits() -> None:
 def _git_head() -> str | None:
     """Return current git HEAD commit hash, or None outside a repo."""
     import subprocess as _sp
+
     try:
         r = _sp.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, timeout=3)
         return r.stdout.strip() if r.returncode == 0 else None
@@ -685,6 +687,7 @@ def _canonical_topology_for_compare(graph_data: dict) -> dict:
 
 def _topology_from_graph(G) -> dict:
     from networkx.readwrite import json_graph
+
     try:
         data = json_graph.node_link_data(G, edges="links")
     except TypeError:
@@ -838,8 +841,10 @@ def _rebuild_code(
             _queue_pending(out, list(changed_paths))
         with _rebuild_lock(out, blocking=block_on_lock) as got:
             if not got:
-                print("[graphify watch] Rebuild already in progress for "
-                      f"{watch_path.resolve()} - changes queued.")
+                print(
+                    "[graphify watch] Rebuild already in progress for "
+                    f"{watch_path.resolve()} - changes queued."
+                )
                 return False
             # Lock acquired. Drain anything queued by earlier contenders
             # (including, importantly, the paths we just queued ourselves)
@@ -868,14 +873,17 @@ def _rebuild_code(
                     late = _drain_pending(out)
                     if not late:
                         break
-                    ok = _rebuild_code(
-                        watch_path,
-                        changed_paths=late,
-                        follow_symlinks=follow_symlinks,
-                        force=force,
-                        no_cluster=no_cluster,
-                        acquire_lock=False,
-                    ) and ok
+                    ok = (
+                        _rebuild_code(
+                            watch_path,
+                            changed_paths=late,
+                            follow_symlinks=follow_symlinks,
+                            force=force,
+                            no_cluster=no_cluster,
+                            acquire_lock=False,
+                        )
+                        and ok
+                    )
             return ok
 
     watch_root = watch_path.resolve()
@@ -904,7 +912,7 @@ def _rebuild_code(
 
         # Include document files that have AST extractors (e.g. .md, .mdx, .qmd)
         ast_doc_files: list[Path] = []
-        for doc_file in detected['files'].get('document', []):
+        for doc_file in detected["files"].get("document", []):
             p = Path(doc_file)
             if _get_extractor(p) is not None:
                 code_files.append(p)
@@ -998,7 +1006,9 @@ def _rebuild_code(
                     change_root=change_root,
                     watch_root=watch_root,
                 )
-                tracked = next((cand for cand in candidates if cand.exists() and cand in code_set), None)
+                tracked = next(
+                    (cand for cand in candidates if cand.exists() and cand in code_set), None
+                )
                 if tracked is not None:
                     if tracked not in wanted and tracked not in semantic_doc_set:
                         wanted.append(tracked)
@@ -1006,7 +1016,8 @@ def _rebuild_code(
 
                 existing_in_root = next(
                     (
-                        cand for cand in candidates
+                        cand
+                        for cand in candidates
                         if cand.exists() and _is_relative_to(cand, watch_root)
                     ),
                     None,
@@ -1086,6 +1097,7 @@ def _rebuild_code(
             # without it, --no-cluster + repeated `update` accumulate duplicates and edge
             # counts diverge across build modes (#1317).
             from graphify.build import dedupe_edges as _dedupe_edges, dedupe_nodes as _dedupe_nodes
+
             candidate_graph_data = {
                 **{k: v for k, v in result.items() if k not in ("edges", "nodes")},
                 "nodes": _dedupe_nodes(result.get("nodes", [])),
@@ -1097,15 +1109,22 @@ def _rebuild_code(
                 try:
                     check_graph_file_size_cap(existing_graph)
                     existing_payload = json.loads(existing_graph.read_text(encoding="utf-8"))
-                    same_graph = (
-                        json.dumps(_canonical_graph_for_compare(existing_payload), sort_keys=True, ensure_ascii=False)
-                        == json.dumps(_canonical_graph_for_compare(candidate_graph_data), sort_keys=True, ensure_ascii=False)
+                    same_graph = json.dumps(
+                        _canonical_graph_for_compare(existing_payload),
+                        sort_keys=True,
+                        ensure_ascii=False,
+                    ) == json.dumps(
+                        _canonical_graph_for_compare(candidate_graph_data),
+                        sort_keys=True,
+                        ensure_ascii=False,
                     )
                 except Exception:
                     same_graph = False
             if not same_graph:
                 if not _check_shrink(
-                    force, existing_graph_data, candidate_graph_data,
+                    force,
+                    existing_graph_data,
+                    candidate_graph_data,
                     had_explicit_deletions=bool(deleted_paths),
                     rebuilt_sources=rebuilt_sources,
                 ):
@@ -1118,13 +1137,16 @@ def _rebuild_code(
 
             try:
                 from graphify.detect import save_manifest
+
                 # detected["files"] is a FULL detect of the watched root, so
                 # pass it as the scan corpus too: rows for files that left the
                 # scan but still exist on disk (newly excluded) are pruned
                 # instead of surviving as phantom "deleted" entries (#1908).
                 save_manifest(
-                    detected["files"], kind="ast", root=project_root,
-                    scan_corpus={f for _fl in detected["files"].values() for f in _fl},
+                    detected["files"],
+                    kind="ast",
+                    root=project_root,
+                    scan_corpus={f for files in detected["files"].values() for f in files},
                 )
             except Exception:
                 pass
@@ -1135,7 +1157,9 @@ def _rebuild_code(
                 flag.unlink()
 
             if same_graph:
-                print("[graphify watch] No code-graph changes detected (--no-cluster); outputs left untouched.")
+                print(
+                    "[graphify watch] No code-graph changes detected (--no-cluster); outputs left untouched."
+                )
             else:
                 print(
                     "[graphify watch] Rebuilt (no clustering): "
@@ -1146,7 +1170,12 @@ def _rebuild_code(
             return True
 
         detection = {
-            "files": {"code": [str(f) for f in code_files], "document": [], "paper": [], "image": []},
+            "files": {
+                "code": [str(f) for f in code_files],
+                "document": [],
+                "paper": [],
+                "image": [],
+            },
             "total_files": len(code_files),
             "total_words": detected.get("total_words", 0),
         }
@@ -1155,26 +1184,36 @@ def _rebuild_code(
         candidate_topology = _topology_from_graph(G)
         if existing_graph_data:
             try:
-                same_topology = (
-                    json.dumps(_canonical_topology_for_compare(existing_graph_data), sort_keys=True, ensure_ascii=False)
-                    == json.dumps(_canonical_topology_for_compare(candidate_topology), sort_keys=True, ensure_ascii=False)
+                same_topology = json.dumps(
+                    _canonical_topology_for_compare(existing_graph_data),
+                    sort_keys=True,
+                    ensure_ascii=False,
+                ) == json.dumps(
+                    _canonical_topology_for_compare(candidate_topology),
+                    sort_keys=True,
+                    ensure_ascii=False,
                 )
             except Exception:
                 same_topology = False
             if same_topology:
                 try:
                     from graphify.detect import save_manifest
+
                     # Full-scan save: prune excluded-but-alive rows (#1908).
                     save_manifest(
-                        detected["files"], kind="ast", root=project_root,
-                        scan_corpus={f for _fl in detected["files"].values() for f in _fl},
+                        detected["files"],
+                        kind="ast",
+                        root=project_root,
+                        scan_corpus={f for files in detected["files"].values() for f in files},
                     )
                 except Exception:
                     pass
                 flag = out / "needs_update"
                 if flag.exists():
                     flag.unlink()
-                print("[graphify watch] No code-graph topology changes detected; outputs left untouched.")
+                print(
+                    "[graphify watch] No code-graph topology changes detected; outputs left untouched."
+                )
                 return True
 
         communities = cluster(G)
@@ -1186,7 +1225,9 @@ def _rebuild_code(
         surprises = surprising_connections(G, communities)
         labels_file = out / ".graphify_labels.json"
         try:
-            raw = json.loads(labels_file.read_text(encoding="utf-8")) if labels_file.exists() else {}
+            raw = (
+                json.loads(labels_file.read_text(encoding="utf-8")) if labels_file.exists() else {}
+            )
             labels = {int(k): v for k, v in raw.items() if int(k) in communities}
         except Exception:
             raw = {}
@@ -1203,7 +1244,10 @@ def _rebuild_code(
                           {"input": 0, "output": 0}, report_root, suggested_questions=questions,
                           built_at_commit=commit, learning=_llfr(out / "graph.json"))
         report_path = out / "GRAPH_REPORT.md"
-        labels_json = json.dumps({str(k): v for k, v in sorted(labels.items())}, ensure_ascii=False, indent=2) + "\n"
+        labels_json = (
+            json.dumps({str(k): v for k, v in sorted(labels.items())}, ensure_ascii=False, indent=2)
+            + "\n"
+        )
         graph_tmp = out / ".graph.tmp.json"
         json_written = to_json(G, communities, str(graph_tmp), force=True, built_at_commit=commit, community_labels=labels)
         if not json_written:
@@ -1215,9 +1259,14 @@ def _rebuild_code(
             try:
                 check_graph_file_size_cap(existing_graph)
                 existing_payload = json.loads(existing_graph.read_text(encoding="utf-8"))
-                same_graph = (
-                    json.dumps(_canonical_graph_for_compare(existing_payload), sort_keys=True, ensure_ascii=False)
-                    == json.dumps(_canonical_graph_for_compare(candidate_graph_data), sort_keys=True, ensure_ascii=False)
+                same_graph = json.dumps(
+                    _canonical_graph_for_compare(existing_payload),
+                    sort_keys=True,
+                    ensure_ascii=False,
+                ) == json.dumps(
+                    _canonical_graph_for_compare(candidate_graph_data),
+                    sort_keys=True,
+                    ensure_ascii=False,
                 )
             except Exception:
                 same_graph = False
@@ -1227,16 +1276,21 @@ def _rebuild_code(
         no_change = same_graph and same_report
         if no_change:
             graph_tmp.unlink(missing_ok=True)
-            print("[graphify watch] No code-graph changes detected; graph.json/GRAPH_REPORT.md left untouched.")
+            print(
+                "[graphify watch] No code-graph changes detected; graph.json/GRAPH_REPORT.md left untouched."
+            )
         else:
             if not _check_shrink(
-                force, existing_graph_data, candidate_graph_data,
+                force,
+                existing_graph_data,
+                candidate_graph_data,
                 tmp=graph_tmp,
                 had_explicit_deletions=bool(deleted_paths),
                 rebuilt_sources=rebuilt_sources,
             ):
                 return False
             from graphify.export import backup_if_protected as _backup
+
             _backup(out)
             graph_tmp.replace(existing_graph)
             report_path.write_text(report, encoding="utf-8")
@@ -1246,10 +1300,13 @@ def _rebuild_code(
 
         try:
             from graphify.detect import save_manifest
+
             # Full-scan save: prune excluded-but-alive rows (#1908).
             save_manifest(
-                detected["files"], kind="ast", root=project_root,
-                scan_corpus={f for _fl in detected["files"].values() for f in _fl},
+                detected["files"],
+                kind="ast",
+                root=project_root,
+                scan_corpus={f for files in detected["files"].values() for f in files},
             )
         except Exception:
             pass
@@ -1273,6 +1330,7 @@ def _rebuild_code(
         if callflow_files and not no_change:
             try:
                 from graphify.callflow_html import write_callflow_html
+
                 for cf in callflow_files:
                     write_callflow_html(
                         graph=out / "graph.json",
@@ -1290,9 +1348,13 @@ def _rebuild_code(
             flag.unlink()
 
         if not no_change:
-            print(f"[graphify watch] Rebuilt: {G.number_of_nodes()} nodes, "
-                  f"{G.number_of_edges()} edges, {len(communities)} communities")
-            products = "graph.json" + (", graph.html" if html_written else "") + " and GRAPH_REPORT.md"
+            print(
+                f"[graphify watch] Rebuilt: {G.number_of_nodes()} nodes, "
+                f"{G.number_of_edges()} edges, {len(communities)} communities"
+            )
+            products = (
+                "graph.json" + (", graph.html" if html_written else "") + " and GRAPH_REPORT.md"
+            )
             if callflow_files:
                 products += f", {len(callflow_files)} callflow HTML"
             print(f"[graphify watch] {products} updated in {out}")
@@ -1312,8 +1374,8 @@ def semantic_update_notice(watch_path: Path) -> str:
         [
             f"[graphify check-update] Pending non-code changes in {watch_path}.",
             "[graphify check-update] First run native CLI `graphify update .` for a code graph refresh.",
-            "[graphify check-update] Then run backend semantic refresh: `graphify extract . --backend ollama --model kimi-k2.7-code:cloud`.",
-            "[graphify check-update] Finish with `graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud` to relabel communities and refresh the wiki.",
+            "[graphify check-update] Then run backend semantic refresh: `graphify extract . --backend ollama` (model: --model > OLLAMA_MODEL > built-in default).",
+            "[graphify check-update] Finish with `graphify cluster-only . --backend ollama` to relabel communities and refresh the wiki.",
         ]
     )
 
@@ -1331,7 +1393,7 @@ def codex_session_start_notice(watch_path: Path) -> str:
             "",
             "Action: tell the user this repo has pending Graphify semantic refresh work.",
             "Offer to run native CLI `graphify update .` first, then run the backend semantic refresh before relying on doc/media/image relationships.",
-            "`graphify update .` is code-only and no-LLM; `graphify extract . --backend ollama --model kimi-k2.7-code:cloud` is LLM-backed and may spend cloud inference budget.",
+            "`graphify update .` is code-only and no-LLM; `graphify extract . --backend ollama` is LLM-backed and may spend cloud inference budget (model: --model > OLLAMA_MODEL > built-in default).",
         ]
     )
 
@@ -1341,7 +1403,7 @@ def check_update(watch_path: Path) -> bool:
 
     Cron-safe: always returns True so cron jobs do not alarm.
     Non-code file changes (docs, papers, images) require LLM-backed
-    re-extraction via `graphify extract` with an explicit backend/model; this
+    re-extraction via `graphify extract` with an explicit backend; this
     function only signals that the update is needed.
     """
     notice = semantic_update_notice(watch_path)
@@ -1363,8 +1425,13 @@ def _notify_only(watch_path: Path) -> None:
     flag = mark_needs_update(watch_path)
     print(f"\n[graphify watch] New or changed files detected in {watch_path}")
     print("[graphify watch] Non-code files changed - semantic re-extraction requires LLM.")
-    print("[graphify watch] Run `graphify extract . --backend ollama --model kimi-k2.7-code:cloud` to update semantic relationships.")
-    print("[graphify watch] Then run `graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud` to relabel communities and refresh the wiki.")
+    print(
+        "[graphify watch] Run `graphify extract . --backend ollama` to update semantic relationships "
+        "(model: --model > OLLAMA_MODEL > built-in default)."
+    )
+    print(
+        "[graphify watch] Then run `graphify cluster-only . --backend ollama` to relabel communities and refresh the wiki."
+    )
     print(f"[graphify watch] Flag written to {flag}")
 
 
@@ -1378,15 +1445,15 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 
     For code-only changes: re-runs AST extraction + rebuild immediately (no LLM).
     For doc/paper/image changes: writes a needs_update flag and notifies the user
-    to run backend semantic extraction with an explicit backend/model.
+    to run backend semantic extraction with an explicit backend.
 
     debounce: seconds to wait after the last change before triggering (avoids
     running on every keystroke when many files are saved at once).
     """
     try:
-        from watchdog.observers import Observer
-        from watchdog.observers.polling import PollingObserver
-        from watchdog.events import FileSystemEventHandler
+        from watchdog.observers import Observer  # type: ignore[reportMissingImports]
+        from watchdog.observers.polling import PollingObserver  # type: ignore[reportMissingImports]
+        from watchdog.events import FileSystemEventHandler  # type: ignore[reportMissingImports]
     except ImportError as e:
         raise ImportError("watchdog not installed. Run: pip install watchdog") from e
 
@@ -1440,8 +1507,10 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
     observer.start()
 
     print(f"[graphify watch] Watching {watch_path.resolve()} - press Ctrl+C to stop")
-    print(f"[graphify watch] Code changes rebuild graph automatically. "
-          f"Doc/image changes require backend `graphify extract`.")
+    print(
+        f"[graphify watch] Code changes rebuild graph automatically. "
+        f"Doc/image changes require backend `graphify extract`."
+    )
     print(f"[graphify watch] Debounce: {debounce}s")
 
     try:
@@ -1467,9 +1536,16 @@ def watch(watch_path: Path, debounce: float = 3.0) -> None:
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Watch a folder and auto-update the graphify graph")
+
+    parser = argparse.ArgumentParser(
+        description="Watch a folder and auto-update the graphify graph"
+    )
     parser.add_argument("path", nargs="?", default=".", help="Folder to watch (default: .)")
-    parser.add_argument("--debounce", type=float, default=3.0,
-                        help="Seconds to wait after last change before updating (default: 3)")
+    parser.add_argument(
+        "--debounce",
+        type=float,
+        default=3.0,
+        help="Seconds to wait after last change before updating (default: 3)",
+    )
     args = parser.parse_args()
     watch(Path(args.path), debounce=args.debounce)

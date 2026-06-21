@@ -6,12 +6,13 @@ fragments. These tests lock in the anti-drift guards (``--check``,
 core runs a default extraction with zero reference reads, on-demand content
 lives only in the references, and no reference duplicates core content.
 """
+
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-import pytest
+import pytest  # type: ignore[reportMissingImports]
 
 # tests/ -> repo root is one parent up; put it on the path so tools.skillgen
 # imports regardless of pytest's import mode.
@@ -239,6 +240,19 @@ def _platform_artifacts(key):
     return core.content, refs
 
 
+def test_pi_cli_backend_runbook_has_no_legacy_temp_or_duplicate_transcribe_flow():
+    """Pi default builds use CLI extraction, not legacy subagent/temp-file steps."""
+    core, _refs = _platform_artifacts("pi")
+    assert ".graphify_extract.json" not in core
+    assert "Do not manually transcribe video or audio" in core
+    assert "treat the transcripts as doc files in Step 3" not in core
+    assert "Do not update `graphify-out/cost.json` here" in core
+    assert "A no-cluster run intentionally writes raw extraction output only" in core
+    assert "do not require `GRAPH_REPORT.md`, `graph.html`" in core
+    assert "If `GRAPH_REPORT.md` exists" in core
+    assert "If `--no-cluster` was passed and no report exists, skip report pasteback" in core
+
+
 def test_check_passes_for_codex_and_windows():
     """The committed codex/windows artifacts match a fresh render and expected/."""
     platforms = gen.load_platforms()
@@ -319,7 +333,7 @@ def test_codex_dispatch_is_agenttask_and_collects_in_memory():
     # The B2 dispatch slot itself (Codex heading -> Step B3) must not carry the
     # claude Agent-tool example. The shared Step B3 prose mentions the agent type
     # in a re-run hint, so scope the check to the dispatch block only.
-    b2 = core[core.index("**Step B2"):core.index("**Step B3")]
+    b2 = core[core.index("**Step B2") : core.index("**Step B3")]
     assert "Concrete example for 3 chunks" not in b2
     assert "Agent tool call 1" not in b2
 
@@ -408,8 +422,20 @@ def test_all_progressive_hosts_check_and_audit_clean():
 
 def test_no_host_has_trigger_in_frontmatter():
     """No split host emits a trigger: field — not part of Agent Skills spec (#1180)."""
-    for key in ("claude", "codex", "opencode", "kilo", "copilot", "claw", "droid",
-                "amp", "trae", "vscode", "kiro", "pi"):
+    for key in (
+        "claude",
+        "codex",
+        "opencode",
+        "kilo",
+        "copilot",
+        "claw",
+        "droid",
+        "amp",
+        "trae",
+        "vscode",
+        "kiro",
+        "pi",
+    ):
         core, _ = _platform_artifacts(key)
         head = core.split("---", 2)[1]
         assert "trigger:" not in head, f"[{key}] unexpectedly has a trigger: line"
@@ -433,7 +459,7 @@ def test_dispatch_variants_are_host_specific():
     }
     for key, marker in expect.items():
         core, _ = _platform_artifacts(key)
-        b2 = core[core.index("**Step B2"):core.index("**Step B3")]
+        b2 = core[core.index("**Step B2") : core.index("**Step B3")]
         assert marker.lower() in b2.lower(), f"[{key}] dispatch slot missing {marker!r}"
 
 
@@ -478,7 +504,10 @@ def test_monoliths_render_inline_single_file_no_references():
         arts = gen.render(platforms[key])
         assert len(arts) == 1, f"[{key}] monolith should render exactly one file"
         assert arts[0].path == f"graphify/skill-{key}.md"
-        assert "references/" not in arts[0].content or "see `references/" not in arts[0].content.lower()
+        assert (
+            "references/" not in arts[0].content
+            or "see `references/" not in arts[0].content.lower()
+        )
 
 
 def test_monolith_roundtrip_passes_for_aider_and_devin():
@@ -534,10 +563,24 @@ def test_monoliths_carry_the_1392_runbook_fixes():
         # #18/#20 zero-node guard before any write, report/analysis gated on
         # to_json's return.
         lines = body.splitlines()
-        build_i = next(i for i, l in enumerate(lines) if "G = build_from_json(extraction, directed=IS_DIRECTED)" in l)
-        guard_i = next(i for i, l in enumerate(lines[build_i:], build_i) if "number_of_nodes() == 0" in l)
-        report_i = next(i for i, l in enumerate(lines[build_i:], build_i) if "GRAPH_REPORT.md').write_text(report)" in l)
-        wrote_i = next(i for i, l in enumerate(lines[build_i:], build_i) if l.strip().startswith("wrote = to_json("))
+        build_i = next(
+            i
+            for i, l in enumerate(lines)
+            if "G = build_from_json(extraction, directed=IS_DIRECTED)" in l
+        )
+        guard_i = next(
+            i for i, l in enumerate(lines[build_i:], build_i) if "number_of_nodes() == 0" in l
+        )
+        report_i = next(
+            i
+            for i, l in enumerate(lines[build_i:], build_i)
+            if "GRAPH_REPORT.md').write_text(report)" in l
+        )
+        wrote_i = next(
+            i
+            for i, l in enumerate(lines[build_i:], build_i)
+            if l.strip().startswith("wrote = to_json(")
+        )
         # guard fires right after the build, before the graph/report are written.
         assert build_i < guard_i < wrote_i < report_i, f"[{key}] Step 4 ordering not fixed"
         assert "if not wrote:" in body
@@ -710,9 +753,18 @@ def test_audit_reads_each_host_against_its_own_v8_body():
 
     This is the structural fix: a per-host body, so a drop on one host surfaces.
     """
-    assert gen._v8_baseline_ref("claude") == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill.md"
-    assert gen._v8_baseline_ref("trae") == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill-trae.md"
-    assert gen._v8_baseline_ref("vscode") == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill-vscode.md"
+    assert (
+        gen._v8_baseline_ref("claude")
+        == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill.md"
+    )
+    assert (
+        gen._v8_baseline_ref("trae")
+        == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill-trae.md"
+    )
+    assert (
+        gen._v8_baseline_ref("vscode")
+        == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill-vscode.md"
+    )
 
 
 def test_audit_catches_an_induced_per_host_drop():
@@ -775,17 +827,20 @@ def test_git_show_validators_skip_cleanly_without_origin_v8(monkeypatch, tmp_pat
 
 
 def test_audit_allowlist_documents_only_consolidations():
-    """The allowlist holds only the wave-2/3 consolidations, nothing genuine.
+    """The allowlist holds only reviewed consolidations/replacements, nothing genuine.
 
     A genuine drop (trae's native AGENTS.md integration) must never be in the
     allowlist, or the guard would rubber-stamp the regression it exists to catch.
+    Pi is listed because it intentionally replaces the v8 host-agent extraction
+    body with the CLI backend runbook in its platform-specific core.
     """
     all_allowlisted = set(gen.SHARED_INTRO_ALLOWLIST)
     for hs in gen._CONSOLIDATION_ALLOWLIST.values():
         all_allowlisted |= set(hs)
     assert "## For native AGENTS.md integration (Trae)" not in all_allowlisted
-    # Only the two minimal-body hosts carry per-host consolidations.
-    assert set(gen._CONSOLIDATION_ALLOWLIST) == {"kilo", "vscode"}
+    # Only the two minimal-body hosts plus Pi's explicit CLI-backend replacement
+    # carry per-host allowlists.
+    assert set(gen._CONSOLIDATION_ALLOWLIST) == {"kilo", "vscode", "pi"}
 
 
 # --- the trae / trae-cn native AGENTS.md integration fix -----------------------
@@ -812,7 +867,7 @@ def test_trae_renders_native_agents_md_integration_not_claude():
 def test_trae_dispatch_carries_the_no_pretooluse_caveat():
     """trae's B2 dispatch block restores the v8 no-PreToolUse-hook caveat."""
     core, _ = _platform_artifacts("trae")
-    b2 = core[core.index("**Step B2"):core.index("Pass the extraction prompt")]
+    b2 = core[core.index("**Step B2") : core.index("Pass the extraction prompt")]
     assert "Trae does NOT support PreToolUse hooks" in b2
     assert "AGENTS.md rules are the always-on mechanism instead" in b2
 
@@ -836,9 +891,15 @@ def test_claude_flavored_hosts_keep_their_hooks_text_unchanged():
         hooks = refs["hooks.md"]
         assert "graphify claude install" in hooks, f"[{key}] lost the claude install command"
         assert "native CLAUDE.md integration" in hooks, f"[{key}] lost the CLAUDE.md heading"
-        assert "Trae does NOT support PreToolUse hooks" not in core, f"[{key}] leaked the trae caveat"
-        assert "Trae does NOT support PreToolUse hooks" not in hooks, f"[{key}] leaked the trae caveat"
-        assert "## For the commit hook and native CLAUDE.md integration" in core, f"[{key}] pointer drifted"
+        assert "Trae does NOT support PreToolUse hooks" not in core, (
+            f"[{key}] leaked the trae caveat"
+        )
+        assert "Trae does NOT support PreToolUse hooks" not in hooks, (
+            f"[{key}] leaked the trae caveat"
+        )
+        assert "## For the commit hook and native CLAUDE.md integration" in core, (
+            f"[{key}] pointer drifted"
+        )
 
 
 # --- the amp native AGENTS.md integration (the 13th split host) ----------------
@@ -888,7 +949,7 @@ def test_amp_has_no_pretooluse_caveat_anywhere():
     assert "Trae does NOT support" not in core
     assert "Trae does NOT support" not in hooks
     # amp's dispatch is the plain task-tool-disk block (no trae caveat line).
-    b2 = core[core.index("**Step B2"):core.index("Pass the extraction prompt")]
+    b2 = core[core.index("**Step B2") : core.index("Pass the extraction prompt")]
     assert "Trae" not in b2
 
 
@@ -900,7 +961,10 @@ def test_amp_audit_coverage_passes_against_its_own_v8():
     confirms every heading single-homes in amp's core + references.
     """
     platforms = gen.load_platforms()
-    assert gen._v8_baseline_ref("amp") == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill-amp.md"
+    assert (
+        gen._v8_baseline_ref("amp")
+        == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill-amp.md"
+    )
     problems = gen.audit_coverage(platforms["amp"])
     assert problems == [], "\n".join(problems)
 
