@@ -132,16 +132,19 @@ Every system ran on the same harness with the same model and budgets, scored by 
 | pipx *(alternative)* | any | `pipx --version` | `pip install pipx` |
 
 **macOS quick install (Homebrew):**
+
 ```bash
 brew install python@3.12 uv
 ```
 
 **Windows quick install:**
+
 ```powershell
 winget install astral-sh.uv
 ```
 
 **Ubuntu/Debian:**
+
 ```bash
 sudo apt install python3.12 python3-pip pipx
 # or install uv:
@@ -423,6 +426,7 @@ dist/
 For personal/local repos, treat `graphify-out/` as derived local output. Keep it on disk for your assistant to query, but keep it ignored and untracked so hook refreshes do not create commit churn.
 
 **Recommended `.gitignore` addition:**
+
 ```
 graphify-out/
 ```
@@ -488,6 +492,7 @@ docker run -p 8080:8080 -v "$(pwd)/graphify-out:/data" graphify \
 ```
 
 > **WSL / Linux note:** Ubuntu ships `python3`, not `python`. Use a venv to avoid conflicts:
+>
 > ```bash
 > python3 -m venv .venv && .venv/bin/pip install "graphifyy[mcp]"
 > ```
@@ -496,7 +501,7 @@ docker run -p 8080:8080 -v "$(pwd)/graphify-out:/data" graphify \
 
 ## Environment variables
 
-These are only needed for **headless / CI extraction** (`graphify extract`). When running via the `/graphify` skill inside your IDE, the model API is provided by your IDE session — no extra keys needed.
+These are needed for **headless / CI extraction** (`graphify extract`) and CLI-first `/graphify` skills such as Pi in Mase's fork. Other platform skills may still use their host-agent model unless their runbook says they call the CLI backend path.
 
 | Variable | Used for | When required |
 |---|---|---|
@@ -510,7 +515,7 @@ These are only needed for **headless / CI extraction** (`graphify extract`). Whe
 | `DEEPSEEK_API_KEY` | DeepSeek backend | `--backend deepseek` |
 | `MOONSHOT_API_KEY` | Kimi Code backend | `--backend kimi` |
 | `OLLAMA_BASE_URL` | Ollama local inference URL | `--backend ollama` (default: `http://localhost:11434`) |
-| `OLLAMA_MODEL` | Ollama model name | `--backend ollama` (default: auto-detect) |
+| `OLLAMA_MODEL` | Ollama model name | `--backend ollama` (default in Mase's fork: `kimi-k2.7-code:cloud`) |
 | `GRAPHIFY_OLLAMA_NUM_CTX` | Override Ollama KV-cache window size | optional — auto-sized by default |
 | `GRAPHIFY_OLLAMA_KEEP_ALIVE` | Minutes to keep Ollama model loaded | optional — set `0` to unload after each chunk |
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI Service backend | `--backend azure` |
@@ -582,26 +587,31 @@ When an extraction pass crashes or a walk can't fully read the corpus, the run w
 
 **Graph has duplicate nodes for the same entity (ghost duplicates)**
 Ghost duplicates (same symbol appearing twice — once from AST extraction with a source location, once from semantic extraction without) are now automatically merged at build time. If you see this in a graph built before v0.8.33, run a full re-extract to clean up:
+
 ```bash
 graphify extract . --force
 ```
 
 **Ollama runs out of VRAM / context window exceeded**
 The KV-cache window is auto-sized but may be too large for your GPU. Reduce it:
+
 ```bash
 GRAPHIFY_OLLAMA_NUM_CTX=8192 graphify extract ./docs --backend ollama --token-budget 4000
 ```
 
 **`LLM returned invalid JSON` / `Unterminated string` warnings**
 The model's JSON response hit its output-token limit and was cut off mid-string. graphify auto-recovers (it splits the chunk and re-extracts the halves, and an oversized single document is first sliced at heading/paragraph boundaries so the whole file is still covered), so these warnings are noisy but not data loss. To reduce the churn, raise the output cap or shrink each chunk's output:
+
 ```bash
 GRAPHIFY_MAX_OUTPUT_TOKENS=16384 graphify extract . --mode deep   # lift the cap
 graphify extract . --mode deep --token-budget 4000                # smaller input chunks -> smaller output
 ```
+
 With a cloud gateway like OpenRouter, prefer `--backend openai` (set `OPENAI_BASE_URL`) over the Ollama shim — it's a cleaner OpenAI-compatible path. If the model has its own max-output ceiling, lowering `--token-budget` is the reliable lever.
 
 **Graph HTML is too large to open in a browser (>5000 nodes)**
 Skip HTML generation and use the JSON directly:
+
 ```bash
 graphify cluster-only ./my-project --no-viz
 graphify query "..."
@@ -612,12 +622,14 @@ Run `graphify hook install` — it sets up a git merge driver that union-merges 
 
 **Extraction returns empty nodes/edges for docs or PDFs**
 Docs, PDFs, and images require an LLM call — code-only corpora need no key. Check that your API key is set and the backend is correct:
+
 ```bash
 ANTHROPIC_API_KEY=sk-... graphify extract ./docs --backend claude
 ```
 
 **Skill version mismatch warning in your IDE**
 Your installed graphify version is different from the skill file. Update:
+
 ```bash
 uv tool upgrade graphifyy
 graphify install  # overwrites the skill file
@@ -727,7 +739,7 @@ graphify antigravity uninstall
 graphify extract ./docs                        # headless LLM extraction for CI (no IDE needed)
 graphify extract ./docs --backend gemini       # explicit backend: gemini, kimi, claude, openai, deepseek, ollama, bedrock, or claude-cli
 graphify extract ./docs --backend gemini --model gemini-3.1-pro-preview
-graphify extract ./docs --backend ollama       # local Ollama (set OLLAMA_BASE_URL / OLLAMA_MODEL) - no API key needed for loopback
+graphify extract ./docs --backend ollama       # local/default Ollama; model is --model > OLLAMA_MODEL > built-in Kimi
 OPENAI_BASE_URL=http://localhost:8080/v1 OPENAI_MODEL=my-model graphify extract ./docs --backend openai   # any OpenAI-compatible server (llama.cpp, vLLM, LM Studio)
 ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_MODEL=my-model graphify extract ./docs --backend claude   # any Anthropic-compatible endpoint (LiteLLM proxy, gateways)
 GRAPHIFY_OLLAMA_NUM_CTX=32768 graphify extract ./docs --backend ollama   # override KV-cache window (auto-sized by default)
@@ -744,6 +756,8 @@ graphify extract ./docs --api-timeout 900      # longer HTTP timeout for slow lo
 graphify extract ./docs --google-workspace     # export .gdoc/.gsheet/.gslides via gws before extraction
 graphify extract ./src --no-gitignore          # include git-ignored source; still honor .graphifyignore
 graphify extract ./docs --mode deep            # richer semantic extraction via extended system prompt
+graphify extract ./docs --directed             # preserve edge direction in graph.json
+graphify extract ./docs --whisper-model medium # transcribe video/audio with a larger Whisper model
 graphify extract ./docs --no-cluster           # raw extraction only, skip clustering
 graphify extract ./docs --timing               # print per-stage wall-clock timings to stderr (also works on cluster-only)
 graphify extract ./docs --force                # overwrite graph.json even if new graph has fewer nodes (use after refactors or to clear ghost duplicates)
@@ -764,7 +778,7 @@ graphify global path                                  # print path to the global
 graphify adoption audit --root /Users/mase/Codebase   # inline report: full/partial/candidate/skipped repos
 graphify adoption audit --root /Users/mase/Codebase --json
 graphify adoption apply --root /Users/mase/Codebase --scope adopted --local
-graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama --model kimi-k2.7-code:cloud
+graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama
 
 graphify prs                              # PR dashboard: CI, review, worktree, graph impact
 graphify prs 42                           # deep dive on PR #42
@@ -837,6 +851,7 @@ uv sync --all-extras
 ```
 
 Verify the editable install:
+
 ```bash
 uv run graphify --version
 uv run python -c "import graphify; print(graphify.__file__)"

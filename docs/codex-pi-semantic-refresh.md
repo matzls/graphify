@@ -45,8 +45,8 @@ or Codex should relax data-export policy.
 Graphify itself can run the backend semantic pipeline from this fork:
 
 ```bash
-graphify extract . --backend ollama --model kimi-k2.7-code:cloud
-graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud
+graphify extract . --backend ollama
+graphify cluster-only . --backend ollama
 ```
 
 The problem is that Codex may reject the cloud-backed extraction before or
@@ -94,8 +94,9 @@ detect -> AST extraction for code -> LLM semantic extraction for docs/images/pap
 `graphify update .` runs only the deterministic code-graph rebuild. It should
 not spend LLM tokens or export corpus content.
 
-`graphify extract . --backend ollama --model kimi-k2.7-code:cloud` sends uncached
-semantic files to the configured Ollama OpenAI-compatible endpoint. With the
+`graphify extract . --backend ollama` sends uncached semantic files to the
+configured Ollama OpenAI-compatible endpoint. Model resolution is explicit
+`--model`, then `OLLAMA_MODEL`, then Graphify's built-in Kimi default. With the
 local fork default, `OLLAMA_BASE_URL` defaults to `http://localhost:11434/v1`,
 and the model can still be an Ollama Cloud model routed through the local
 Ollama service.
@@ -130,13 +131,11 @@ graphify doctor --backend ollama
 graphify update .
 OLLAMA_API_KEY=ollama GRAPHIFY_LLM_TRACE=1 graphify extract . \
   --backend ollama \
-  --model kimi-k2.7-code:cloud \
   --token-budget 2000 \
   --max-concurrency 1 \
   --api-timeout 180
 OLLAMA_API_KEY=ollama GRAPHIFY_LLM_TRACE=1 graphify cluster-only . \
-  --backend ollama \
-  --model kimi-k2.7-code:cloud
+  --backend ollama
 ```
 
 Use `--token-budget 1200` for a smaller smoke or a model that frequently returns
@@ -169,8 +168,8 @@ Run these commands in order and report exact results:
 1. graphify doctor --require-source /Users/mase/Codebase/Personal-Projects/graphify
 2. graphify doctor --backend ollama
 3. graphify update .
-4. OLLAMA_API_KEY=ollama GRAPHIFY_LLM_TRACE=1 graphify extract . --backend ollama --model kimi-k2.7-code:cloud --token-budget 2000 --max-concurrency 1 --api-timeout 180
-5. OLLAMA_API_KEY=ollama GRAPHIFY_LLM_TRACE=1 graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud
+4. OLLAMA_API_KEY=ollama GRAPHIFY_LLM_TRACE=1 graphify extract . --backend ollama --token-budget 2000 --max-concurrency 1 --api-timeout 180
+5. OLLAMA_API_KEY=ollama GRAPHIFY_LLM_TRACE=1 graphify cluster-only . --backend ollama
 6. test -s graphify-out/graph.json && test -s graphify-out/GRAPH_REPORT.md
 7. test -s graphify-out/wiki/index.md
 

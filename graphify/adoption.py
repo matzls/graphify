@@ -5,6 +5,7 @@ only mutates selected repositories after explicit ``--local`` and/or
 ``--semantic`` flags. It is primarily a chat-native operator surface for Mase's
 local Graphify fork, but the scanner itself stays generic enough for upstream.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -22,7 +23,7 @@ MANAGED_AGENTS_END = "<!-- graphify-guidance-end -->"
 DEFAULT_MASE_ROOT = Path("/Users/mase/Codebase")
 DEFAULT_SELF_PATH = Path("/Users/mase/Codebase/Personal-Projects/graphify")
 DEFAULT_BACKEND = "ollama"
-DEFAULT_MODEL = "kimi-k2.7-code:cloud"
+DEFAULT_MODEL: str | None = None
 
 PRUNE_DIRS = {
     ".git",
@@ -79,6 +80,7 @@ class RepoAdoption:
     agents_graphify: bool = False
     codex_session: bool = False
     pi_project_skill: bool = False
+    local_skill_paths: list[str] = field(default_factory=list)
     hooks: bool = False
     graphify_out_ignored: bool = False
     tracked_graphify_out_count: int = 0
@@ -106,6 +108,7 @@ class RepoAdoption:
             "agents_graphify": self.agents_graphify,
             "codex_session": self.codex_session,
             "pi_project_skill": self.pi_project_skill,
+            "local_skill_paths": list(self.local_skill_paths),
             "hooks": self.hooks,
             "graphify_out_ignored": self.graphify_out_ignored,
             "tracked_graphify_out_count": self.tracked_graphify_out_count,
@@ -142,7 +145,7 @@ class ApplyOptions:
     local: bool = False
     semantic: bool = False
     backend: str = DEFAULT_BACKEND
-    model: str = DEFAULT_MODEL
+    model: str | None = DEFAULT_MODEL
     include_dirty: bool = False
     allow_dirty_graphify_out: bool = False
 
@@ -397,14 +400,29 @@ def _candidate_score(repo: Path) -> int:
             score += 1
     try:
         first_party_files = [
-            p for p in repo.iterdir()
-            if p.name not in PRUNE_DIRS and not p.name.startswith(".")
+            p for p in repo.iterdir() if p.name not in PRUNE_DIRS and not p.name.startswith(".")
         ]
     except OSError:
         first_party_files = []
     if len(first_party_files) >= 4:
         score += 1
     return score
+
+
+def _local_graphify_skill_paths(repo: Path) -> list[str]:
+    candidates = (
+        repo / ".pi" / "skills" / "graphify" / "SKILL.md",
+        repo / ".agents" / "skills" / "graphify" / "SKILL.md",
+        repo / ".codex" / "skills" / "graphify" / "SKILL.md",
+    )
+    paths: list[str] = []
+    for path in candidates:
+        if path.exists():
+            try:
+                paths.append(str(path.relative_to(repo)))
+            except ValueError:
+                paths.append(str(path))
+    return paths
 
 
 def inspect_repo(repo: Path) -> RepoAdoption:
@@ -428,7 +446,8 @@ def inspect_repo(repo: Path) -> RepoAdoption:
     managed_agents = MANAGED_AGENTS_START in agents and MANAGED_AGENTS_END in agents
     agents_graphify = "graphify" in agents_lower
     codex_session = _codex_has_graphify_session(repo)
-    pi_project_skill = (repo / ".pi" / "skills" / "graphify" / "SKILL.md").exists()
+    local_skill_paths = _local_graphify_skill_paths(repo)
+    pi_project_skill = any(p.startswith(".pi/") for p in local_skill_paths)
     hooks = _has_graphify_hooks(repo)
     graphify_out_ignored = _graphify_out_ignored(repo)
     tracked_graphify_out_count = _tracked_graphify_out_count(repo)
@@ -448,8 +467,11 @@ def inspect_repo(repo: Path) -> RepoAdoption:
         blockers.append("dirty graphify-out")
     if semantic_partial:
         blockers.append("partial semantic output")
-    if pi_project_skill:
-        actions.append("review/remove project Pi skill unless intentionally pinned")
+    if local_skill_paths:
+        actions.append(
+            "review local Graphify skill shadow before use; remove only if not intentionally pinned: "
+            + ", ".join(local_skill_paths)
+        )
 
     if graph:
         if not report:
@@ -505,6 +527,7 @@ def inspect_repo(repo: Path) -> RepoAdoption:
         agents_graphify=agents_graphify,
         codex_session=codex_session,
         pi_project_skill=pi_project_skill,
+        local_skill_paths=local_skill_paths,
         hooks=hooks,
         graphify_out_ignored=graphify_out_ignored,
         tracked_graphify_out_count=tracked_graphify_out_count,
@@ -540,7 +563,11 @@ def _flag(value: bool, true: str = "yes", false: str = "no") -> str:
 
 def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
     counts = Counter(r.status for r in result.repos)
-    adopted = [r for r in result.repos if r.status in {"full", "refresh-needed", "activation-partial", "artifacts-only"}]
+    adopted = [
+        r
+        for r in result.repos
+        if r.status in {"full", "refresh-needed", "activation-partial", "artifacts-only"}
+    ]
     candidates = [r for r in result.repos if r.status == "candidate"]
     skipped = [r for r in result.repos if r.status == "skip"]
 
@@ -558,13 +585,15 @@ def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
 
     if adopted:
         lines.append("Adopted / in-use repos:")
-        lines.append("status               repo                            graph wiki hooks ignore tracked stale dirty  actions")
+        lines.append(
+            "status               repo                            graph wiki hooks ignore tracked stale dirty  actions"
+        )
         display = adopted if verbose else adopted[:18]
         for r in display:
             dirty = "src" if r.dirty_source else ("graph" if r.dirty_graphify_out else "no")
             actions = ", ".join(r.actions[:3]) if r.actions else "ok"
             if len(r.actions) > 3 and not verbose:
-                actions += f", +{len(r.actions)-3}"
+                actions += f", +{len(r.actions) - 3}"
             lines.append(
                 f"{r.status:<20} {r.name[:30]:<30} "
                 f"{_flag(r.graph, 'yes', 'no ')}   {_flag(r.wiki, 'yes', 'no ')}  "
@@ -573,7 +602,9 @@ def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
                 f"{dirty:<5}  {actions}"
             )
         if not verbose and len(adopted) > len(display):
-            lines.append(f"  … {len(adopted) - len(display)} more adopted repos omitted; use --verbose")
+            lines.append(
+                f"  … {len(adopted) - len(display)} more adopted repos omitted; use --verbose"
+            )
         lines.append("")
 
     if candidates:
@@ -582,7 +613,9 @@ def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
         for r in display:
             lines.append(f"  - {r.name} ({r.root}) — {r.reason}; score {r.candidate_score}")
         if not verbose and len(candidates) > len(display):
-            lines.append(f"  … {len(candidates) - len(display)} more candidates omitted; use --verbose")
+            lines.append(
+                f"  … {len(candidates) - len(display)} more candidates omitted; use --verbose"
+            )
         lines.append("")
 
     blocked = [r for r in result.repos if r.blockers and r.status != "skip"]
@@ -592,7 +625,9 @@ def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
         for r in display:
             lines.append(f"  - {r.name}: {', '.join(r.blockers)}")
         if not verbose and len(blocked) > len(display):
-            lines.append(f"  … {len(blocked) - len(display)} more blocked repos omitted; use --verbose")
+            lines.append(
+                f"  … {len(blocked) - len(display)} more blocked repos omitted; use --verbose"
+            )
         lines.append("")
 
     if verbose and skipped:
@@ -603,6 +638,9 @@ def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
 
     lines.append("Recommended next commands:")
     root_arg = result.roots[0] if result.roots else str(default_root())
+    semantic_args = f"--semantic --backend {DEFAULT_BACKEND}"
+    if DEFAULT_MODEL:
+        semantic_args += f" --model {DEFAULT_MODEL}"
     if any(r.status in {"activation-partial", "artifacts-only", "refresh-needed"} for r in adopted):
         lines.append(
             f"  graphify adoption apply --root {json.dumps(root_arg)} --scope adopted --local"
@@ -610,13 +648,13 @@ def format_report(result: AdoptionAudit, *, verbose: bool = False) -> str:
     if any(r.stale_marker or not r.wiki for r in adopted):
         lines.append(
             f"  graphify adoption apply --root {json.dumps(root_arg)} --scope adopted "
-            f"--semantic --backend {DEFAULT_BACKEND} --model {DEFAULT_MODEL}"
+            f"{semantic_args}"
         )
     if candidates:
         lines.append(
             "  graphify adoption apply --root "
             f"{json.dumps(root_arg)} --scope candidates --targets <comma-separated-repos> "
-            f"--local --semantic --backend {DEFAULT_BACKEND} --model {DEFAULT_MODEL}"
+            f"--local {semantic_args}"
         )
     if not adopted and not candidates:
         lines.append("  No Graphify adoption actions recommended from this scan.")
@@ -702,19 +740,21 @@ def apply(options: ApplyOptions) -> list[ApplyResult]:
             )
         )
         needs_local_wiki_refresh = bool(repo.graph and not repo.stale_marker and not repo.wiki)
-        needs_semantic_refresh = bool(
-            not repo.graph
-            or repo.stale_marker
-            or repo.semantic_partial
-        )
+        needs_semantic_refresh = bool(not repo.graph or repo.stale_marker or repo.semantic_partial)
 
         if options.local:
-            if (repo.graph or repo.hooks or repo.managed_agents or repo.codex_session) and not repo.graphify_out_ignored:
+            if (
+                repo.graph or repo.hooks or repo.managed_agents or repo.codex_session
+            ) and not repo.graphify_out_ignored:
                 try:
                     _ensure_graphify_out_ignored(repo_path)
                     commands.append("ensure .gitignore ignores graphify-out/")
                 except OSError as exc:
-                    outputs.append(ApplyResult(repo=repo.name, status="failed", commands=commands, message=str(exc)))
+                    outputs.append(
+                        ApplyResult(
+                            repo=repo.name, status="failed", commands=commands, message=str(exc)
+                        )
+                    )
                     continue
             if repo.status == "candidate" and not repo.graph and not options.semantic:
                 outputs.append(
@@ -726,25 +766,33 @@ def apply(options: ApplyOptions) -> list[ApplyResult]:
                 )
                 continue
             if needs_activation:
-                cmd = _module_command("codex", "reconcile", "--state", "active", "--apply", repo.root)
+                cmd = _module_command(
+                    "codex", "reconcile", "--state", "active", "--apply", repo.root
+                )
                 _append_cmd(commands, cmd)
                 ok, out = _run_command(cmd, cwd=repo_path)
                 if not ok:
-                    outputs.append(ApplyResult(repo=repo.name, status="failed", commands=commands, message=out))
+                    outputs.append(
+                        ApplyResult(repo=repo.name, status="failed", commands=commands, message=out)
+                    )
                     continue
             if needs_local_graph_refresh and repo.graph:
                 cmd = _module_command("update", ".")
                 _append_cmd(commands, cmd)
                 ok, out = _run_command(cmd, cwd=repo_path)
                 if not ok:
-                    outputs.append(ApplyResult(repo=repo.name, status="failed", commands=commands, message=out))
+                    outputs.append(
+                        ApplyResult(repo=repo.name, status="failed", commands=commands, message=out)
+                    )
                     continue
             if needs_local_wiki_refresh:
                 cmd = _cluster_command(options, label=False)
                 _append_cmd(commands, cmd)
                 ok, out = _run_command(cmd, cwd=repo_path)
                 if not ok:
-                    outputs.append(ApplyResult(repo=repo.name, status="failed", commands=commands, message=out))
+                    outputs.append(
+                        ApplyResult(repo=repo.name, status="failed", commands=commands, message=out)
+                    )
                     continue
 
         if options.semantic and needs_semantic_refresh:
@@ -754,22 +802,37 @@ def apply(options: ApplyOptions) -> list[ApplyResult]:
             _append_cmd(commands, cmd)
             ok, out = _run_command(cmd, cwd=repo_path)
             if not ok:
-                outputs.append(ApplyResult(repo=repo.name, status="failed", commands=commands, message=out))
+                outputs.append(
+                    ApplyResult(repo=repo.name, status="failed", commands=commands, message=out)
+                )
                 continue
             cmd = _cluster_command(options, label=True)
             _append_cmd(commands, cmd)
             ok, out = _run_command(cmd, cwd=repo_path)
             if not ok:
-                outputs.append(ApplyResult(repo=repo.name, status="failed", commands=commands, message=out))
+                outputs.append(
+                    ApplyResult(repo=repo.name, status="failed", commands=commands, message=out)
+                )
                 continue
 
         if commands:
-            outputs.append(ApplyResult(repo=repo.name, status="applied", commands=commands, message="ok"))
+            outputs.append(
+                ApplyResult(repo=repo.name, status="applied", commands=commands, message="ok")
+            )
         else:
-            outputs.append(ApplyResult(repo=repo.name, status="skipped", commands=commands, message="no selected actions needed"))
+            outputs.append(
+                ApplyResult(
+                    repo=repo.name,
+                    status="skipped",
+                    commands=commands,
+                    message="no selected actions needed",
+                )
+            )
 
     if not selected:
-        outputs.append(ApplyResult(repo="(none)", status="skipped", message="no repos matched selection"))
+        outputs.append(
+            ApplyResult(repo="(none)", status="skipped", message="no repos matched selection")
+        )
     return outputs
 
 

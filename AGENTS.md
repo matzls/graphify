@@ -87,8 +87,9 @@ so any stale `~/.agents/skills/graphify` copy must be reviewed before deletion
 or replacement. Codex-specific skills should install under `.codex/skills/`, not
 the shared `.agents/skills/` tree, to avoid colliding with Pi discovery.
 
-If Codex blocks `graphify extract . --backend ollama --model minimax-m3:cloud`
-as private-data export, do not treat Codex YOLO mode as the normal fix. See
+If Codex blocks `graphify extract . --backend ollama` as private-data export,
+do not treat Codex YOLO mode as the normal fix. Model selection follows
+explicit `--model`, then `OLLAMA_MODEL`, then Graphify's built-in default. See
 `docs/codex-pi-semantic-refresh.md` and hand Mase a copy-pasteable Pi or direct
 terminal command for the semantic refresh. Future local-fork work should add a
 minimal `graphify` handoff command that prints that Pi/terminal payload without
@@ -179,6 +180,7 @@ planning, implementing, debugging, validating, documenting, or shipping work
 inside this project.
 
 Default routing:
+
 - Use `gsd-progress` or `gsd-health` to inspect project/workflow state.
 - Use `gsd-map-codebase` then `gsd-new-project` for first-time setup in an
   existing codebase.
@@ -194,6 +196,7 @@ Default routing:
 - Use `gsd-ship` only when preparing verified work for PR or release.
 
 First-run onboarding for an existing codebase:
+
 - Restart or open Codex in this repository after local GSD installation so
   repo-local `.codex/skills/gsd-*` and `.codex/agents/gsd-*` are loaded.
 - For an existing project, use `gsd-map-codebase` before `gsd-new-project`.
@@ -217,6 +220,7 @@ flows, or upstream install flows unless Mase explicitly asks to replace the
 fork-managed setup with upstream.
 
 Safety rules:
+
 - Always dry-run propagation before apply.
 - Report selected targets, skipped targets, and exact commands before apply.
 - Do not update dirty target repos unless Mase explicitly confirms.
@@ -232,6 +236,7 @@ Graphify should not be executed automatically against its own source repo.
 When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
 
 Rules:
+
 - For codebase questions in this repo, prefer source inspection, tests, and
   docs over Graphify output.
 - Dirty `graphify-out/` files may exist from older hooks or manual runs; do not

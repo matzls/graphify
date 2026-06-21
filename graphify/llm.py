@@ -12,7 +12,7 @@ import re
 import sys
 import time
 from importlib.util import find_spec
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -246,12 +246,15 @@ def validate_backend_dependencies(backend: str) -> None:
         )
 
 
-def _estimate_chunk_input_tokens(chunk: list[Path]) -> int:
+def _estimate_chunk_input_tokens(chunk: "Sequence[Path | FileSlice]") -> int:
     """Return a cheap pre-request size estimate for semantic chunk logging."""
     total_chars = 0
-    for path in chunk:
+    for unit in chunk:
+        if isinstance(unit, FileSlice):
+            total_chars += min(max(unit.end - unit.start, 0), _FILE_CHAR_CAP)
+            continue
         try:
-            total_chars += min(path.stat().st_size, _FILE_CHAR_CAP)
+            total_chars += min(unit.stat().st_size, _FILE_CHAR_CAP)
         except OSError:
             continue
     total_chars += len(chunk) * _PER_FILE_OVERHEAD_CHARS
@@ -479,6 +482,7 @@ def _no_window_kwargs() -> dict:
     becomes a visible window that appears and vanishes for the duration of the
     model call. CREATE_NO_WINDOW keeps the children invisible; no-op elsewhere."""
     import subprocess
+
     if sys.platform == "win32":
         return {"creationflags": subprocess.CREATE_NO_WINDOW}
     return {}
@@ -645,7 +649,7 @@ def _wrap_untrusted(rel: str, content: str) -> str:
     )
 
 
-def _read_files(units: "list[Path | FileSlice]", root: Path) -> str:
+def _read_files(units: "Sequence[Path | FileSlice]", root: Path) -> str:
     """Return file/slice contents formatted for the extraction prompt.
 
     Each unit is wrapped in an <untrusted_source> delimiter block and known
@@ -867,7 +871,7 @@ def _is_vision_image(path: Path) -> bool:
 
 
 def _partition_semantic_files(
-    units: "list[Path | FileSlice]",
+    units: "Sequence[Path | FileSlice]",
 ) -> tuple["list[Path | FileSlice]", list[Path]]:
     """Split a chunk into (text-like units, raster-image files).
 
@@ -1772,7 +1776,7 @@ def _call_bedrock(model: str, user_message: str, max_tokens: int = 8192, *, deep
 
 
 def extract_files_direct(
-    files: list[Path],
+    files: "Sequence[str | Path | FileSlice]",
     backend: str | None = None,
     api_key: str | None = None,
     model: str | None = None,
@@ -1792,7 +1796,6 @@ def extract_files_direct(
     (from extract_corpus_parallel's oversized-doc slicing, #1369) pass through
     untouched — Path(FileSlice) would raise (#1397/#1399).
     """
-    files = [f if isinstance(f, (Path, FileSlice)) else Path(f) for f in files]
     if backend is None:
         backend = detect_backend()
         if backend is None:
@@ -1829,7 +1832,9 @@ def extract_files_direct(
     # Separate raster images from text-like files. Text goes through _read_files
     # as before; images become structured refs the backend renders as pixels
     # (vision backends) or as a text reference node (everything else).
-    text_files, image_files = _partition_semantic_files(files)
+    text_files, image_files = _partition_semantic_files(
+        [f if isinstance(f, (Path, FileSlice)) else Path(f) for f in files]
+    )
     user_msg = _read_files(text_files, root)
     vision = _backend_supports_vision(backend)
     # Only base64 (inline) vision backends need the bytes loaded + size-capped;
@@ -1913,7 +1918,9 @@ def _estimate_file_tokens(unit: "Path | FileSlice") -> int:
         # A slice's size is its char range (already ≤ _FILE_CHAR_CAP). Use the
         # tokenizer on its text when available, else the chars/4 heuristic.
         if _TOKENIZER is None:
-            return (min(unit.end - unit.start, _FILE_CHAR_CAP) + _PER_FILE_OVERHEAD_CHARS) // _CHARS_PER_TOKEN
+            return (
+                min(unit.end - unit.start, _FILE_CHAR_CAP) + _PER_FILE_OVERHEAD_CHARS
+            ) // _CHARS_PER_TOKEN
         try:
             content = read_slice_text(unit)[:_FILE_CHAR_CAP]
         except OSError:
@@ -1941,7 +1948,7 @@ def _estimate_file_tokens(unit: "Path | FileSlice") -> int:
 
 
 def _pack_chunks_by_tokens(
-    files: "list[Path | FileSlice]",
+    files: "Sequence[Path | FileSlice]",
     token_budget: int,
 ) -> "list[list[Path | FileSlice]]":
     """Greedily pack files/slices into chunks that fit a token budget.
@@ -2079,7 +2086,7 @@ def _strip_partial_markers(result: dict) -> None:
 
 
 def _extract_with_adaptive_retry(
-    chunk: list[Path],
+    chunk: "list[Path | FileSlice]",
     backend: str,
     api_key: str | None,
     model: str | None,
@@ -2122,6 +2129,7 @@ def _extract_with_adaptive_retry(
     non-splittable file (e.g. one huge code file) can't be made smaller than
     itself, so we return what we got and warn.
     """
+
     def _merge_two(left_units, right_units) -> dict:
         left = _extract_with_adaptive_retry(
             left_units, backend, api_key, model, root, max_depth, _depth + 1, deep_mode=deep_mode
@@ -2297,7 +2305,7 @@ def _extract_with_adaptive_retry(
 
 
 def extract_corpus_parallel(
-    files: list[Path],
+    files: "Sequence[str | Path | FileSlice]",
     backend: str = "kimi",
     api_key: str | None = None,
     model: str | None = None,
@@ -2355,15 +2363,17 @@ def extract_corpus_parallel(
     Accepts ``str`` paths as well as ``Path``; string entries are coerced up
     front so packing/slicing helpers can rely on ``Path`` semantics (#1386).
     """
-    files = [f if isinstance(f, (Path, FileSlice)) else Path(f) for f in files]
+    units: list[Path | FileSlice] = [
+        f if isinstance(f, (Path, FileSlice)) else Path(f) for f in files
+    ]
     # Split oversized splittable documents into slices that cover the whole file
     # before packing, so content past _FILE_CHAR_CAP is extracted instead of
     # silently dropped (#1369). Files at/under the cap pass through unchanged.
-    files = expand_oversized_files(files, _FILE_CHAR_CAP)
+    units = expand_oversized_files(units, _FILE_CHAR_CAP)
     if token_budget is not None:
-        chunks = _pack_chunks_by_tokens(files, token_budget=token_budget)
+        chunks = _pack_chunks_by_tokens(units, token_budget=token_budget)
     else:
-        chunks = [files[i:i + chunk_size] for i in range(0, len(files), chunk_size)]
+        chunks = [units[i : i + chunk_size] for i in range(0, len(units), chunk_size)]
 
     merged: dict = {
         "nodes": [], "edges": [], "hyperedges": [],
@@ -2374,7 +2384,9 @@ def extract_corpus_parallel(
     total = len(chunks)
     merged["total_chunks"] = total
 
-    def _run_one(idx: int, chunk: list[Path]) -> tuple[int, dict | None, Exception | None]:
+    def _run_one(
+        idx: int, chunk: "list[Path | FileSlice]"
+    ) -> tuple[int, dict | None, Exception | None]:
         t0 = time.time()
         try:
             print(
@@ -3009,7 +3021,7 @@ def _label_batch_with_retry(
     prompt = (
         "You are naming clusters in a knowledge graph. For each community below, "
         "return a concise 2-5 word plain-language name describing what it is about "
-        "(e.g. \"Order Management\", \"Payment Flow\", \"Auth Middleware\"). "
+        '(e.g. "Order Management", "Payment Flow", "Auth Middleware"). '
         "Respond ONLY with a JSON object mapping the community id (as a string) to "
         "its name - no prose, no markdown fences.\n\n" + "\n".join(batch_lines)
     )

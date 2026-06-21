@@ -4,13 +4,15 @@ import json
 import subprocess
 from pathlib import Path
 
-import pytest
+import pytest  # type: ignore[reportMissingImports]
 
 from graphify import adoption
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(["git", "-C", str(repo), *args], text=True, capture_output=True, check=False)
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], text=True, capture_output=True, check=False
+    )
 
 
 def _init_repo(path: Path) -> Path:
@@ -31,7 +33,9 @@ def _commit_all(repo: Path, message: str = "state") -> None:
         raise AssertionError(result.stderr)
 
 
-def _write_graph(repo: Path, *, report: bool = True, wiki: bool = False, stale: bool = False) -> None:
+def _write_graph(
+    repo: Path, *, report: bool = True, wiki: bool = False, stale: bool = False
+) -> None:
     out = repo / "graphify-out"
     out.mkdir(exist_ok=True)
     (out / "graph.json").write_text('{"nodes": [], "links": []}\n', encoding="utf-8")
@@ -107,6 +111,34 @@ def test_audit_reports_missing_hooks_and_wiki(tmp_path: Path):
     assert row.tracked_graphify_out_count >= 1
 
 
+def test_audit_reports_local_graphify_skill_shadow_paths(tmp_path: Path):
+    repo = _init_repo(tmp_path / "local-skills")
+    for rel in (
+        ".pi/skills/graphify/SKILL.md",
+        ".agents/skills/graphify/SKILL.md",
+        ".codex/skills/graphify/SKILL.md",
+    ):
+        path = repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("# local graphify skill\n", encoding="utf-8")
+    _write_graph(repo, wiki=True)
+    _write_managed_guidance(repo)
+    _write_hooks(repo)
+    _ignore_graphify(repo)
+    _commit_all(repo)
+
+    row = adoption.audit(tmp_path).repos[0]
+
+    assert row.local_skill_paths == [
+        ".pi/skills/graphify/SKILL.md",
+        ".agents/skills/graphify/SKILL.md",
+        ".codex/skills/graphify/SKILL.md",
+    ]
+    assert row.pi_project_skill is True
+    assert any("local Graphify skill" in action for action in row.actions)
+    assert "local_skill_paths" in row.to_dict()
+
+
 def test_audit_skips_graphify_self_marker_and_worktree_cache(tmp_path: Path):
     self_repo = _init_repo(tmp_path / "graphify")
     (self_repo / "AGENTS.md").write_text(
@@ -125,7 +157,9 @@ def test_audit_skips_graphify_self_marker_and_worktree_cache(tmp_path: Path):
     assert rows["child"].reason == "worktree-cache"
 
 
-def test_dirty_source_blocks_but_dirty_graph_can_be_allowed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_dirty_source_blocks_but_dirty_graph_can_be_allowed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     repo = _init_repo(tmp_path / "dirty")
     _write_graph(repo, wiki=True)
     _write_managed_guidance(repo)
@@ -157,7 +191,9 @@ def test_dirty_source_blocks_but_dirty_graph_can_be_allowed(tmp_path: Path, monk
     assert calls
 
 
-def test_local_apply_adds_graphify_gitignore_without_deleting_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_local_apply_adds_graphify_gitignore_without_deleting_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     repo = _init_repo(tmp_path / "needs-ignore")
     _write_graph(repo, wiki=True)
     _write_managed_guidance(repo)
@@ -269,7 +305,7 @@ def test_subcommand_help(capsys: pytest.CaptureFixture[str]):
     assert "graphify adoption apply" in capsys.readouterr().out
 
 
-def test_semantic_apply_uses_default_ollama_model_without_real_call(
+def test_semantic_apply_uses_default_ollama_backend_without_pinning_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     repo = _init_repo(tmp_path / "adopted")
@@ -289,11 +325,38 @@ def test_semantic_apply_uses_default_ollama_model_without_real_call(
 
     assert results[0].status == "applied"
     rendered = [" ".join(c) for c in calls]
-    assert any("extract . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
-    assert any("cluster-only . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
+    assert any("extract . --backend ollama" in c for c in rendered)
+    assert any("cluster-only . --backend ollama" in c for c in rendered)
+    assert not any("--model" in c for c in rendered)
 
 
-def test_semantic_apply_builds_active_repo_without_graph(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_semantic_apply_propagates_explicit_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    repo = _init_repo(tmp_path / "adopted-explicit-model")
+    _write_graph(repo, wiki=True, stale=True)
+    _write_managed_guidance(repo)
+    _write_hooks(repo)
+    _commit_all(repo)
+
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(args: list[str], *, cwd: Path):
+        calls.append(tuple(args))
+        return True, "ok"
+
+    monkeypatch.setattr(adoption, "_run_command", fake_run)
+    results = adoption.apply(
+        adoption.ApplyOptions(root=tmp_path, semantic=True, model="custom-model")
+    )
+
+    assert results[0].status == "applied"
+    rendered = [" ".join(c) for c in calls]
+    assert any("extract . --backend ollama --model custom-model" in c for c in rendered)
+    assert any("cluster-only . --backend ollama --model custom-model" in c for c in rendered)
+
+
+def test_semantic_apply_builds_active_repo_without_graph(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
     repo = _init_repo(tmp_path / "active-no-graph")
     _write_managed_guidance(repo)
     _write_hooks(repo)
@@ -310,8 +373,9 @@ def test_semantic_apply_builds_active_repo_without_graph(tmp_path: Path, monkeyp
 
     assert results[0].status == "applied"
     rendered = [" ".join(c) for c in calls]
-    assert any("extract . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
-    assert any("cluster-only . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
+    assert any("extract . --backend ollama" in c for c in rendered)
+    assert any("cluster-only . --backend ollama" in c for c in rendered)
+    assert not any("--model" in c for c in rendered)
 
 
 def test_candidate_apply_requires_explicit_target_for_semantic_bootstrap(
@@ -345,4 +409,5 @@ def test_candidate_apply_requires_explicit_target_for_semantic_bootstrap(
     )
     assert targeted[0].status == "applied"
     rendered = [" ".join(c) for c in calls]
-    assert any("extract . --backend ollama --model kimi-k2.7-code:cloud" in c for c in rendered)
+    assert any("extract . --backend ollama" in c for c in rendered)
+    assert not any("--model" in c for c in rendered)

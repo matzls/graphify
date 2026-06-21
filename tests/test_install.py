@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 import sys
 from unittest.mock import patch
-import pytest
+import pytest  # type: ignore[reportMissingImports]
 
 
 PLATFORMS = {
@@ -451,8 +451,10 @@ def test_codex_install_does_not_write_claude_md(tmp_path):
 
 # --- CodeBuddy CODEBUDDY.md + hook install/uninstall tests ---
 
+
 def test_codebuddy_install_writes_codebuddy_md(tmp_path):
     from graphify.__main__ import codebuddy_install
+
     codebuddy_install(tmp_path)
     md = tmp_path / "CODEBUDDY.md"
     assert md.exists()
@@ -462,6 +464,7 @@ def test_codebuddy_install_writes_codebuddy_md(tmp_path):
 def test_codebuddy_install_writes_hook(tmp_path):
     import json as _json
     from graphify.__main__ import codebuddy_install
+
     codebuddy_install(tmp_path)
     settings = _json.loads((tmp_path / ".codebuddy" / "settings.json").read_text())
     hooks = settings["hooks"]["PreToolUse"]
@@ -505,6 +508,7 @@ def test_claude_hook_install_idempotent_and_replaces_old_bash_hook(tmp_path):
 
 def test_codebuddy_install_idempotent(tmp_path):
     from graphify.__main__ import codebuddy_install
+
     codebuddy_install(tmp_path)
     codebuddy_install(tmp_path)
     md = tmp_path / "CODEBUDDY.md"
@@ -513,6 +517,7 @@ def test_codebuddy_install_idempotent(tmp_path):
 
 def test_codebuddy_install_merges_existing_codebuddy_md(tmp_path):
     from graphify.__main__ import codebuddy_install
+
     (tmp_path / "CODEBUDDY.md").write_text("# My project rules\n")
     codebuddy_install(tmp_path)
     content = (tmp_path / "CODEBUDDY.md").read_text()
@@ -522,6 +527,7 @@ def test_codebuddy_install_merges_existing_codebuddy_md(tmp_path):
 
 def test_codebuddy_uninstall_removes_section(tmp_path):
     from graphify.__main__ import codebuddy_install, codebuddy_uninstall
+
     codebuddy_install(tmp_path)
     codebuddy_uninstall(tmp_path)
     md = tmp_path / "CODEBUDDY.md"
@@ -531,6 +537,7 @@ def test_codebuddy_uninstall_removes_section(tmp_path):
 def test_codebuddy_uninstall_removes_hook(tmp_path):
     import json as _json
     from graphify.__main__ import codebuddy_install, codebuddy_uninstall
+
     codebuddy_install(tmp_path)
     codebuddy_uninstall(tmp_path)
     settings_path = tmp_path / ".codebuddy" / "settings.json"
@@ -542,6 +549,7 @@ def test_codebuddy_uninstall_removes_hook(tmp_path):
 
 def test_codebuddy_uninstall_noop_if_not_installed(tmp_path):
     from graphify.__main__ import codebuddy_uninstall
+
     codebuddy_uninstall(tmp_path)  # should not raise
 
 
@@ -710,9 +718,14 @@ def test_codex_agents_install_writes_agents_md(tmp_path):
     assert "graphify" in content
     assert "GRAPH_REPORT.md" in content
     assert "graphify update ." in content
-    assert "graphify extract . --backend ollama --model kimi-k2.7-code:cloud" in content
-    assert "graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud" in content
-    assert "Mase explicitly authorizes use of the Ollama cloud model above" in content
+    assert "graphify extract . --backend ollama`" in content
+    assert "graphify cluster-only . --backend ollama`" in content
+    assert "--model kimi-k2.7-code:cloud" not in content
+    assert (
+        "Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then Graphify's built-in Kimi default."
+        in content
+    )
+    assert "Mase explicitly authorizes use of the configured Ollama backend" in content
     assert "does not authorize unrelated third-party uploads" in content
     assert "refresh the wiki" in content
     assert "graphify export wiki --graph graphify-out/graph.json" not in content

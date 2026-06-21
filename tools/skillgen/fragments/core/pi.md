@@ -1,7 +1,4 @@
----
-name: graphify
-description: "Use for any question about a codebase, its architecture, file relationships, or project content — especially when graphify-out/ exists, where the question should be treated as a graphify query first. Turns any input (code, docs, papers, images, videos) into a persistent knowledge graph with god nodes, community detection, and query/path/explain tools."
----
+@@FRONTMATTER@@
 
 # /graphify
 
@@ -64,45 +61,7 @@ Only when the path is one or more `https://github.com/...` URLs, or several loca
 
 ### Step 1 - Ensure graphify is installed
 
-```bash
-# Detect the correct Python interpreter (handles uv tool, pipx, venv, system installs)
-PYTHON=""
-GRAPHIFY_BIN=$(which graphify 2>/dev/null)
-# 1. uv tool installs — most reliable on modern Mac/Linux
-if [ -z "$PYTHON" ] && command -v uv >/dev/null 2>&1; then
-    _UV_PY=$(uv tool run --from graphifyy python -c "import sys; print(sys.executable)" 2>/dev/null)
-    if [ -n "$_UV_PY" ]; then PYTHON="$_UV_PY"; fi
-fi
-# 2. Read shebang from graphify binary (pipx and direct pip installs)
-if [ -z "$PYTHON" ] && [ -n "$GRAPHIFY_BIN" ]; then
-    _SHEBANG=$(head -1 "$GRAPHIFY_BIN" | tr -d '#!')
-    case "$_SHEBANG" in
-        *[!a-zA-Z0-9/_.@-]*) ;;
-        *) "$_SHEBANG" -c "import graphify" 2>/dev/null && PYTHON="$_SHEBANG" ;;
-    esac
-fi
-# 3. Fall back to python3
-if [ -z "$PYTHON" ]; then PYTHON="python3"; fi
-if ! "$PYTHON" -c "import graphify" 2>/dev/null; then
-    if command -v uv >/dev/null 2>&1; then
-        uv tool install --upgrade graphifyy -q 2>&1 | tail -3
-        _UV_PY=$(uv tool run --from graphifyy python -c "import sys; print(sys.executable)" 2>/dev/null)
-        if [ -n "$_UV_PY" ]; then PYTHON="$_UV_PY"; fi
-    else
-        "$PYTHON" -m pip install graphifyy -q 2>/dev/null \
-          || "$PYTHON" -m pip install graphifyy -q --break-system-packages 2>&1 | tail -3
-    fi
-fi
-# Write interpreter path for all subsequent steps (persists across invocations)
-mkdir -p graphify-out
-"$PYTHON" -c "import sys; open('graphify-out/.graphify_python', 'w', encoding='utf-8').write(sys.executable)"
-# Save scan root so `graphify update` (no args) knows where to look next time
-echo "$(cd INPUT_PATH && pwd)" > graphify-out/.graphify_root
-```
-
-If the import succeeds, print nothing and move straight to Step 2.
-
-**In every subsequent bash block, replace `python3` with `$(cat graphify-out/.graphify_python)` to use the correct interpreter.**
+@@INSTALL@@
 
 ### Step 2 - Detect files
 
@@ -132,7 +91,7 @@ Omit any category with 0 files from the summary.
 Then act on it:
 
 - If `total_files` is 0: stop with "No supported files found in [path]."
-- If `skipped_sensitive` is non-empty: report the count and list the skipped file names, so a wrongly-flagged source or doc is visible and can be renamed or moved (#2106).
+- If `skipped_sensitive` is non-empty: mention file count skipped, not the file names.
 - If `total_words` > 2,000,000 OR `total_files` > 500: show the warning. Then compute the top 5 first-level subdirectories by file count:
   - Read `scan_root` from the detect JSON (always an absolute path to the resolved INPUT_PATH).
   - Concatenate all file lists across all types (`code`, `document`, `paper`, `image`, `video`).
@@ -324,13 +283,7 @@ Both are non-default subcommands. `--update` re-extracts only new or changed fil
 
 ## For /graphify query
 
-When `graphify-out/graph.json` already exists and the user asks a question about the corpus, answer from the graph rather than rebuilding it:
-
-```bash
-graphify query "<question>"
-```
-
-Before traversal, expand the question against the graph's own vocabulary so a wording mismatch does not collapse the answer to noise. If the `graphify query` CLI is unavailable, fall back to an inline NetworkX traversal of `graphify-out/graph.json`. Answer using only what the graph output contains, and quote `source_location` when citing a specific fact. For that vocab-expansion step, the BFS/DFS traversal modes, the `--budget` cap, the NetworkX fallback, `save-result` feedback, and the `/graphify path` and `/graphify explain` flows, see `references/query.md`.
+@@QUERY_STUB@@
 
 ---
 
@@ -340,13 +293,13 @@ Neither is part of the default build. When the user runs `/graphify add <url>` t
 
 ---
 
-## For the commit hook and native CLAUDE.md integration
+## For the commit hook and native @@HOOKS_TARGET@@ integration
 
-When the user asks to install the post-commit auto-rebuild hook or wire graphify into a project's CLAUDE.md, see `references/hooks.md`.
+When the user asks to install the post-commit auto-rebuild hook or wire graphify into a project's @@HOOKS_TARGET@@, see `references/hooks.md`.
 
 ---
 
-## Honesty Rules
+@@EXTRA@@## Honesty Rules
 
 - Never invent an edge. If unsure, use AMBIGUOUS.
 - Never skip the corpus check warning.

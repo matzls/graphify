@@ -326,10 +326,11 @@ The local Git hooks are active when installed. They refresh code graph outputs
 after commits and branch switches. After commits, docs/media/image changes
 write `graphify-out/needs_update`; they do not semantically refresh until
 the backend semantic pipeline runs. Use native CLI `graphify update .` for
-cheap code-only refreshes, then run `graphify extract . --backend ollama
---model kimi-k2.7-code:cloud`, `graphify cluster-only . --backend ollama --model
-kimi-k2.7-code:cloud` when docs/media/image relationships matter. `cluster-only`
-relabels communities and refreshes `graphify-out/wiki/` by default.
+cheap code-only refreshes, then run `graphify extract . --backend ollama` and
+`graphify cluster-only . --backend ollama` when docs/media/image relationships
+matter. Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then
+Graphify's built-in Kimi default. `cluster-only` relabels communities and
+refreshes `graphify-out/wiki/` by default.
 
 ## Adoption Audit And Propagation
 
@@ -349,7 +350,7 @@ Apply remains explicit and re-runs the audit before mutating selected repos:
 
 ```bash
 graphify adoption apply --root /Users/mase/Codebase --scope adopted --local
-graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama --model kimi-k2.7-code:cloud
+graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama
 ```
 
 `--local` is for cheap repo-local fixes such as managed guidance, Codex
@@ -359,14 +360,15 @@ semantic refresh and then `cluster-only`/wiki refresh. The scanner skips the
 Graphify fork itself by default and skips dirty source/config repos unless the
 operator passes an explicit dirty override.
 
-Current model decision: use `kimi-k2.7-code:cloud` as the interim Ollama Cloud
-semantic model because the 2026-06-14 semantic harness favored it over
-`minimax-m3:cloud` on concept recall and relation specificity. Keep the possible
-hybrid ensemble — Kimi as primary concept extractor plus Minimax as secondary
-edge augmenter — documented but inactive. Do not implement or run that hybrid
-workflow unless later benchmark evidence shows it is needed; if Qwen or another
-candidate clearly beats Kimi on the prioritized dimensions, prefer the stronger
-single model instead.
+Current model decision: keep `kimi-k2.7-code:cloud` as Graphify's built-in
+Ollama default because the 2026-06-14 semantic harness favored it over
+`minimax-m3:cloud` on concept recall and relation specificity. Routine commands
+should omit `--model` so explicit user flags and `OLLAMA_MODEL` can override the
+default. Keep the possible hybrid ensemble — Kimi as primary concept extractor
+plus Minimax as secondary edge augmenter — documented but inactive. Do not
+implement or run that hybrid workflow unless later benchmark evidence shows it
+is needed; if Qwen or another candidate clearly beats Kimi on the prioritized
+dimensions, prefer the stronger single model instead.
 
 ## Codex Guidance Rules
 
@@ -395,8 +397,8 @@ extract semantic graph content. Semantic refreshes must run through the backend
 CLI pipeline:
 
 ```bash
-graphify extract . --backend ollama --model kimi-k2.7-code:cloud
-graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud
+graphify extract . --backend ollama
+graphify cluster-only . --backend ollama
 ```
 
 If Codex blocks that cloud semantic refresh as private-data export, use the

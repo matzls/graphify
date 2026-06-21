@@ -1,6 +1,7 @@
 """Tests for `graphify extract` CLI dispatch path in graphify.__main__."""
 from __future__ import annotations
 
+import json
 import os
 
 import pytest
@@ -1104,3 +1105,135 @@ def test_cache_check_prompt_file_scopes_hits_to_that_prompt(monkeypatch, tmp_pat
     os.utime(spec, ns=(0, 0))
     _run_extract(monkeypatch, base + ["--prompt-file", str(spec)])
     assert "Cache: 0 hit, 1 miss" in capsys.readouterr().out
+
+
+def test_extract_directed_writes_directed_graph(monkeypatch, tmp_path):
+    corpus = _code_only_corpus(tmp_path)
+    out_dir = tmp_path / "out"
+    _clear_backend_keys(monkeypatch)
+    monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
+    monkeypatch.setattr(
+        mainmod.sys,
+        "argv",
+        ["graphify", "extract", str(corpus), "--out", str(out_dir), "--directed"],
+    )
+
+    try:
+        mainmod.main()
+    except SystemExit as exc:
+        assert exc.code in (None, 0), f"unexpected exit code {exc.code}"
+
+    graph = json.loads((out_dir / "graphify-out" / "graph.json").read_text())
+    assert graph["directed"] is True
+
+
+def test_extract_transcribes_video_before_semantic_extraction(monkeypatch, tmp_path):
+    media = tmp_path / "meeting.mp3"
+    media.write_bytes(b"fake audio")
+    out_dir = tmp_path / "out"
+    transcript = out_dir / "graphify-out" / "transcripts" / "meeting.txt"
+    seen: dict[str, object] = {}
+
+    def fake_transcribe(path, *, output_dir=None, initial_prompt=None):
+        seen["video"] = str(path)
+        seen["output_dir"] = output_dir
+        seen["prompt"] = initial_prompt
+        transcript.parent.mkdir(parents=True, exist_ok=True)
+        transcript.write_text("Meeting transcript about Graphify.", encoding="utf-8")
+        return transcript
+
+    def fake_extract(paths, **kwargs):
+        seen["semantic_paths"] = [str(p) for p in paths]
+        return {
+            "nodes": [
+                {
+                    "id": "meeting_transcript",
+                    "label": "Meeting Transcript",
+                    "file_type": "document",
+                    "source_file": str(transcript),
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 12,
+            "output_tokens": 6,
+            "failed_chunks": 0,
+            "total_chunks": 1,
+        }
+
+    monkeypatch.setattr("graphify.transcribe.transcribe", fake_transcribe)
+    monkeypatch.setattr("graphify.llm.extract_corpus_parallel", fake_extract)
+    monkeypatch.setattr("graphify.llm.validate_backend_dependencies", lambda _: None)
+    monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
+    monkeypatch.setattr(
+        mainmod.sys,
+        "argv",
+        [
+            "graphify",
+            "extract",
+            str(tmp_path),
+            "--backend",
+            "ollama",
+            "--out",
+            str(out_dir),
+            "--whisper-model",
+            "tiny",
+        ],
+    )
+
+    try:
+        mainmod.main()
+    except SystemExit as exc:
+        assert exc.code in (None, 0), f"unexpected exit code {exc.code}"
+
+    assert seen["video"] == str(media)
+    semantic_paths = seen.get("semantic_paths")
+    assert isinstance(semantic_paths, list)
+    assert str(transcript) in semantic_paths
+    assert (out_dir / "graphify-out" / "graph.json").exists()
+    cost = json.loads((out_dir / "graphify-out" / "cost.json").read_text())
+    assert cost["runs"][-1]["input_tokens"] == 12
+    assert cost["runs"][-1]["output_tokens"] == 6
+
+
+def test_extract_warns_when_image_backend_is_not_vision_configured(
+    monkeypatch, tmp_path, capsys
+):
+    image = tmp_path / "diagram.png"
+    image.write_bytes(b"fake png")
+    out_dir = tmp_path / "out"
+
+    def fake_extract(paths, **kwargs):
+        return {
+            "nodes": [
+                {
+                    "id": "diagram",
+                    "label": "Diagram",
+                    "file_type": "image",
+                    "source_file": "diagram.png",
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "failed_chunks": 0,
+            "total_chunks": 1,
+        }
+
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_VISION", raising=False)
+    monkeypatch.setattr("graphify.llm.extract_corpus_parallel", fake_extract)
+    monkeypatch.setattr("graphify.llm.validate_backend_dependencies", lambda _: None)
+    monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
+    monkeypatch.setattr(
+        mainmod.sys,
+        "argv",
+        ["graphify", "extract", str(tmp_path), "--backend", "ollama", "--out", str(out_dir)],
+    )
+
+    try:
+        mainmod.main()
+    except SystemExit as exc:
+        assert exc.code in (None, 0), f"unexpected exit code {exc.code}"
+
+    assert "not configured for vision" in capsys.readouterr().err

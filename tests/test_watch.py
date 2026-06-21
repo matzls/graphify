@@ -1,16 +1,18 @@
 """Tests for watch.py - file watcher helpers (no watchdog required)."""
+
 import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-import pytest
+import pytest  # type: ignore[reportMissingImports]
 
 from graphify.watch import _notify_only, _WATCHED_EXTENSIONS, _rebuild_lock, _check_shrink
 
 
 # --- _notify_only ---
+
 
 def test_notify_only_creates_flag(tmp_path):
     _notify_only(tmp_path)
@@ -18,11 +20,13 @@ def test_notify_only_creates_flag(tmp_path):
     assert flag.exists()
     assert flag.read_text() == "1"
 
+
 def test_notify_only_creates_flag_dir(tmp_path):
     # graphify-out dir does not exist yet
     assert not (tmp_path / "graphify-out").exists()
     _notify_only(tmp_path)
     assert (tmp_path / "graphify-out").is_dir()
+
 
 def test_notify_only_idempotent(tmp_path):
     _notify_only(tmp_path)
@@ -33,20 +37,24 @@ def test_notify_only_idempotent(tmp_path):
 
 # --- _WATCHED_EXTENSIONS ---
 
+
 def test_watched_extensions_includes_code():
     assert ".py" in _WATCHED_EXTENSIONS
     assert ".ts" in _WATCHED_EXTENSIONS
     assert ".go" in _WATCHED_EXTENSIONS
     assert ".rs" in _WATCHED_EXTENSIONS
 
+
 def test_watched_extensions_includes_docs():
     assert ".md" in _WATCHED_EXTENSIONS
     assert ".txt" in _WATCHED_EXTENSIONS
     assert ".pdf" in _WATCHED_EXTENSIONS
 
+
 def test_watched_extensions_includes_images():
     assert ".png" in _WATCHED_EXTENSIONS
     assert ".jpg" in _WATCHED_EXTENSIONS
+
 
 def test_watched_extensions_excludes_noise():
     # .json is now indexed (bash/JSON extractors added in #866)
@@ -58,15 +66,18 @@ def test_watched_extensions_excludes_noise():
 
 # --- watch() import error without watchdog ---
 
+
 def test_check_update_no_flag_returns_true(tmp_path):
     """check_update returns True and is silent when needs_update flag is absent."""
     from graphify.watch import check_update
+
     assert check_update(tmp_path) is True
 
 
 def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
     """check_update returns True and prints notification when flag exists."""
     from graphify.watch import check_update
+
     flag = tmp_path / "graphify-out" / "needs_update"
     flag.parent.mkdir(parents=True, exist_ok=True)
     flag.write_text("1")
@@ -74,8 +85,10 @@ def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
     assert result is True
     out = capsys.readouterr().out
     assert "native CLI `graphify update .`" in out
-    assert "graphify extract . --backend ollama --model kimi-k2.7-code:cloud" in out
-    assert "graphify cluster-only . --backend ollama --model kimi-k2.7-code:cloud" in out
+    assert "graphify extract . --backend ollama" in out
+    assert "graphify cluster-only . --backend ollama" in out
+    assert "--model kimi-k2.7-code:cloud" not in out
+    assert "model: --model > OLLAMA_MODEL > built-in default" in out
     assert "refresh the wiki" in out
     assert "graphify export wiki --graph graphify-out/graph.json" not in out
     assert "/graphify . --update" not in out
@@ -84,6 +97,7 @@ def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
 def test_check_update_does_not_clear_flag(tmp_path):
     """check_update never removes the needs_update flag (clearing is LLM's job)."""
     from graphify.watch import check_update
+
     flag = tmp_path / "graphify-out" / "needs_update"
     flag.parent.mkdir(parents=True, exist_ok=True)
     flag.write_text("1")
@@ -93,6 +107,7 @@ def test_check_update_does_not_clear_flag(tmp_path):
 
 def test_watch_raises_without_watchdog(tmp_path, monkeypatch):
     import builtins
+
     real_import = builtins.__import__
 
     def mock_import(name, *args, **kwargs):
@@ -103,6 +118,7 @@ def test_watch_raises_without_watchdog(tmp_path, monkeypatch):
     monkeypatch.setattr(builtins, "__import__", mock_import)
 
     from graphify.watch import watch
+
     with pytest.raises(ImportError, match="watchdog not installed"):
         watch(tmp_path)
 
@@ -160,9 +176,7 @@ def test_graphify_root_preserves_relative_when_invoked_with_relative_path(tmp_pa
     assert _rebuild_code(Path("."), acquire_lock=False) is True
 
     saved = (corpus / "graphify-out" / ".graphify_root").read_text(encoding="utf-8")
-    assert saved == ".", (
-        f".graphify_root must preserve the user-supplied path; got {saved!r}"
-    )
+    assert saved == ".", f".graphify_root must preserve the user-supplied path; got {saved!r}"
 
 
 def test_rebuild_code_writes_community_name(tmp_path):
@@ -313,9 +327,7 @@ def test_graphify_root_preserves_absolute_when_user_supplied(tmp_path):
     assert _rebuild_code(corpus, acquire_lock=False) is True
 
     saved = (corpus / "graphify-out" / ".graphify_root").read_text(encoding="utf-8")
-    assert saved == str(corpus), (
-        f"absolute caller path must be preserved as-is; got {saved!r}"
-    )
+    assert saved == str(corpus), f"absolute caller path must be preserved as-is; got {saved!r}"
 
 
 def test_rebuild_code_deleted_cwd_without_repo_root_returns_false(tmp_path, monkeypatch, capsys):
@@ -377,12 +389,8 @@ def test_rebuild_code_evicts_nodes_from_deleted_files(tmp_path):
     corpus = tmp_path / "corpus"
     corpus.mkdir()
 
-    (corpus / "auth.py").write_text(
-        "def login(): pass\ndef logout(): pass\n", encoding="utf-8"
-    )
-    (corpus / "utils.py").write_text(
-        "def format_date(): pass\n", encoding="utf-8"
-    )
+    (corpus / "auth.py").write_text("def login(): pass\ndef logout(): pass\n", encoding="utf-8")
+    (corpus / "utils.py").write_text("def format_date(): pass\n", encoding="utf-8")
 
     assert _rebuild_code(corpus, acquire_lock=False) is True
     graph_path = corpus / "graphify-out" / "graph.json"
@@ -395,7 +403,9 @@ def test_rebuild_code_evicts_nodes_from_deleted_files(tmp_path):
     assert _rebuild_code(corpus, acquire_lock=False) is True
     data = json.loads(graph_path.read_text(encoding="utf-8"))
     node_labels_after = {n["label"] for n in data.get("nodes", [])}
-    assert "format_date()" not in node_labels_after, "stale function node from deleted file must be evicted"
+    assert "format_date()" not in node_labels_after, (
+        "stale function node from deleted file must be evicted"
+    )
     assert "login()" in node_labels_after, "nodes from surviving file must be kept"
 
 
@@ -687,9 +697,7 @@ def test_rebuild_code_evicts_removed_symbol_from_surviving_file(tmp_path):
     corpus = tmp_path / "corpus"
     corpus.mkdir()
 
-    (corpus / "a.py").write_text(
-        "def foo(): pass\ndef bar(): pass\n", encoding="utf-8"
-    )
+    (corpus / "a.py").write_text("def foo(): pass\ndef bar(): pass\n", encoding="utf-8")
     (corpus / "b.py").write_text(
         "from a import foo\n\ndef caller():\n    foo()\n", encoding="utf-8"
     )
@@ -711,20 +719,21 @@ def test_rebuild_code_evicts_removed_symbol_from_surviving_file(tmp_path):
     assert {"foo()", "bar()", "caller()"} <= before
     foo_id = id_for(data, "foo()")
     caller_id = id_for(data, "caller()")
-    assert any(
-        {e.get("source"), e.get("target")} == {caller_id, foo_id}
-        for e in edges(data)
-    ), "cross-file caller->foo call edge must exist before removal"
+    assert any({e.get("source"), e.get("target")} == {caller_id, foo_id} for e in edges(data)), (
+        "cross-file caller->foo call edge must exist before removal"
+    )
 
     # Pre-seed a semantic node on the surviving a.py (no AST id, no _origin
     # marker). A naive "evict every re-extracted file's nodes by source_file"
     # fix would wrongly delete this; the identity-based fix must keep it.
-    data["nodes"].append({
-        "id": "a_authconcept",
-        "label": "AuthConcept",
-        "file_type": "concept",
-        "source_file": "a.py",
-    })
+    data["nodes"].append(
+        {
+            "id": "a_authconcept",
+            "label": "AuthConcept",
+            "file_type": "concept",
+            "source_file": "a.py",
+        }
+    )
     graph_path.write_text(json.dumps(data), encoding="utf-8")
 
     # Remove foo() from a.py (keep bar); leave b.py untouched.
@@ -739,8 +748,7 @@ def test_rebuild_code_evicts_removed_symbol_from_surviving_file(tmp_path):
 
     assert "foo()" not in after, "removed symbol must be pruned from surviving file"
     assert not any(
-        e.get("source") == foo_id or e.get("target") == foo_id
-        for e in edges(after_data)
+        e.get("source") == foo_id or e.get("target") == foo_id for e in edges(after_data)
     ), "dangling edge to the removed symbol must be dropped"
     assert "bar()" in after, "surviving symbol in the same file must be kept"
     assert "caller()" in after, "unchanged file's nodes must be kept"
@@ -773,12 +781,14 @@ def test_rebuild_code_preupgrade_marker_less_node_one_cycle_lag(tmp_path):
     # marker-less, exactly as a pre-upgrade graph would carry it.
     for n in data["nodes"]:
         n.pop("_origin", None)
-    data["nodes"].append({
-        "id": "a_foo",
-        "label": "foo()",
-        "file_type": "function",
-        "source_file": "a.py",
-    })
+    data["nodes"].append(
+        {
+            "id": "a_foo",
+            "label": "foo()",
+            "file_type": "function",
+            "source_file": "a.py",
+        }
+    )
     graph_path.write_text(json.dumps(data), encoding="utf-8")
 
     # First update after "upgrade" (full rebuild, no changed_paths): the stale
@@ -800,8 +810,7 @@ def test_rebuild_code_preupgrade_marker_less_node_one_cycle_lag(tmp_path):
     assert _rebuild_code(corpus, acquire_lock=False, force=True) is True
     healed = json.loads(graph_path.read_text(encoding="utf-8"))
     assert "foo()" not in labels(healed), (
-        "once carrying _origin=ast, the stale node is pruned on the next "
-        "update (self-heal)"
+        "once carrying _origin=ast, the stale node is pruned on the next update (self-heal)"
     )
     assert "bar()" in labels(healed), "surviving symbol must be kept throughout"
 
@@ -826,7 +835,9 @@ def test_rebuild_code_is_idempotent_when_cluster_ids_flap(tmp_path, monkeypatch)
     from graphify.watch import _rebuild_code
 
     src = tmp_path / "app.py"
-    src.write_text("def alpha():\n    return 1\n\ndef beta():\n    return alpha()\n", encoding="utf-8")
+    src.write_text(
+        "def alpha():\n    return 1\n\ndef beta():\n    return alpha()\n", encoding="utf-8"
+    )
 
     calls = {"n": 0}
 
@@ -859,7 +870,9 @@ def test_rebuild_code_skips_cluster_when_topology_unchanged(tmp_path, monkeypatc
     from graphify.watch import _rebuild_code
 
     src = tmp_path / "app.py"
-    src.write_text("def alpha():\n    return 1\n\ndef beta():\n    return alpha()\n", encoding="utf-8")
+    src.write_text(
+        "def alpha():\n    return 1\n\ndef beta():\n    return alpha()\n", encoding="utf-8"
+    )
 
     calls = {"n": 0}
 
@@ -882,7 +895,8 @@ def test_rebuild_code_skips_cluster_when_topology_unchanged(tmp_path, monkeypatc
 
 def _watchdog_available() -> bool:
     try:
-        import watchdog  # noqa: F401
+        import watchdog  # type: ignore[reportMissingImports]  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -959,7 +973,9 @@ def test_watch_loads_graphifyignore_once(tmp_path, monkeypatch):
     monkeypatch.setattr(watch_mod, "_rebuild_code", lambda p, **kw: True)
     monkeypatch.setattr(watch_mod, "_notify_only", lambda p: None)
 
-    t = threading.Thread(target=watch_mod.watch, args=(tmp_path,), kwargs={"debounce": 0.2}, daemon=True)
+    t = threading.Thread(
+        target=watch_mod.watch, args=(tmp_path,), kwargs={"debounce": 0.2}, daemon=True
+    )
     t.start()
     time.sleep(0.5)
 
@@ -971,6 +987,7 @@ def test_watch_loads_graphifyignore_once(tmp_path, monkeypatch):
 
 
 # --- _check_shrink: silent-corruption guard with explicit-deletion bypass ---
+
 
 def _shrink_payload(n: int) -> dict:
     """Build a minimal graph-data dict with *n* placeholder nodes."""
@@ -1097,6 +1114,7 @@ def test_check_shrink_keeps_tmp_when_deletions_declared(tmp_path):
 
 # --- _rebuild_code integration: post-commit delete scenario ---
 
+
 @pytest.mark.skipif(sys.platform == "win32", reason="git CLI behaviour varies on Windows runners")
 def test_rebuild_code_prunes_deleted_file_nodes(tmp_path):
     """End-to-end probe of the post-commit-delete bug fix.
@@ -1175,13 +1193,16 @@ def test_rebuild_code_accepts_repo_relative_changed_path_for_subdir_root(tmp_pat
         assert "old_name()" in {n.get("label") for n in before.get("nodes", [])}
 
         app.write_text("def new_name():\n    return 2\n", encoding="utf-8")
-        assert _rebuild_code(
-            Path("src"),
-            changed_paths=[Path("src/app.py")],
-            no_cluster=True,
-            acquire_lock=False,
-            force=True,
-        ) is True
+        assert (
+            _rebuild_code(
+                Path("src"),
+                changed_paths=[Path("src/app.py")],
+                no_cluster=True,
+                acquire_lock=False,
+                force=True,
+            )
+            is True
+        )
 
         after = json.loads(graph_path.read_text(encoding="utf-8"))
         labels = {n.get("label") for n in after.get("nodes", [])}
@@ -1426,7 +1447,9 @@ def test_queue_and_drain_pending_round_trip(tmp_path):
     assert pending_file.exists()
     # Each path written on its own line.
     assert pending_file.read_text(encoding="utf-8").splitlines() == [
-        "a.py", "sub/b.py", "c.md",
+        "a.py",
+        "sub/b.py",
+        "c.md",
     ]
 
     drained = _drain_pending(out)
