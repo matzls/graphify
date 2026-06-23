@@ -411,3 +411,104 @@ def test_candidate_apply_requires_explicit_target_for_semantic_bootstrap(
     rendered = [" ".join(c) for c in calls]
     assert any("extract . --backend ollama" in c for c in rendered)
     assert not any("--model" in c for c in rendered)
+
+
+def test_safe_ollama_apply_adds_bounded_extract_flags_and_graphifyignore(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    repo = _init_repo(tmp_path / "safe")
+    _write_graph(repo, wiki=True, stale=True)
+    _write_managed_guidance(repo)
+    _write_hooks(repo)
+    _commit_all(repo)
+
+    calls: list[tuple[tuple[str, ...], dict[str, str] | None]] = []
+
+    def fake_run(args: list[str], *, cwd: Path, env: dict[str, str] | None = None):
+        calls.append((tuple(args), env))
+        return True, "ok"
+
+    monkeypatch.setattr(adoption, "_run_command", fake_run)
+    results = adoption.apply(
+        adoption.ApplyOptions(root=tmp_path, semantic=True, safe_ollama=True)
+    )
+
+    assert results[0].status == "applied"
+    rendered = [" ".join(args) for args, _env in calls]
+    assert any(
+        "extract . --backend ollama --token-budget 3000 --max-concurrency 1 "
+        "--api-timeout 420 --llm-trace" in command
+        for command in rendered
+    )
+    extract_env = next(env for args, env in calls if "extract" in args)
+    assert extract_env == {"GRAPHIFY_MAX_OUTPUT_TOKENS": "4096"}
+    graphifyignore = (repo / ".graphifyignore").read_text(encoding="utf-8")
+    assert "node_modules/" in graphifyignore
+    assert ".agents/" in graphifyignore
+    assert "graphify-out/" in (repo / ".gitignore").read_text(encoding="utf-8")
+
+
+def test_propagate_routes_adopted_and_candidate_targets_with_activation_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    adopted = _init_repo(tmp_path / "adopted")
+    _write_graph(adopted, wiki=True, stale=True)
+    _write_managed_guidance(adopted)
+    _write_hooks(adopted)
+    _commit_all(adopted)
+
+    candidate = _init_repo(tmp_path / "candidate")
+    (candidate / "pyproject.toml").write_text("[project]\nname='candidate'\n", encoding="utf-8")
+    _commit_all(candidate)
+
+    calls: list[tuple[str, ...]] = []
+
+    def fake_run(args: list[str], *, cwd: Path, env: dict[str, str] | None = None):
+        calls.append(tuple(args))
+        if "codex-session-start" in args:
+            return True, "{}"
+        return True, "ok"
+
+    monkeypatch.setattr(adoption, "_run_command", fake_run)
+    result = adoption.run_cli(
+        [
+            "propagate",
+            "--root",
+            str(tmp_path),
+            "--adopted",
+            "adopted",
+            "--candidates",
+            "candidate",
+            "--exclude",
+            "skip-me",
+            "--local",
+            "--semantic",
+            "--backend",
+            "ollama",
+            "--safe-ollama",
+            "--verify-activation",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert result == 0
+    assert "Graphify adoption propagate results" in captured.out
+    assert "Adopted targets:" in captured.out
+    assert "Candidate targets:" in captured.out
+    assert "Activation checks:" in captured.out
+    rendered = [" ".join(c) for c in calls]
+    assert any("codex reconcile --state active --apply" in c for c in rendered)
+    assert sum("extract . --backend ollama" in c for c in rendered) == 2
+    assert sum("codex-session-start" in c for c in rendered) == 2
+
+
+def test_propagate_rejects_selected_excluded_overlap(tmp_path: Path):
+    with pytest.raises(ValueError, match="overlap"):
+        adoption.propagate(
+            adoption.PropagateOptions(
+                root=tmp_path,
+                adopted_targets=["pm-agent-toolkit"],
+                exclude=["pm-agent-toolkit"],
+                local=True,
+            )
+        )

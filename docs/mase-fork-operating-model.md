@@ -353,12 +353,61 @@ graphify adoption apply --root /Users/mase/Codebase --scope adopted --local
 graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama
 ```
 
+For repeatable bounded batches that include adopted repos and explicit
+candidate bootstraps, prefer the workflow wrapper:
+
+```bash
+graphify adoption propagate \
+  --root /Users/mase/Codebase \
+  --adopted hushmail-agent-router,astral-sora-proto,gemini-embedding \
+  --candidates activecollab-mcp,astral-signal-hub,obsidian-agent,remote-coding-agent \
+  --exclude pm-agent-toolkit,maser-pm,get-shit-done \
+  --local \
+  --semantic \
+  --backend ollama \
+  --safe-ollama \
+  --verify-activation
+```
+
+In the Codex AppHarness, trigger this as a `/goal` whose instruction tells Codex
+to work from this fork checkout and run the module form:
+
+```text
+/goal Run the standard Graphify propagation routine from the fork checkout.
+
+Workdir:
+/Users/mase/Codebase/Personal-Projects/graphify
+
+Use:
+python3 -m graphify adoption propagate \
+  --root /Users/mase/Codebase \
+  --adopted hushmail-agent-router,astral-sora-proto,gemini-embedding \
+  --candidates activecollab-mcp,astral-signal-hub,obsidian-agent,remote-coding-agent \
+  --exclude pm-agent-toolkit,maser-pm,get-shit-done \
+  --local \
+  --semantic \
+  --backend ollama \
+  --safe-ollama \
+  --verify-activation
+
+Do not commit or push. Skip dirty repos. Report final audit status.
+```
+
+That `/goal` pattern is Codex App specific. It is not a PiHarness slash-command
+contract. Pi can run the same CLI from this checkout, but Pi should receive a
+normal task prompt or direct terminal command rather than Codex `/goal` syntax.
+
 `--local` is for cheap repo-local fixes such as managed guidance, Codex
 activation, hooks, code-only update, and wiki refresh from existing clean graph
 state. `--semantic` is the explicit approval to run the standard Ollama Cloud
 semantic refresh and then `cluster-only`/wiki refresh. The scanner skips the
 Graphify fork itself by default and skips dirty source/config repos unless the
 operator passes an explicit dirty override.
+
+`--safe-ollama` uses bounded semantic extraction defaults for multi-repo batches:
+single semantic concurrency, smaller per-chunk token budget, longer request
+timeout, safe trace output, bounded model output tokens, and a conservative
+`.graphifyignore` starter before semantic extraction.
 
 Current model decision: keep `kimi-k2.7-code:cloud` as Graphify's built-in
 Ollama default because the 2026-06-14 semantic harness favored it over

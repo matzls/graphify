@@ -77,6 +77,27 @@ SessionStart), and Mase's global guide at
 refreshes use the backend CLI pipeline or Pi handoff, not old Codex worker-only
 extraction assumptions.
 
+Codex AppHarness `/goal` can run the repeatable multi-repo propagation workflow
+by executing the CLI from this fork checkout:
+
+```bash
+cd /Users/mase/Codebase/Personal-Projects/graphify
+python3 -m graphify adoption propagate \
+  --root /Users/mase/Codebase \
+  --adopted hushmail-agent-router,astral-sora-proto,gemini-embedding \
+  --candidates activecollab-mcp,astral-signal-hub,obsidian-agent,remote-coding-agent \
+  --exclude pm-agent-toolkit,maser-pm,get-shit-done \
+  --local \
+  --semantic \
+  --backend ollama \
+  --safe-ollama \
+  --verify-activation
+```
+
+This is a Codex App operator pattern, not a Pi slash-command contract. Pi should
+run the same CLI command directly from this checkout, or receive a normal task
+prompt that tells it to run the CLI; do not assume Pi supports Codex `/goal`.
+
 For Pi, prefer one current global Graphify skill installed from this checkout's
 `graphify/skill-pi.md` into `~/.pi/agent/skills/graphify/SKILL.md`. Per-repo
 Graphify propagation should stay lightweight: `AGENTS.md`, `.codex/config.toml`,

@@ -387,6 +387,7 @@ graphify export callflow-html      # Mermaid architecture/call-flow HTML (auto-r
 graphify hook install              # auto-rebuild on git commit
 graphify adoption audit            # chat-native multi-repo adoption report + suggestions
 graphify adoption apply --scope adopted --local   # explicitly apply local adoption fixes
+graphify adoption propagate --adopted repo-a --candidates repo-b --local --semantic --backend ollama --safe-ollama
 graphify merge-graphs a.json b.json              # combine two graphs
 
 graphify prs                       # PR dashboard: CI state, review status, worktree mapping
@@ -779,6 +780,7 @@ graphify adoption audit --root /Users/mase/Codebase   # inline report: full/part
 graphify adoption audit --root /Users/mase/Codebase --json
 graphify adoption apply --root /Users/mase/Codebase --scope adopted --local
 graphify adoption apply --root /Users/mase/Codebase --scope adopted --semantic --backend ollama
+graphify adoption propagate --root /Users/mase/Codebase --adopted repo-a,repo-b --candidates repo-c --exclude repo-x --local --semantic --backend ollama --safe-ollama --verify-activation
 
 graphify prs                              # PR dashboard: CI, review, worktree, graph impact
 graphify prs 42                           # deep dive on PR #42
