@@ -24,6 +24,40 @@ DEFAULT_MASE_ROOT = Path("/Users/mase/Codebase")
 DEFAULT_SELF_PATH = Path("/Users/mase/Codebase/Personal-Projects/graphify")
 DEFAULT_BACKEND = "ollama"
 DEFAULT_MODEL: str | None = None
+SAFE_OLLAMA_TOKEN_BUDGET = 3000
+SAFE_OLLAMA_MAX_CONCURRENCY = 1
+SAFE_OLLAMA_API_TIMEOUT = 420.0
+SAFE_OLLAMA_MAX_OUTPUT_TOKENS = 4096
+
+DEFAULT_GRAPHIFYIGNORE_PATTERNS = (
+    ".git/",
+    ".hg/",
+    ".svn/",
+    ".venv/",
+    "venv/",
+    "__pycache__/",
+    ".cache/",
+    ".pytest_cache/",
+    ".mypy_cache/",
+    ".ruff_cache/",
+    "node_modules/",
+    "dist/",
+    "build/",
+    "coverage/",
+    "htmlcov/",
+    ".env",
+    ".env.*",
+    "*.log",
+    ".DS_Store",
+    "graphify-out/",
+)
+
+SAFE_OLLAMA_GRAPHIFYIGNORE_PATTERNS = DEFAULT_GRAPHIFYIGNORE_PATTERNS + (
+    ".agents/",
+    ".claude/",
+    ".archon/logs/",
+    ".archon/artifacts/",
+)
 
 PRUNE_DIRS = {
     ".git",
@@ -148,6 +182,67 @@ class ApplyOptions:
     model: str | None = DEFAULT_MODEL
     include_dirty: bool = False
     allow_dirty_graphify_out: bool = False
+    safe_ollama: bool = False
+    semantic_token_budget: int | None = None
+    semantic_max_concurrency: int | None = None
+    semantic_api_timeout: float | None = None
+    semantic_max_output_tokens: int | None = None
+    llm_trace: bool = False
+
+
+@dataclass
+class ActivationCheck:
+    repo: str
+    status: str
+    command: str = ""
+    message: str = ""
+
+    def to_dict(self) -> dict:
+        return {
+            "repo": self.repo,
+            "status": self.status,
+            "command": self.command,
+            "message": self.message,
+        }
+
+
+@dataclass
+class PropagateOptions:
+    root: Path
+    adopted_targets: list[str] = field(default_factory=list)
+    candidate_targets: list[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
+    local: bool = False
+    semantic: bool = False
+    backend: str = DEFAULT_BACKEND
+    model: str | None = DEFAULT_MODEL
+    include_dirty: bool = False
+    allow_dirty_graphify_out: bool = False
+    safe_ollama: bool = False
+    semantic_token_budget: int | None = None
+    semantic_max_concurrency: int | None = None
+    semantic_api_timeout: float | None = None
+    semantic_max_output_tokens: int | None = None
+    llm_trace: bool = False
+    verify_activation: bool = False
+
+
+@dataclass
+class PropagateResult:
+    root: str
+    adopted_results: list[ApplyResult] = field(default_factory=list)
+    candidate_results: list[ApplyResult] = field(default_factory=list)
+    activation_checks: list[ActivationCheck] = field(default_factory=list)
+    final_repos: list[RepoAdoption] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "root": self.root,
+            "adopted_results": [r.to_dict() for r in self.adopted_results],
+            "candidate_results": [r.to_dict() for r in self.candidate_results],
+            "activation_checks": [c.to_dict() for c in self.activation_checks],
+            "final_repos": [r.to_dict() for r in self.final_repos],
+        }
 
 
 @dataclass
@@ -391,6 +486,34 @@ def _ensure_graphify_out_ignored(repo: Path) -> None:
     prefix = "" if not existing or existing.endswith("\n") else "\n"
     separator = "" if not existing else "\n"
     ignore_path.write_text(existing + prefix + separator + addition, encoding="utf-8")
+
+
+def _graphifyignore_patterns(repo: Path) -> set[str]:
+    patterns: set[str] = set()
+    for line in _read_text(repo / ".graphifyignore").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        patterns.add(stripped)
+    return patterns
+
+
+def _ensure_graphifyignore(repo: Path, patterns: Sequence[str]) -> bool:
+    """Append conservative semantic-scan exclusions to .graphifyignore.
+
+    Returns True when the file changed.
+    """
+    existing_patterns = _graphifyignore_patterns(repo)
+    missing = [p for p in patterns if p not in existing_patterns]
+    if not missing:
+        return False
+    ignore_path = repo / ".graphifyignore"
+    existing = _read_text(ignore_path)
+    addition = "# Graphify semantic extraction defaults\n" + "\n".join(missing) + "\n"
+    prefix = "" if not existing or existing.endswith("\n") else "\n"
+    separator = "" if not existing else "\n"
+    ignore_path.write_text(existing + prefix + separator + addition, encoding="utf-8")
+    return True
 
 
 def _candidate_score(repo: Path) -> int:
@@ -697,14 +820,65 @@ def _module_command(*args: str) -> list[str]:
     return [sys.executable, "-m", "graphify", *args]
 
 
-def _run_command(args: list[str], *, cwd: Path) -> tuple[bool, str]:
-    result = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True, check=False)
+def _run_command(
+    args: list[str], *, cwd: Path, env: dict[str, str] | None = None
+) -> tuple[bool, str]:
+    run_env = None
+    if env:
+        run_env = os.environ.copy()
+        run_env.update(env)
+    result = subprocess.run(
+        args, cwd=str(cwd), env=run_env, capture_output=True, text=True, check=False
+    )
     output = "\n".join(part.strip() for part in (result.stdout, result.stderr) if part.strip())
     return result.returncode == 0, output[-2000:]
 
 
-def _append_cmd(commands: list[str], args: Sequence[str]) -> None:
-    commands.append(" ".join(args))
+def _append_cmd(
+    commands: list[str], args: Sequence[str], env: dict[str, str] | None = None
+) -> None:
+    prefix = ""
+    if env:
+        prefix = " ".join(f"{key}={value}" for key, value in sorted(env.items())) + " "
+    commands.append(prefix + " ".join(args))
+
+
+def _effective_safe_ollama(options: ApplyOptions) -> bool:
+    return options.safe_ollama and options.backend == "ollama"
+
+
+def _semantic_extract_command(options: ApplyOptions) -> tuple[list[str], dict[str, str]]:
+    cmd = _module_command("extract", ".", "--backend", options.backend)
+    if options.model:
+        cmd += ["--model", options.model]
+
+    token_budget = options.semantic_token_budget
+    max_concurrency = options.semantic_max_concurrency
+    api_timeout = options.semantic_api_timeout
+    max_output_tokens = options.semantic_max_output_tokens
+    llm_trace = options.llm_trace
+
+    if _effective_safe_ollama(options):
+        token_budget = token_budget or SAFE_OLLAMA_TOKEN_BUDGET
+        max_concurrency = max_concurrency or SAFE_OLLAMA_MAX_CONCURRENCY
+        api_timeout = api_timeout or SAFE_OLLAMA_API_TIMEOUT
+        max_output_tokens = max_output_tokens or SAFE_OLLAMA_MAX_OUTPUT_TOKENS
+        llm_trace = True
+
+    if token_budget is not None:
+        cmd += ["--token-budget", str(token_budget)]
+    if max_concurrency is not None:
+        cmd += ["--max-concurrency", str(max_concurrency)]
+    if api_timeout is not None:
+        timeout_text = str(int(api_timeout)) if float(api_timeout).is_integer() else str(api_timeout)
+        cmd += ["--api-timeout", timeout_text]
+    if llm_trace:
+        cmd += ["--llm-trace"]
+
+    env: dict[str, str] = {}
+    if max_output_tokens is not None:
+        env["GRAPHIFY_MAX_OUTPUT_TOKENS"] = str(max_output_tokens)
+    return cmd, env
 
 
 def apply(options: ApplyOptions) -> list[ApplyResult]:
@@ -712,6 +886,8 @@ def apply(options: ApplyOptions) -> list[ApplyResult]:
         raise ValueError("scope must be adopted, candidates, or all")
     if not options.local and not options.semantic:
         raise ValueError("apply requires --local and/or --semantic")
+    if options.safe_ollama and options.backend != "ollama":
+        raise ValueError("--safe-ollama requires --backend ollama")
 
     result = audit(options.root)
     selected = [r for r in result.repos if _is_selected(r, options)]
@@ -796,11 +972,28 @@ def apply(options: ApplyOptions) -> list[ApplyResult]:
                     continue
 
         if options.semantic and needs_semantic_refresh:
-            cmd = _module_command("extract", ".", "--backend", options.backend)
-            if options.model:
-                cmd += ["--model", options.model]
-            _append_cmd(commands, cmd)
-            ok, out = _run_command(cmd, cwd=repo_path)
+            try:
+                if not _graphify_out_ignored(repo_path):
+                    _ensure_graphify_out_ignored(repo_path)
+                    commands.append("ensure .gitignore ignores graphify-out/")
+                if _effective_safe_ollama(options):
+                    changed = _ensure_graphifyignore(
+                        repo_path, SAFE_OLLAMA_GRAPHIFYIGNORE_PATTERNS
+                    )
+                    if changed:
+                        commands.append("ensure .graphifyignore has safe Ollama defaults")
+            except OSError as exc:
+                outputs.append(
+                    ApplyResult(repo=repo.name, status="failed", commands=commands, message=str(exc))
+                )
+                continue
+
+            cmd, env = _semantic_extract_command(options)
+            _append_cmd(commands, cmd, env)
+            if env:
+                ok, out = _run_command(cmd, cwd=repo_path, env=env)
+            else:
+                ok, out = _run_command(cmd, cwd=repo_path)
             if not ok:
                 outputs.append(
                     ApplyResult(repo=repo.name, status="failed", commands=commands, message=out)
@@ -849,6 +1042,129 @@ def _cluster_command(options: ApplyOptions, *, label: bool) -> list[str]:
     return cmd
 
 
+def _apply_options_for(
+    options: PropagateOptions, *, scope: str, targets: list[str]
+) -> ApplyOptions:
+    return ApplyOptions(
+        root=options.root,
+        scope=scope,
+        targets=targets,
+        local=options.local,
+        semantic=options.semantic,
+        backend=options.backend or DEFAULT_BACKEND,
+        model=options.model,
+        include_dirty=options.include_dirty,
+        allow_dirty_graphify_out=options.allow_dirty_graphify_out,
+        safe_ollama=options.safe_ollama,
+        semantic_token_budget=options.semantic_token_budget,
+        semantic_max_concurrency=options.semantic_max_concurrency,
+        semantic_api_timeout=options.semantic_api_timeout,
+        semantic_max_output_tokens=options.semantic_max_output_tokens,
+        llm_trace=options.llm_trace,
+    )
+
+
+def _matches_target(repo: RepoAdoption, target: str) -> bool:
+    needle = target.strip()
+    return bool(needle) and (
+        repo.name == needle or repo.root == needle or needle in repo.root
+    )
+
+
+def _selected_final_repos(result: AdoptionAudit, targets: Sequence[str]) -> list[RepoAdoption]:
+    return [r for r in result.repos if any(_matches_target(r, t) for t in targets)]
+
+
+def _validate_propagate_options(options: PropagateOptions) -> None:
+    if not options.local and not options.semantic:
+        raise ValueError("propagate requires --local and/or --semantic")
+    if options.safe_ollama and options.backend != "ollama":
+        raise ValueError("--safe-ollama requires --backend ollama")
+
+    selected = options.adopted_targets + options.candidate_targets
+    if not selected:
+        raise ValueError("propagate requires --adopted and/or --candidates targets")
+
+    excluded = []
+    for target in selected:
+        if any(target == item or item in target or target in item for item in options.exclude):
+            excluded.append(target)
+    if excluded:
+        raise ValueError("selected targets overlap --exclude: " + ", ".join(excluded))
+
+
+def _verify_activation(root: Path, targets: Sequence[str]) -> list[ActivationCheck]:
+    audit_result = audit(root)
+    selected = _selected_final_repos(audit_result, targets)
+    checks: list[ActivationCheck] = []
+    for repo in selected:
+        cmd = _module_command("codex-session-start", repo.root)
+        rendered = " ".join(cmd)
+        ok, out = _run_command(cmd, cwd=Path(repo.root))
+        if not ok:
+            checks.append(
+                ActivationCheck(repo=repo.name, status="failed", command=rendered, message=out)
+            )
+            continue
+        try:
+            json.loads(out or "{}")
+        except json.JSONDecodeError:
+            checks.append(
+                ActivationCheck(
+                    repo=repo.name,
+                    status="failed",
+                    command=rendered,
+                    message="codex-session-start did not return JSON",
+                )
+            )
+            continue
+        checks.append(
+            ActivationCheck(repo=repo.name, status="verified", command=rendered, message="ok")
+        )
+    missing = [
+        t for t in targets if not any(_matches_target(repo, t) for repo in selected)
+    ]
+    for target in missing:
+        checks.append(
+            ActivationCheck(
+                repo=target,
+                status="skipped",
+                message="target not found in final audit",
+            )
+        )
+    return checks
+
+
+def propagate(options: PropagateOptions) -> PropagateResult:
+    _validate_propagate_options(options)
+
+    adopted_results: list[ApplyResult] = []
+    candidate_results: list[ApplyResult] = []
+
+    if options.adopted_targets:
+        adopted_results = apply(
+            _apply_options_for(options, scope="adopted", targets=options.adopted_targets)
+        )
+    if options.candidate_targets:
+        candidate_results = apply(
+            _apply_options_for(options, scope="candidates", targets=options.candidate_targets)
+        )
+
+    all_targets = options.adopted_targets + options.candidate_targets
+    activation_checks: list[ActivationCheck] = []
+    if options.verify_activation:
+        activation_checks = _verify_activation(options.root, all_targets)
+
+    final_audit = audit(options.root)
+    return PropagateResult(
+        root=str(options.root.expanduser().resolve()),
+        adopted_results=adopted_results,
+        candidate_results=candidate_results,
+        activation_checks=activation_checks,
+        final_repos=_selected_final_repos(final_audit, all_targets),
+    )
+
+
 def format_apply_results(results: list[ApplyResult]) -> str:
     lines = ["Graphify adoption apply results"]
     for r in results:
@@ -858,16 +1174,69 @@ def format_apply_results(results: list[ApplyResult]) -> str:
     return "\n".join(lines)
 
 
+def format_propagate_result(result: PropagateResult) -> str:
+    lines = ["Graphify adoption propagate results", f"Root: {result.root}"]
+    if result.adopted_results:
+        lines.append("")
+        lines.append("Adopted targets:")
+        for r in result.adopted_results:
+            lines.append(f"- {r.repo}: {r.status} — {r.message or 'ok'}")
+            for cmd in r.commands:
+                lines.append(f"    {cmd}")
+    if result.candidate_results:
+        lines.append("")
+        lines.append("Candidate targets:")
+        for r in result.candidate_results:
+            lines.append(f"- {r.repo}: {r.status} — {r.message or 'ok'}")
+            for cmd in r.commands:
+                lines.append(f"    {cmd}")
+    if result.activation_checks:
+        lines.append("")
+        lines.append("Activation checks:")
+        for check in result.activation_checks:
+            lines.append(f"- {check.repo}: {check.status} — {check.message or 'ok'}")
+            if check.command:
+                lines.append(f"    {check.command}")
+    if result.final_repos:
+        lines.append("")
+        lines.append("Final audit status:")
+        for repo in result.final_repos:
+            blockers = ", ".join(repo.blockers) if repo.blockers else "none"
+            lines.append(f"- {repo.name}: {repo.status} — blockers: {blockers}")
+    return "\n".join(lines)
+
+
 def _parse_csv(value: str | None) -> list[str]:
     if not value:
         return []
     return [v.strip() for v in value.split(",") if v.strip()]
 
 
+def _parse_positive_int(name: str, value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+    if parsed <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return parsed
+
+
+def _parse_positive_float(name: str, value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive number") from exc
+    if parsed <= 0:
+        raise ValueError(f"{name} must be a positive number")
+    return parsed
+
+
 def _usage() -> str:
     return """Usage:
   graphify adoption audit [--root PATH] [--json] [--verbose] [--repo NAME_OR_PATH]
-  graphify adoption apply [--root PATH] [--scope adopted|candidates|all] [--targets CSV] [--local] [--semantic] [--backend NAME] [--model NAME] [--include-dirty] [--allow-dirty-graphify-out]
+  graphify adoption apply [--root PATH] [--scope adopted|candidates|all] [--targets CSV] [--local] [--semantic] [--backend NAME] [--model NAME] [--safe-ollama] [--include-dirty] [--allow-dirty-graphify-out]
+  graphify adoption propagate [--root PATH] [--adopted CSV] [--candidates CSV] [--exclude CSV] [--local] [--semantic] [--backend NAME] [--model NAME] [--safe-ollama] [--verify-activation] [--json]
 """.rstrip()
 
 
@@ -927,6 +1296,12 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         model = DEFAULT_MODEL
         include_dirty = False
         allow_dirty_graph = False
+        safe_ollama = False
+        semantic_token_budget: int | None = None
+        semantic_max_concurrency: int | None = None
+        semantic_api_timeout: float | None = None
+        semantic_max_output_tokens: int | None = None
+        llm_trace = False
         i = 0
         while i < len(args):
             arg = args[i]
@@ -972,6 +1347,36 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             elif arg == "--allow-dirty-graphify-out":
                 allow_dirty_graph = True
                 i += 1
+            elif arg == "--safe-ollama":
+                safe_ollama = True
+                i += 1
+            elif arg == "--semantic-token-budget" and i + 1 < len(args):
+                semantic_token_budget = _parse_positive_int(arg, args[i + 1])
+                i += 2
+            elif arg.startswith("--semantic-token-budget="):
+                semantic_token_budget = _parse_positive_int(arg, arg.split("=", 1)[1])
+                i += 1
+            elif arg == "--semantic-max-concurrency" and i + 1 < len(args):
+                semantic_max_concurrency = _parse_positive_int(arg, args[i + 1])
+                i += 2
+            elif arg.startswith("--semantic-max-concurrency="):
+                semantic_max_concurrency = _parse_positive_int(arg, arg.split("=", 1)[1])
+                i += 1
+            elif arg == "--semantic-api-timeout" and i + 1 < len(args):
+                semantic_api_timeout = _parse_positive_float(arg, args[i + 1])
+                i += 2
+            elif arg.startswith("--semantic-api-timeout="):
+                semantic_api_timeout = _parse_positive_float(arg, arg.split("=", 1)[1])
+                i += 1
+            elif arg == "--semantic-max-output-tokens" and i + 1 < len(args):
+                semantic_max_output_tokens = _parse_positive_int(arg, args[i + 1])
+                i += 2
+            elif arg.startswith("--semantic-max-output-tokens="):
+                semantic_max_output_tokens = _parse_positive_int(arg, arg.split("=", 1)[1])
+                i += 1
+            elif arg == "--llm-trace":
+                llm_trace = True
+                i += 1
             elif arg in {"-h", "--help"}:
                 print(_usage())
                 return 0
@@ -995,6 +1400,12 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             model=model,
             include_dirty=include_dirty,
             allow_dirty_graphify_out=allow_dirty_graph,
+            safe_ollama=safe_ollama,
+            semantic_token_budget=semantic_token_budget,
+            semantic_max_concurrency=semantic_max_concurrency,
+            semantic_api_timeout=semantic_api_timeout,
+            semantic_max_output_tokens=semantic_max_output_tokens,
+            llm_trace=llm_trace,
         )
         try:
             results = apply(options)
@@ -1004,6 +1415,157 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
         print(format_apply_results(results))
         return 1 if any(r.status == "failed" for r in results) else 0
 
+    if subcmd == "propagate":
+        root = default_root()
+        adopted_targets: list[str] = []
+        candidate_targets: list[str] = []
+        exclude: list[str] = []
+        local = False
+        semantic = False
+        backend = DEFAULT_BACKEND
+        model = DEFAULT_MODEL
+        include_dirty = False
+        allow_dirty_graph = False
+        safe_ollama = False
+        semantic_token_budget: int | None = None
+        semantic_max_concurrency: int | None = None
+        semantic_api_timeout: float | None = None
+        semantic_max_output_tokens: int | None = None
+        llm_trace = False
+        verify_activation = False
+        as_json = False
+        i = 0
+        try:
+            while i < len(args):
+                arg = args[i]
+                if arg == "--root" and i + 1 < len(args):
+                    root = Path(args[i + 1])
+                    i += 2
+                elif arg.startswith("--root="):
+                    root = Path(arg.split("=", 1)[1])
+                    i += 1
+                elif arg == "--adopted" and i + 1 < len(args):
+                    adopted_targets = _parse_csv(args[i + 1])
+                    i += 2
+                elif arg.startswith("--adopted="):
+                    adopted_targets = _parse_csv(arg.split("=", 1)[1])
+                    i += 1
+                elif arg == "--candidates" and i + 1 < len(args):
+                    candidate_targets = _parse_csv(args[i + 1])
+                    i += 2
+                elif arg.startswith("--candidates="):
+                    candidate_targets = _parse_csv(arg.split("=", 1)[1])
+                    i += 1
+                elif arg == "--exclude" and i + 1 < len(args):
+                    exclude = _parse_csv(args[i + 1])
+                    i += 2
+                elif arg.startswith("--exclude="):
+                    exclude = _parse_csv(arg.split("=", 1)[1])
+                    i += 1
+                elif arg == "--local":
+                    local = True
+                    i += 1
+                elif arg == "--semantic":
+                    semantic = True
+                    i += 1
+                elif arg == "--backend" and i + 1 < len(args):
+                    backend = args[i + 1]
+                    i += 2
+                elif arg.startswith("--backend="):
+                    backend = arg.split("=", 1)[1]
+                    i += 1
+                elif arg == "--model" and i + 1 < len(args):
+                    model = args[i + 1]
+                    i += 2
+                elif arg.startswith("--model="):
+                    model = arg.split("=", 1)[1]
+                    i += 1
+                elif arg == "--include-dirty":
+                    include_dirty = True
+                    i += 1
+                elif arg == "--allow-dirty-graphify-out":
+                    allow_dirty_graph = True
+                    i += 1
+                elif arg == "--safe-ollama":
+                    safe_ollama = True
+                    i += 1
+                elif arg == "--semantic-token-budget" and i + 1 < len(args):
+                    semantic_token_budget = _parse_positive_int(arg, args[i + 1])
+                    i += 2
+                elif arg.startswith("--semantic-token-budget="):
+                    semantic_token_budget = _parse_positive_int(arg, arg.split("=", 1)[1])
+                    i += 1
+                elif arg == "--semantic-max-concurrency" and i + 1 < len(args):
+                    semantic_max_concurrency = _parse_positive_int(arg, args[i + 1])
+                    i += 2
+                elif arg.startswith("--semantic-max-concurrency="):
+                    semantic_max_concurrency = _parse_positive_int(arg, arg.split("=", 1)[1])
+                    i += 1
+                elif arg == "--semantic-api-timeout" and i + 1 < len(args):
+                    semantic_api_timeout = _parse_positive_float(arg, args[i + 1])
+                    i += 2
+                elif arg.startswith("--semantic-api-timeout="):
+                    semantic_api_timeout = _parse_positive_float(arg, arg.split("=", 1)[1])
+                    i += 1
+                elif arg == "--semantic-max-output-tokens" and i + 1 < len(args):
+                    semantic_max_output_tokens = _parse_positive_int(arg, args[i + 1])
+                    i += 2
+                elif arg.startswith("--semantic-max-output-tokens="):
+                    semantic_max_output_tokens = _parse_positive_int(arg, arg.split("=", 1)[1])
+                    i += 1
+                elif arg == "--llm-trace":
+                    llm_trace = True
+                    i += 1
+                elif arg == "--verify-activation":
+                    verify_activation = True
+                    i += 1
+                elif arg == "--json":
+                    as_json = True
+                    i += 1
+                elif arg in {"-h", "--help"}:
+                    print(_usage())
+                    return 0
+                else:
+                    print(f"error: unknown adoption propagate option: {arg}", file=sys.stderr)
+                    return 2
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+
+        options = PropagateOptions(
+            root=root,
+            adopted_targets=adopted_targets,
+            candidate_targets=candidate_targets,
+            exclude=exclude,
+            local=local,
+            semantic=semantic,
+            backend=backend or DEFAULT_BACKEND,
+            model=model,
+            include_dirty=include_dirty,
+            allow_dirty_graphify_out=allow_dirty_graph,
+            safe_ollama=safe_ollama,
+            semantic_token_budget=semantic_token_budget,
+            semantic_max_concurrency=semantic_max_concurrency,
+            semantic_api_timeout=semantic_api_timeout,
+            semantic_max_output_tokens=semantic_max_output_tokens,
+            llm_trace=llm_trace,
+            verify_activation=verify_activation,
+        )
+        try:
+            result = propagate(options)
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if as_json:
+            print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+        else:
+            print(format_propagate_result(result))
+        failed_apply = any(
+            r.status == "failed" for r in result.adopted_results + result.candidate_results
+        )
+        failed_activation = any(c.status == "failed" for c in result.activation_checks)
+        return 1 if failed_apply or failed_activation else 0
+
     print(f"error: unknown adoption subcommand: {subcmd}", file=sys.stderr)
     print(_usage(), file=sys.stderr)
     return 2
@@ -1011,15 +1573,20 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
 
 __all__ = [
     "AdoptionAudit",
+    "ActivationCheck",
     "ApplyOptions",
     "ApplyResult",
+    "PropagateOptions",
+    "PropagateResult",
     "RepoAdoption",
     "audit",
     "apply",
     "default_root",
     "discover_git_repos",
     "format_apply_results",
+    "format_propagate_result",
     "format_report",
     "inspect_repo",
+    "propagate",
     "run_cli",
 ]
