@@ -289,6 +289,14 @@ def is_internal_graphify_source(source_file: str | None) -> bool:
 def _drop_internal_graphify_sources(extraction: dict, root: str | None) -> dict:
     """Remove nodes, edges, and hyperedges sourced from Graphify temp files."""
     removed_ids: set[str] = set()
+
+    def _is_removed_id(value: object) -> bool:
+        try:
+            hash(value)
+        except TypeError:
+            return False
+        return value in removed_ids
+
     nodes: list[dict] = []
     for node in extraction.get("nodes", []):
         if not isinstance(node, dict):
@@ -298,7 +306,11 @@ def _drop_internal_graphify_sources(extraction: dict, root: str | None) -> dict:
             item["source_file"] = _norm_source_file(item["source_file"], root)
         if is_internal_graphify_source(item.get("source_file")):
             node_id = item.get("id")
-            if node_id:
+            try:
+                hash(node_id)
+            except TypeError:
+                node_id = None
+            if node_id is not None:
                 removed_ids.add(node_id)
             continue
         nodes.append(item)
@@ -312,7 +324,7 @@ def _drop_internal_graphify_sources(extraction: dict, root: str | None) -> dict:
             item["source_file"] = _norm_source_file(item["source_file"], root)
         if is_internal_graphify_source(item.get("source_file")):
             continue
-        if item.get("source") in removed_ids or item.get("target") in removed_ids:
+        if _is_removed_id(item.get("source")) or _is_removed_id(item.get("target")):
             continue
         edges.append(item)
 
