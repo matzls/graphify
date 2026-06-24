@@ -638,8 +638,8 @@ def test_antigravity_global_install_writes_gemini_config_skills(tmp_path, monkey
     assert (project / ".agents" / "workflows" / "graphify.md").exists()
 
 
-def test_startup_version_check_ignores_legacy_antigravity_path(tmp_path, monkeypatch, capsys):
-    """The stale-skill check must use the same resolved paths as install/uninstall."""
+def test_startup_version_check_warns_for_agents_skill_path(tmp_path, monkeypatch, capsys):
+    """The generic agents platform owns ~/.agents/skills, so stale copies warn."""
     from graphify.__main__ import __version__, main
 
     home = tmp_path / "home"
@@ -657,7 +657,7 @@ def test_startup_version_check_ignores_legacy_antigravity_path(tmp_path, monkeyp
         monkeypatch.setattr(sys, "argv", ["graphify", "version"])
         main()
 
-    assert "warning: skill is from graphify 0.8.25" not in capsys.readouterr().err
+    assert "warning: skill is from graphify 0.8.25" in capsys.readouterr().err
 
 
 def test_antigravity_global_uninstall_removes_gemini_config_skill(tmp_path, monkeypatch):
