@@ -386,7 +386,17 @@ def test_cluster_only_accepts_spaced_backend_flag(tmp_path, monkeypatch, capsys)
     (out / ".graphify_labels.json").unlink()
     seen: dict[str, str | None] = {}
 
-    def fake_generate_community_labels(G, communities, *, backend=None, model=None, gods=None, quiet=False):
+    def fake_generate_community_labels(
+        G,
+        communities,
+        *,
+        backend=None,
+        model=None,
+        gods=None,
+        quiet=False,
+        max_concurrency=4,
+        batch_size=100,
+    ):
         seen["backend"] = backend
         seen["model"] = model
         return {cid: f"Named {cid}" for cid in communities}, "llm"
@@ -414,7 +424,17 @@ def test_cluster_only_relabels_existing_placeholder_labels(tmp_path, monkeypatch
     out = _make_graph(tmp_path)
     seen: dict[str, str | None] = {}
 
-    def fake_generate_community_labels(G, communities, *, backend=None, model=None, gods=None, quiet=False):
+    def fake_generate_community_labels(
+        G,
+        communities,
+        *,
+        backend=None,
+        model=None,
+        gods=None,
+        quiet=False,
+        max_concurrency=4,
+        batch_size=100,
+    ):
         seen["backend"] = backend
         return {cid: f"Named {cid}" for cid in communities}, "llm"
 
@@ -447,7 +467,17 @@ def test_cluster_only_preserves_curated_labels_while_filling_placeholders(tmp_pa
         encoding="utf-8",
     )
 
-    def fake_generate_community_labels(G, communities, *, backend=None, model=None, gods=None, quiet=False):
+    def fake_generate_community_labels(
+        G,
+        communities,
+        *,
+        backend=None,
+        model=None,
+        gods=None,
+        quiet=False,
+        max_concurrency=4,
+        batch_size=100,
+    ):
         return {cid: f"Named {cid}" for cid in communities}, "llm"
 
     monkeypatch.chdir(tmp_path)
