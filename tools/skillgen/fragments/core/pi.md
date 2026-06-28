@@ -111,6 +111,8 @@ Load `references/transcribe.md` only when the user explicitly asks for standalon
 
 The default Pi `/graphify` full build uses Graphify's headless CLI backend path, not host-agent semantic subagents. This keeps semantic model behavior consistent with repo propagation and direct terminal use.
 
+> **graphify needs no API key. Never ask the user for one, and never block on one.** Pi should use the terminal-only CLI backend path even when it cannot dispatch subagents. If the selected backend is unavailable, stop and report the `graphify extract` error instead of prompting for credentials.
+
 Default backend/model policy:
 
 1. Pass `--model MODEL` only when the user explicitly supplied one.
