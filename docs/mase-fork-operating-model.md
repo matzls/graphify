@@ -346,6 +346,28 @@ table, blockers, recommended propagation groups, and exact follow-up commands.
 Use `--json` only for automation and `--verbose` only when the compact report is
 not enough.
 
+After upstream reconciliation, treat propagation as a staged rollout when the
+incoming release changed graph IDs, cache/output formats, install surfaces,
+activation behavior, or semantic-refresh behavior:
+
+1. reinstall the active CLI from this fork and verify source/version with
+   `graphify doctor --require-source`
+2. run `graphify adoption audit --root /Users/mase/Codebase`
+3. canary one code/update-heavy repo and, when semantic/wiki output matters, one
+   semantic repo
+4. re-run the audit and only then apply broader propagation
+
+Do not run `graphify extract --force` across every repo by default. Use it only
+for repos where release notes, audit output, or canary results show generated
+state should be rebuilt from scratch, such as prior same-name node-ID collision
+risk.
+
+The normal `/Users/mase/Codebase` audit has default retired/workspace exclusions
+in `graphify/adoption.py` so they do not keep surfacing as partial or candidate
+targets. As of 2026-06-30, `maser-pm`, `pm-agent-toolkit`, `workshops`, and
+`workshops-origin-main` are excluded from routine Graphify propagation. Update
+`DEFAULT_AUDIT_EXCLUSIONS` there when Mase changes the maintained repo set.
+
 Apply remains explicit and re-runs the audit before mutating selected repos:
 
 ```bash
@@ -361,7 +383,7 @@ graphify adoption propagate \
   --root /Users/mase/Codebase \
   --adopted hushmail-agent-router,astral-sora-proto,gemini-embedding \
   --candidates activecollab-mcp,astral-signal-hub,obsidian-agent,remote-coding-agent \
-  --exclude pm-agent-toolkit,maser-pm,get-shit-done \
+  --exclude pm-agent-toolkit,maser-pm,workshops,workshops-origin-main,get-shit-done \
   --local \
   --semantic \
   --backend ollama \
@@ -383,7 +405,7 @@ python3 -m graphify adoption propagate \
   --root /Users/mase/Codebase \
   --adopted hushmail-agent-router,astral-sora-proto,gemini-embedding \
   --candidates activecollab-mcp,astral-signal-hub,obsidian-agent,remote-coding-agent \
-  --exclude pm-agent-toolkit,maser-pm,get-shit-done \
+  --exclude pm-agent-toolkit,maser-pm,workshops,workshops-origin-main,get-shit-done \
   --local \
   --semantic \
   --backend ollama \
