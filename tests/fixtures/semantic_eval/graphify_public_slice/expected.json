@@ -2,14 +2,17 @@
   "required_concepts": [
     {"name": "Detect Stage", "aliases": ["Detect Files"], "weight": 1.5},
     {"name": "Extract Stage", "aliases": ["Extract Nodes And Edges"], "weight": 1.5},
-    {"name": "NetworkX Graph", "aliases": ["Build Graph"]},
-    {"name": "Cluster Communities", "aliases": ["Community Labels"]},
-    {"name": "God Nodes"},
-    {"name": "Graph Outputs", "aliases": ["graphify-out"]},
-    {"name": "Semantic Extraction", "weight": 1.5},
+    {"name": "NetworkX Graph", "aliases": ["Build Graph", "NetworkX Graph Build"]},
+    {"name": "Cluster Communities", "aliases": ["Community Labels", "Community Clustering"]},
+    {"name": "God Nodes", "aliases": ["God Nodes Analysis"]},
+    {"name": "Graph Outputs", "aliases": ["graphify-out", "Reports and Exports"]},
+    {"name": "Semantic Extraction", "aliases": ["Semantic Extraction LLM Backend"], "weight": 1.5},
     {"name": "LLM Backend", "aliases": ["Direct Semantic Backend"], "weight": 1.5},
     {"name": "Ollama Backend", "aliases": ["Ollama"]},
-    {"name": "kimi-k2.7-code:cloud", "aliases": ["Kimi K2.7 Code Cloud"]},
+    {
+      "name": "kimi-k2.7-code:cloud",
+      "aliases": ["Kimi K2.7 Code Cloud", "kimi-k2.7-code:cloud Default Model"]
+    },
     {"name": "Trace Mode"},
     {"name": "Semantic Cache"}
   ],

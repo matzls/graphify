@@ -1,10 +1,10 @@
 {
   "required_concepts": [
-    "Payment Retry Policy",
+    {"name": "Payment Retry Policy", "aliases": ["Retry Policy"]},
     "Support Runbook",
     "Billing Service",
-    "Card Payments",
-    "Attempt Number",
+    {"name": "Card Payments", "aliases": ["Failed Card Payment", "Failed Card Payments"]},
+    {"name": "Attempt Number", "aliases": ["Retry Attempt"]},
     "Gateway Response",
     "Retry Schedule",
     "Subscription",
