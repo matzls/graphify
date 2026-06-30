@@ -659,16 +659,17 @@ def test_always_on_included_in_full_render_not_per_platform():
 
 
 def test_always_on_roundtrip_is_byte_faithful():
-    """Each always_on/*.md reproduces its former __main__.py constant byte for byte.
+    """Each upstream-faithful always_on/*.md reproduces its old constant.
 
     This is the load-bearing fidelity check behind the D2-a extraction: the
     install-string / issue-#580 tests still import the constants from
-    graphify.__main__, so the packaged markdown must round-trip exactly or those
-    contracts silently change.
+    graphify.__main__, so packaged markdown must round-trip exactly unless a
+    block is an explicit local overlay guarded by the render snapshots and the
+    live-constant-vs-packaged-file test.
     """
     # The guard passes with zero problems: every always-on block reproduces its
-    # frozen baseline, with the agents-md block allowed exactly the #1530
-    # sanctioned substitution recorded in gen.ALWAYS_ON_SANCTIONED_EDITS.
+    # frozen baseline, except for explicit local overlays recorded in
+    # gen.ALWAYS_ON_LOCAL_OVERLAYS.
     problems = gen.always_on_roundtrip()
     assert problems == []
 
@@ -691,9 +692,12 @@ def test_always_on_roundtrip_is_byte_faithful():
     )
     baseline_agents = gen._always_on_constants(gen.ALWAYS_ON_BASELINE_REF)["_AGENTS_MD_SECTION"]
     # The ONLY divergence from the frozen baseline is the sanctioned sentence —
-    # any other byte drift would have surfaced as a problem above.
+    # unless this block is explicitly declared as a local overlay.
     assert old_instruction in baseline_agents
-    assert baseline_agents.replace(old_instruction, new_instruction) == rendered_agents
+    assert "agents-md" in gen.ALWAYS_ON_LOCAL_OVERLAYS
+    assert baseline_agents.replace(old_instruction, new_instruction) != rendered_agents
+    assert "<!-- graphify-guidance-start -->" in rendered_agents
+    assert "Mase explicitly authorizes use of the configured Ollama backend" in rendered_agents
     assert "`skill` tool" not in rendered_agents
     assert 'skill: "graphify"' not in rendered_agents
 

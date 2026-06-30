@@ -117,6 +117,17 @@ ALWAYS_ON_SANCTIONED_EDITS: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
+# Always-on blocks that intentionally diverge from the immutable upstream
+# pre-extraction literal in this fork. These overlays are still guarded by
+# render/check snapshots and by live-constant-vs-packaged-file tests.
+ALWAYS_ON_LOCAL_OVERLAYS: frozenset[str] = frozenset(
+    {
+        # Mase's fork extends AGENTS.md guidance with managed SessionStart and
+        # Ollama semantic-refresh policy.
+        "agents-md",
+    }
+)
+
 # The full six-value file_type enum (Decision A). Every rendered platform — split
 # or monolith — must carry exactly this enum, byte for byte. schema-singleton
 # guards it.
@@ -1103,15 +1114,8 @@ def always_on_roundtrip() -> list[str]:
     baseline = _always_on_constants(ALWAYS_ON_BASELINE_REF)
     problems: list[str] = []
     rendered = {a.path: a.content for a in render_always_on()}
-    local_overlays = {
-        # Mase's fork intentionally extends AGENTS.md guidance with managed
-        # SessionStart and Ollama semantic-refresh policy. Equality against the
-        # upstream pre-extraction literal is still guarded separately by the
-        # live-constant-vs-packaged-file test.
-        "agents-md",
-    }
     for basename, const_name in sorted(ALWAYS_ON_BLOCKS.items()):
-        if basename in local_overlays:
+        if basename in ALWAYS_ON_LOCAL_OVERLAYS:
             continue
         path = f"graphify/always_on/{basename}.md"
         if const_name not in baseline:
