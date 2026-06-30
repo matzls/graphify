@@ -89,6 +89,16 @@ CANDIDATE_FILES = (
     "Gemfile",
 )
 
+DEFAULT_AUDIT_EXCLUSIONS: dict[str, str] = {
+    # Mase-maintained repo set policy. These repos may still contain old
+    # Graphify traces, but they should not be surfaced as partial/candidate
+    # targets in the normal adoption audit.
+    "maser-pm": "retired project; excluded from Graphify propagation",
+    "pm-agent-toolkit": "retired project; excluded from Graphify propagation",
+    "workshops": "workshop workspace; excluded from Graphify propagation",
+    "workshops-origin-main": "workshop workspace; excluded from Graphify propagation",
+}
+
 STATUS_ORDER = {
     "full": 0,
     "refresh-needed": 1,
@@ -314,6 +324,10 @@ def _is_self_graphify_repo(path: Path) -> bool:
         "Graphify should not be executed automatically against its own source repo" in agents
         or "unless Mase explicitly asks for a self-analysis run" in agents
     )
+
+
+def _default_audit_exclusion_reason(path: Path) -> str | None:
+    return DEFAULT_AUDIT_EXCLUSIONS.get(path.name)
 
 
 def _iter_dirs(root: Path) -> Iterable[Path]:
@@ -556,6 +570,9 @@ def inspect_repo(repo: Path) -> RepoAdoption:
         return RepoAdoption(str(repo), name, "skip", reason="worktree-cache")
     if _is_self_graphify_repo(repo):
         return RepoAdoption(str(repo), name, "skip", reason="graphify-self")
+    excluded_reason = _default_audit_exclusion_reason(repo)
+    if excluded_reason:
+        return RepoAdoption(str(repo), name, "skip", reason=excluded_reason)
 
     out = repo / "graphify-out"
     graph_path = out / "graph.json"

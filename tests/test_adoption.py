@@ -157,6 +157,26 @@ def test_audit_skips_graphify_self_marker_and_worktree_cache(tmp_path: Path):
     assert rows["child"].reason == "worktree-cache"
 
 
+def test_audit_skips_retired_default_exclusions(tmp_path: Path):
+    for name in ("maser-pm", "pm-agent-toolkit", "workshops", "workshops-origin-main"):
+        repo = _init_repo(tmp_path / name)
+        (repo / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+        _write_managed_guidance(repo)
+        _write_hooks(repo)
+        _commit_all(repo)
+
+    rows = {r.name: r for r in adoption.audit(tmp_path).repos}
+
+    assert rows["maser-pm"].status == "skip"
+    assert rows["maser-pm"].reason == "retired project; excluded from Graphify propagation"
+    assert rows["pm-agent-toolkit"].status == "skip"
+    assert rows["pm-agent-toolkit"].reason == "retired project; excluded from Graphify propagation"
+    assert rows["workshops"].status == "skip"
+    assert rows["workshops"].reason == "workshop workspace; excluded from Graphify propagation"
+    assert rows["workshops-origin-main"].status == "skip"
+    assert rows["workshops-origin-main"].reason == "workshop workspace; excluded from Graphify propagation"
+
+
 def test_dirty_source_blocks_but_dirty_graph_can_be_allowed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
