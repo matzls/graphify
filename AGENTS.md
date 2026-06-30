@@ -86,7 +86,7 @@ python3 -m graphify adoption propagate \
   --root /Users/mase/Codebase \
   --adopted hushmail-agent-router,astral-sora-proto,gemini-embedding \
   --candidates activecollab-mcp,astral-signal-hub,obsidian-agent,remote-coding-agent \
-  --exclude pm-agent-toolkit,maser-pm,get-shit-done \
+  --exclude pm-agent-toolkit,maser-pm,workshops,workshops-origin-main,get-shit-done \
   --local \
   --semantic \
   --backend ollama \
@@ -151,6 +151,14 @@ uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graph
   --with watchdog \
   --with tree-sitter-sql
 ```
+
+After a reconciliation that changes graph IDs, cache/output formats, install
+surfaces, activation behavior, or semantic-refresh behavior, do not broad
+propagate immediately. Reinstall and verify the active CLI, run an adoption
+audit, canary one or two representative repos, re-audit, then apply broader
+propagation. Do not run `extract --force` everywhere by default; reserve it for
+repos where release notes or canary results show generated state should be
+rebuilt from scratch.
 
 If upstream includes equivalent fixes, drop the matching local commits from
 `mase/local-fixes`.
