@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import difflib
 import json
 import math
 import os
@@ -91,9 +92,81 @@ def _node_norms(node: dict[str, Any]) -> set[str]:
     return {_norm(v) for v in values if _norm(v)}
 
 
+def _diagnostic_node_norms(node: dict[str, Any]) -> set[str]:
+    label_norm = _norm(str(node.get("label", "")))
+    if label_norm:
+        return {label_norm}
+    return _node_norms(node)
+
+
 def _matching_nodes(nodes: list[dict[str, Any]], spec: dict[str, Any]) -> list[dict[str, Any]]:
     wanted = _concept_norms(spec)
     return [node for node in nodes if _node_norms(node) & wanted]
+
+
+def _token_overlap_score(expected: str, candidate: str) -> float:
+    expected_tokens = set(expected.split())
+    candidate_tokens = set(candidate.split())
+    if not expected_tokens or not candidate_tokens:
+        return 0.0
+    overlap = len(expected_tokens & candidate_tokens)
+    return (2 * overlap) / (len(expected_tokens) + len(candidate_tokens))
+
+
+def _near_match_score(expected: str, candidate: str) -> float:
+    if not expected or not candidate:
+        return 0.0
+    min_token_count = min(len(expected.split()), len(candidate.split()))
+    containment = (
+        0.9 if min_token_count >= 2 and (expected in candidate or candidate in expected) else 0.0
+    )
+    lexical = difflib.SequenceMatcher(a=expected, b=candidate).ratio()
+    return round(max(containment, lexical, _token_overlap_score(expected, candidate)), 3)
+
+
+def _near_concept_matches(
+    nodes: list[dict[str, Any]],
+    spec: dict[str, Any],
+    *,
+    limit: int = 3,
+    threshold: float = 0.5,
+) -> list[dict[str, Any]]:
+    """Return close-but-not-exact node-label matches for a required concept.
+
+    These diagnostics do not affect scoring. They exist to show where a fixture
+    likely needs a conservative alias or where the model used a related but
+    non-equivalent label.
+    """
+    wanted = _concept_norms(spec)
+    candidates: dict[str, dict[str, Any]] = {}
+    for node in nodes:
+        best_expected = ""
+        best_candidate = ""
+        best_score = 0.0
+        for expected_norm in wanted:
+            for node_norm in _diagnostic_node_norms(node):
+                score = _near_match_score(expected_norm, node_norm)
+                if score > best_score:
+                    best_expected = expected_norm
+                    best_candidate = node_norm
+                    best_score = score
+        if best_score < threshold:
+            continue
+        node_id = str(node.get("id", ""))
+        current = candidates.get(node_id)
+        if current and float(current["similarity"]) >= best_score:
+            continue
+        candidates[node_id] = {
+            "id": node.get("id"),
+            "label": node.get("label"),
+            "source_file": node.get("source_file"),
+            "similarity": best_score,
+            "expected_norm": best_expected,
+            "candidate_norm": best_candidate,
+        }
+    return sorted(candidates.values(), key=lambda item: float(item["similarity"]), reverse=True)[
+        :limit
+    ]
 
 
 def _weighted_score(hits: list[tuple[bool, float]]) -> float | None:
@@ -181,10 +254,131 @@ def _edge_matches(
         endpoints_match = endpoints_match or (source in target_ids and target in source_ids)
     if not endpoints_match:
         return False
+    return _edge_relation_matches(edge, relation_terms)
+
+
+def _edge_relation_matches(edge: dict[str, Any], relation_terms: list[str]) -> bool:
     if not relation_terms:
         return True
     relation = _norm(str(edge.get("relation", "")))
     return any(_norm(term) in relation for term in relation_terms if _norm(term))
+
+
+def _edge_endpoint_matches(
+    edge: dict[str, Any],
+    *,
+    source_ids: set[str],
+    target_ids: set[str],
+    directed: bool,
+) -> bool:
+    source = str(edge.get("source", ""))
+    target = str(edge.get("target", ""))
+    endpoints_match = source in source_ids and target in target_ids
+    if not directed:
+        endpoints_match = endpoints_match or (source in target_ids and target in source_ids)
+    return endpoints_match
+
+
+def _node_brief(node: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": node.get("id"),
+        "label": node.get("label"),
+        "source_file": node.get("source_file"),
+    }
+
+
+def _edge_brief(edge: dict[str, Any], node_by_id: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    source_id = str(edge.get("source", ""))
+    target_id = str(edge.get("target", ""))
+    source_node = node_by_id.get(source_id, {})
+    target_node = node_by_id.get(target_id, {})
+    return {
+        "source": source_id,
+        "source_label": source_node.get("label"),
+        "target": target_id,
+        "target_label": target_node.get("label"),
+        "relation": edge.get("relation"),
+        "confidence": edge.get("confidence"),
+        "source_file": edge.get("source_file"),
+    }
+
+
+def _neighbor_edges(
+    links: list[dict[str, Any]],
+    node_ids: set[str],
+    node_by_id: dict[str, dict[str, Any]],
+    *,
+    limit: int = 3,
+) -> list[dict[str, Any]]:
+    neighbors = [
+        _edge_brief(edge, node_by_id)
+        for edge in links
+        if str(edge.get("source", "")) in node_ids or str(edge.get("target", "")) in node_ids
+    ]
+    return neighbors[:limit]
+
+
+def _expected_edge_diagnostic(
+    nodes: list[dict[str, Any]],
+    links: list[dict[str, Any]],
+    *,
+    source_spec: dict[str, Any],
+    target_spec: dict[str, Any],
+    relation_terms: list[str],
+    directed: bool,
+) -> dict[str, Any]:
+    node_by_id = {str(node.get("id", "")): node for node in nodes}
+    source_matches = _matching_nodes(nodes, source_spec)
+    target_matches = _matching_nodes(nodes, target_spec)
+    source_ids = {str(n.get("id")) for n in source_matches}
+    target_ids = {str(n.get("id")) for n in target_matches}
+    diagnostic: dict[str, Any] = {
+        "source": source_spec["name"],
+        "target": target_spec["name"],
+        "relation_terms": relation_terms,
+        "directed": directed,
+        "source_found": bool(source_ids),
+        "target_found": bool(target_ids),
+        "source_matches": [_node_brief(node) for node in source_matches[:3]],
+        "target_matches": [_node_brief(node) for node in target_matches[:3]],
+    }
+    if not source_ids:
+        diagnostic["source_near_matches"] = _near_concept_matches(nodes, source_spec)
+    if not target_ids:
+        diagnostic["target_near_matches"] = _near_concept_matches(nodes, target_spec)
+    if not source_ids and not target_ids:
+        diagnostic["failure_reason"] = "missing_both_endpoints"
+        return diagnostic
+    if not source_ids:
+        diagnostic["failure_reason"] = "missing_source_endpoint"
+        diagnostic["target_neighbor_edges"] = _neighbor_edges(links, target_ids, node_by_id)
+        return diagnostic
+    if not target_ids:
+        diagnostic["failure_reason"] = "missing_target_endpoint"
+        diagnostic["source_neighbor_edges"] = _neighbor_edges(links, source_ids, node_by_id)
+        return diagnostic
+
+    endpoint_edges = [
+        edge
+        for edge in links
+        if _edge_endpoint_matches(
+            edge,
+            source_ids=source_ids,
+            target_ids=target_ids,
+            directed=directed,
+        )
+    ]
+    if endpoint_edges:
+        diagnostic["failure_reason"] = "relation_mismatch"
+        diagnostic["candidate_edges"] = [
+            _edge_brief(edge, node_by_id) for edge in endpoint_edges[:3]
+        ]
+        return diagnostic
+
+    diagnostic["failure_reason"] = "no_edge_between_matched_endpoints"
+    diagnostic["source_neighbor_edges"] = _neighbor_edges(links, source_ids, node_by_id)
+    diagnostic["target_neighbor_edges"] = _neighbor_edges(links, target_ids, node_by_id)
+    return diagnostic
 
 
 def _expected_edge_coverage(
@@ -192,6 +386,7 @@ def _expected_edge_coverage(
 ) -> dict[str, Any]:
     checks: list[tuple[bool, float]] = []
     missing: list[dict[str, Any]] = []
+    diagnostics: list[dict[str, Any]] = []
     for spec in expected_edges:
         source_spec = _concept_spec(spec.get("source", ""))
         target_spec = _concept_spec(spec.get("target", ""))
@@ -214,14 +409,30 @@ def _expected_edge_coverage(
         )
         checks.append((ok, weight))
         if not ok:
+            normalized_relation_terms = [str(term) for term in relation_terms]
             missing.append(
                 {
                     "source": source_spec["name"],
                     "target": target_spec["name"],
-                    "relation_terms": relation_terms,
+                    "relation_terms": normalized_relation_terms,
                 }
             )
-    return {"score": _weighted_score(checks), "missing": missing, "total": len(expected_edges)}
+            diagnostics.append(
+                _expected_edge_diagnostic(
+                    nodes,
+                    links,
+                    source_spec=source_spec,
+                    target_spec=target_spec,
+                    relation_terms=normalized_relation_terms,
+                    directed=directed,
+                )
+            )
+    return {
+        "score": _weighted_score(checks),
+        "missing": missing,
+        "diagnostics": diagnostics,
+        "total": len(expected_edges),
+    }
 
 
 def _forbidden_edge_absence(
@@ -305,6 +516,16 @@ def score_graph(
         found = bool(_matching_nodes(nodes, spec))
         concept_checks.append((found, spec["weight"]))
         (found_required if found else missing_required).append(_norm(spec["name"]))
+    missing_required_diagnostics = [
+        {
+            "concept": _norm(spec["name"]),
+            "name": spec["name"],
+            "aliases": spec.get("aliases", []),
+            "near_matches": _near_concept_matches(nodes, spec),
+        }
+        for spec in required_specs
+        if not _matching_nodes(nodes, spec)
+    ]
 
     duplicate_specs = _concept_specs(expected.get("dedup_watchlist", []))
     duplicate_hits = {}
@@ -349,6 +570,7 @@ def score_graph(
         else {
             "score": None,
             "missing": [],
+            "diagnostics": [],
             "total": 0,
         }
     )
@@ -421,6 +643,7 @@ def score_graph(
         },
         "details": {
             "missing_required_concepts": missing_required,
+            "missing_required_concept_diagnostics": missing_required_diagnostics,
             "found_required_concepts": found_required,
             "duplicate_watchlist_hits": duplicate_hits,
             "community_label_hits": community_labels["hits"],
@@ -429,6 +652,7 @@ def score_graph(
             "inferred_edges": len(inferred_edges),
             "overconfident_inferred_edges": overconfident_inferred,
             "missing_expected_edges": edge_coverage["missing"],
+            "missing_expected_edge_diagnostics": edge_coverage["diagnostics"],
             "forbidden_concept_hits": forbidden_hits,
             "forbidden_edge_hits": forbidden_edges["hits"],
             "missing_source_files": source_coverage["missing"],
@@ -471,6 +695,34 @@ def _markdown_report(
     if details["community_label_misses"]:
         misses = [" / ".join(group) for group in details["community_label_misses"]]
         lines.append(f"- Community label misses: {', '.join(misses)}")
+    diagnostics = details.get("missing_required_concept_diagnostics", [])
+    if diagnostics:
+        lines += ["", "## Missing Concept Diagnostics", ""]
+        for item in diagnostics:
+            matches = item.get("near_matches") or []
+            if not matches:
+                lines.append(f"- `{item['concept']}`: no close node labels found")
+                continue
+            rendered = ", ".join(
+                f"`{match.get('label')}` ({match.get('similarity')})" for match in matches
+            )
+            lines.append(f"- `{item['concept']}`: {rendered}")
+    edge_diagnostics = details.get("missing_expected_edge_diagnostics", [])
+    if edge_diagnostics:
+        lines += ["", "## Missing Edge Diagnostics", ""]
+        for item in edge_diagnostics:
+            reason = str(item.get("failure_reason", "missing"))
+            source = item.get("source")
+            target = item.get("target")
+            lines.append(f"- `{source}` -> `{target}`: {reason.replace('_', ' ')}")
+            candidate_edges = item.get("candidate_edges") or []
+            if candidate_edges:
+                rendered = ", ".join(
+                    f"`{edge.get('source_label')}` -[{edge.get('relation')}]-> "
+                    f"`{edge.get('target_label')}`"
+                    for edge in candidate_edges
+                )
+                lines.append(f"  Candidate edges: {rendered}")
     return "\n".join(lines) + "\n"
 
 
@@ -646,6 +898,72 @@ def _weighted_average(values: list[tuple[float, float]]) -> float | None:
     return round(sum(value * weight for value, weight in values) / total_weight, 3)
 
 
+_MULTIMODAL_PROFILES = {"multimodal", "image", "diagram", "vision"}
+
+
+def _fixture_profiles(fixture: dict[str, Any]) -> list[str]:
+    profiles = [str(profile) for profile in fixture.get("profiles", [])]
+    if not (set(profiles) & _MULTIMODAL_PROFILES):
+        profiles.append("text-only")
+    return profiles
+
+
+def _concept_near_miss_summary(score: dict[str, Any], *, limit: int = 5) -> list[dict[str, Any]]:
+    details = score.get("details", {}) if isinstance(score.get("details"), dict) else {}
+    diagnostics = details.get("missing_required_concept_diagnostics", [])
+    if not isinstance(diagnostics, list):
+        return []
+    items: list[dict[str, Any]] = []
+    for item in diagnostics:
+        if not isinstance(item, dict):
+            continue
+        matches = item.get("near_matches")
+        if not isinstance(matches, list) or not matches:
+            continue
+        top = matches[0]
+        if not isinstance(top, dict):
+            continue
+        items.append(
+            {
+                "concept": item.get("concept"),
+                "top_label": top.get("label"),
+                "top_source_file": top.get("source_file"),
+                "similarity": top.get("similarity"),
+            }
+        )
+    return items[:limit]
+
+
+def _expected_edge_failure_summary(
+    score: dict[str, Any], *, limit: int = 5
+) -> list[dict[str, Any]]:
+    details = score.get("details", {}) if isinstance(score.get("details"), dict) else {}
+    diagnostics = details.get("missing_expected_edge_diagnostics", [])
+    if not isinstance(diagnostics, list):
+        return []
+    items: list[dict[str, Any]] = []
+    for item in diagnostics:
+        if not isinstance(item, dict):
+            continue
+        candidate_edges = item.get("candidate_edges")
+        first_candidate = (
+            candidate_edges[0] if isinstance(candidate_edges, list) and candidate_edges else {}
+        )
+        items.append(
+            {
+                "source": item.get("source"),
+                "target": item.get("target"),
+                "failure_reason": item.get("failure_reason"),
+                "source_found": item.get("source_found"),
+                "target_found": item.get("target_found"),
+                "candidate_relation": first_candidate.get("relation")
+                if isinstance(first_candidate, dict)
+                else None,
+            }
+        )
+    return items[:limit]
+
+
 def _aggregate_suite(suite: dict[str, Any], fixture_runs: list[dict[str, Any]]) -> dict[str, Any]:
     dimension_values: dict[str, list[tuple[float, float]]] = {}
     profile_values: dict[str, list[tuple[float, float]]] = {}
@@ -660,18 +978,18 @@ def _aggregate_suite(suite: dict[str, Any], fixture_runs: list[dict[str, Any]]) 
             if value is not None:
                 dimension_values.setdefault(key, []).append((float(value), weight))
         if scores.get("overall") is not None:
-            for profile in fixture.get("profiles", []):
-                profile_values.setdefault(str(profile), []).append(
-                    (float(scores["overall"]), weight)
-                )
+            for profile in _fixture_profiles(fixture):
+                profile_values.setdefault(profile, []).append((float(scores["overall"]), weight))
         tokens = _token_counts(run.get("commands", []))
         fixture_summaries.append(
             {
                 "id": run["fixture_id"],
                 "weight": weight,
-                "profiles": fixture.get("profiles", []),
+                "profiles": _fixture_profiles(fixture),
                 "overall": scores.get("overall"),
                 "scores": scores,
+                "concept_near_misses": _concept_near_miss_summary(score),
+                "expected_edge_failures": _expected_edge_failure_summary(score),
                 "elapsed_seconds": _sum_command_elapsed(run.get("commands", [])),
                 "input_tokens": tokens["input"],
                 "output_tokens": tokens["output"],
@@ -766,6 +1084,47 @@ def _suite_markdown(summary: dict[str, Any], *, backend: str, model: str) -> str
         lines += ["", "## Profile Scores", "", "| Profile | Weighted Overall |", "|---|---:|"]
         for key, value in summary["profile_scores"].items():
             lines.append(f"| `{key}` | {value} |")
+    near_misses = [
+        (fixture["id"], item)
+        for fixture in summary["fixtures"]
+        for item in fixture.get("concept_near_misses", [])
+    ]
+    if near_misses:
+        lines += [
+            "",
+            "## Concept Near Matches",
+            "",
+            "| Fixture | Missing Concept | Closest Node | Similarity | Source |",
+            "|---|---|---|---:|---|",
+        ]
+        for fixture_id, item in near_misses:
+            lines.append(
+                f"| `{fixture_id}` | `{item.get('concept')}` | `{item.get('top_label')}` | "
+                f"{item.get('similarity')} | `{item.get('top_source_file')}` |"
+            )
+    edge_failures = [
+        (fixture["id"], item)
+        for fixture in summary["fixtures"]
+        for item in fixture.get("expected_edge_failures", [])
+    ]
+    if edge_failures:
+        lines += [
+            "",
+            "## Expected Edge Diagnostics",
+            "",
+            "| Fixture | Expected Edge | Failure | Endpoints Found | Candidate Relation |",
+            "|---|---|---|---|---|",
+        ]
+        for fixture_id, item in edge_failures:
+            endpoints = (
+                f"{'yes' if item.get('source_found') else 'no'} / "
+                f"{'yes' if item.get('target_found') else 'no'}"
+            )
+            lines.append(
+                f"| `{fixture_id}` | `{item.get('source')}` -> `{item.get('target')}` | "
+                f"{str(item.get('failure_reason')).replace('_', ' ')} | {endpoints} | "
+                f"`{item.get('candidate_relation') or ''}` |"
+            )
     return "\n".join(lines) + "\n"
 
 

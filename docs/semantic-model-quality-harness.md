@@ -257,6 +257,8 @@ Every fixture has an `expected.json`. The old string-only shape is still valid:
 Richer contracts can use:
 
 - `required_concepts`: strings or objects with `name`, `aliases`, and `weight`.
+  Aliases must be equivalent labels for the same concept, not merely related or
+  broader/narrower concepts.
 - `dedup_watchlist`: concepts that should not appear as duplicate semantic
   nodes, with alias-aware matching.
 - `expected_edges`: important relationships. Each entry has `source`, `target`,
@@ -273,6 +275,18 @@ Richer contracts can use:
 The suite manifest can also define a `quality_gate` with critical dimensions and
 minimum aggregate floors. `run-suite` exits non-zero when a fixture command fails
 or the quality gate fails.
+
+When a required concept is missed, the scorer also records diagnostic
+near-matches from extracted node labels. Near-matches are explanatory only:
+they help identify conservative aliases or real model wording failures, but
+they do not improve the score unless the expected contract is updated with an
+explicit alias.
+
+When an expected edge is missed, the scorer records why: missing source
+endpoint, missing target endpoint, missing both endpoints, relation mismatch
+between otherwise matched endpoint concepts, or no edge between the matched
+endpoint concepts. These diagnostics are explanatory only and do not change the
+expected-edge score.
 
 Scored dimensions currently include:
 
@@ -323,7 +337,10 @@ For a serious candidate comparison:
    not just independent averages.
 3. Inspect profile scores (`synthetic`, `public-realistic`, `multimodal`,
    `privacy`, `doc-to-code`, etc.) so aggregate quality does not hide slice
-   regressions.
+   regressions. The suite also reports a derived `text-only` profile for
+   fixtures that are not tagged as `multimodal`, `image`, `diagram`, or
+   `vision`; use it to separate text semantic quality from image/diagram
+   capability.
 4. Run pointwise and pairwise judge passes with one or two independent strong
    judge models.
 5. Do a short human review of changed wins/losses before changing defaults,

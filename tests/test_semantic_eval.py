@@ -80,6 +80,123 @@ def test_score_graph_supports_aliases_edges_forbidden_and_source_coverage():
     assert result["details"]["forbidden_concept_hits"] == {}
 
 
+def test_score_graph_reports_near_misses_without_counting_them(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {
+                        "id": "failed_card_payment",
+                        "label": "Failed Card Payment",
+                        "source_file": "retry_policy.md",
+                    }
+                ],
+                "links": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps({"required_concepts": ["Card Payments"]}),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["concept_recall"] == 0.0
+    assert result["details"]["missing_required_concepts"] == ["card payments"]
+    diagnostics = result["details"]["missing_required_concept_diagnostics"]
+    assert diagnostics[0]["concept"] == "card payments"
+    assert diagnostics[0]["near_matches"][0]["label"] == "Failed Card Payment"
+
+
+def test_score_graph_reports_expected_edge_relation_mismatch(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "billing", "label": "Billing Service", "source_file": "a.md"},
+                    {"id": "gateway", "label": "Gateway Response", "source_file": "a.md"},
+                ],
+                "links": [
+                    {
+                        "source": "billing",
+                        "target": "gateway",
+                        "relation": "references",
+                        "confidence": "EXTRACTED",
+                        "source_file": "a.md",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "expected_edges": [
+                    {
+                        "source": "Billing Service",
+                        "target": "Gateway Response",
+                        "relation_terms": ["records"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["expected_edge_coverage"] == 0.0
+    diagnostics = result["details"]["missing_expected_edge_diagnostics"]
+    assert diagnostics[0]["failure_reason"] == "relation_mismatch"
+    assert diagnostics[0]["source_found"] is True
+    assert diagnostics[0]["target_found"] is True
+    assert diagnostics[0]["candidate_edges"][0]["relation"] == "references"
+
+
+def test_score_graph_reports_expected_edge_missing_endpoint(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "billing", "label": "Billing Service", "source_file": "a.md"},
+                ],
+                "links": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "expected_edges": [
+                    {
+                        "source": "Billing Service",
+                        "target": "Gateway Response",
+                        "relation_terms": ["records"],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    diagnostics = result["details"]["missing_expected_edge_diagnostics"]
+    assert diagnostics[0]["failure_reason"] == "missing_target_endpoint"
+    assert diagnostics[0]["source_found"] is True
+    assert diagnostics[0]["target_found"] is False
+
+
 def test_score_graph_penalizes_degraded_router_graph():
     result = score_graph(
         FIXTURES / "router_privacy_bad_graph" / "graph.json",
@@ -187,7 +304,21 @@ def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, 
                     "overall": overall,
                     "concept_recall": overall,
                     "expected_edge_coverage": overall,
-                }
+                },
+                "details": {
+                    "missing_expected_edge_diagnostics": [
+                        {
+                            "source": "Billing Service",
+                            "target": "Gateway Response",
+                            "failure_reason": "relation_mismatch",
+                            "source_found": True,
+                            "target_found": True,
+                            "candidate_edges": [{"relation": "references"}],
+                        }
+                    ]
+                    if fixture_id == "payment_retry"
+                    else []
+                },
             },
         }
 
@@ -205,13 +336,27 @@ def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, 
     assert summary["scores"]["overall"] == 0.562
     assert summary["profile_scores"]["public-realistic"] == 0.5
     assert summary["profile_scores"]["multimodal"] == 0.5
+    assert summary["profile_scores"]["text-only"] == 0.577
+    assert "text-only" in summary["fixtures"][0]["profiles"]
+    assert "text-only" not in summary["fixtures"][-1]["profiles"]
+    assert summary["fixtures"][0]["expected_edge_failures"] == [
+        {
+            "source": "Billing Service",
+            "target": "Gateway Response",
+            "failure_reason": "relation_mismatch",
+            "source_found": True,
+            "target_found": True,
+            "candidate_relation": "references",
+        }
+    ]
     assert summary["gate_passed"] is False
     assert summary["total_elapsed_seconds"] == 15.0
     assert summary["total_input_tokens"] == 60
     assert summary["total_output_tokens"] == 120
     assert summary["failures"] == []
     assert (tmp_path / "suite-run" / "suite-run.json").exists()
-    assert (tmp_path / "suite-run" / "SUMMARY.md").exists()
+    summary_md = (tmp_path / "suite-run" / "SUMMARY.md").read_text(encoding="utf-8")
+    assert "## Expected Edge Diagnostics" in summary_md
 
 
 def test_run_suite_records_fixture_failures_without_live_model_calls(tmp_path, monkeypatch):
