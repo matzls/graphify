@@ -1,0 +1,248 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-12c4fb3b4803",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/graphify-hyperedge-id-normalization-plan.md",
+  "plan_sha256": "1dd4e857f43ab3e8c38221a6011073288165c1476d25fd2b801f245e1f84c03d",
+  "mode": "workflow-plan-gate",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews",
+  "engine": "Claude",
+  "requested_engine": "opposite",
+  "origin_runtime": "codex",
+  "engine_policy": "opposite_preferred",
+  "resolved_primary_engine": "claude",
+  "preferred_engine": "claude",
+  "fallback_engine": null,
+  "final_engine": "claude",
+  "reviewer_match": "opposite",
+  "gate_quality": "preferred",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews/graphify-hyperedge-id-normalization-plan-peer-review.json",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "attempt_chain": [
+    {
+      "engine": "claude",
+      "phase": "primary",
+      "attempt": 1,
+      "timeout_seconds": 300,
+      "result": "completed",
+      "elapsed_seconds": 216.468,
+      "returncode": 0
+    }
+  ],
+  "attempt_failures": [],
+  "primary_failure": null,
+  "fallback_failure": null,
+  "review_round": 2,
+  "max_rounds": 3,
+  "prior_review_id": "peer-review-014aa29cd24a",
+  "caller_disposition_summary": "",
+  "addressed_issues": [],
+  "deferred_issues": [],
+  "recheck_requests": [],
+  "model": "claude-sonnet-5",
+  "verdict": "Sound-with-issues",
+  "stance": null,
+  "issues_count": 2,
+  "ran_at": "2026-07-01T20:43:29.940467+00:00",
+  "raw_review_excerpt": "Round-2 review of the Graphify hyperedge ID normalization patch plan. The plan's technical premise checks out against the current graphify source: export.py's attach_hyperedges() still does unsafe h[\"id\"] lookups on already-stored hyperedge metadata (export.py:467), which is exactly the KeyError the plan targets, and build_merge()'s carry-forward path (build.py:1049-1063) reaches that function. The three prior-round concerns (cluster-only flags, upstream posture, synthesis/drop wording) are now resolved or non-blocking: --no-label/--no-viz flags on cluster-only are confirmed in __main__.py's help text, synthesis-vs-drop wording is now consistent across Success State/Architecture Decisions/Task 2/Risks, and the upstream-posture claim is unverifiable but is framed as non-blocking context rather than a load-bearing execution assumption. Referenced test files and reinstall extras are all real. The plan is execution-ready with only minor non-blocking tightening opportunities.\n\nIssues:\n- 1. [NOTE] Upstream-posture claim is unverifiable from local sources\n- 2. [NOTE] Incident-artifact counts are asserted but not independently reverified this round",
+  "error": null,
+  "closure_verification": "All three prior-round carried issues were checked against the current plan text and the current graphify source (not the caller's narrative alone). Two are resolved with direct code/CLI evidence (cluster-only flags, synthesis/drop wording consistency); one (upstream posture) is not independently provable from available tools but has been correctly reclassified as non-blocking context rather than a plan defect, since it does not change any task's acceptance criteria or verify commands.",
+  "prior_round_closure": [
+    {
+      "title": "cluster-only recovery flags unclear/unverified",
+      "severity": "WARN",
+      "caller_claim": "Plan now confirms --no-label and --no-viz flags on cluster-only and adds a grep check before running the incident-repo command.",
+      "verification_status": "resolved",
+      "verification_notes": "Directly confirmed in graphify/__main__.py help text (lines 3055-3058): cluster-only supports --no-viz and --no-label exactly as used in Task 5's verify commands and grep check."
+    },
+    {
+      "title": "Upstream posture unclear (is this a real local-fork situation or should the fix go upstream first?)",
+      "severity": "WARN",
+      "caller_claim": "Plan states upstream v8 still has the same bug as of a 2026-07-01 raw-source check and frames this as a maintained local-fork delta pending upstream reconciliation.",
+      "verification_status": "not-proven",
+      "verification_notes": "Cannot verify the external GitHub repo's current state from local tools. However, this claim is not load-bearing for the plan's execution \u2014 the local repo's own attach_hyperedges() bug is independently confirmed, and the plan already frames upstream reconciliation as a future, non-blocking action (see Recommended Next Action and Risks 'Upstream later lands a different fix'). Downgraded from a plan-blocking concern to informational context."
+    },
+    {
+      "title": "Synthesis vs. drop wording ambiguous",
+      "severity": "WARN",
+      "caller_claim": "Plan now consistently describes synthesizing IDs for meaningful (>=2 valid member) hyperedges and dropping only non-dict/unusable entries, aligned across Success State, Architecture Decisions, Task 2 acceptance criteria, and Risks.",
+      "verification_status": "resolved",
+      "verification_notes": "Cross-checked all four sections of the current plan text; wording is now internally consistent. graphify/ids.py's make_id()/normalize_id() gives a concrete, already-existing implementation path for the described synthesis approach, reinforcing feasibility."
+    }
+  ],
+  "rerun_recommendation": "stop",
+  "review": {
+    "mode": "workflow-plan-gate",
+    "summary": "Round-2 review of the Graphify hyperedge ID normalization patch plan. The plan's technical premise checks out against the current graphify source: export.py's attach_hyperedges() still does unsafe h[\"id\"] lookups on already-stored hyperedge metadata (export.py:467), which is exactly the KeyError the plan targets, and build_merge()'s carry-forward path (build.py:1049-1063) reaches that function. The three prior-round concerns (cluster-only flags, upstream posture, synthesis/drop wording) are now resolved or non-blocking: --no-label/--no-viz flags on cluster-only are confirmed in __main__.py's help text, synthesis-vs-drop wording is now consistent across Success State/Architecture Decisions/Task 2/Risks, and the upstream-posture claim is unverifiable but is framed as non-blocking context rather than a load-bearing execution assumption. Referenced test files and reinstall extras are all real. The plan is execution-ready with only minor non-blocking tightening opportunities.",
+    "rubric_cards": [
+      {
+        "title": "attach_hyperedges() unsafe id access matches plan's root-cause claim",
+        "anchor": "graphify/export.py:464-472",
+        "claim": "Plan Architecture Decision #2 claims attach_hyperedges() unsafely uses h[\"id\"] on untrusted existing graph metadata and must be made defensive.",
+        "evidence": "Read graphify/export.py lines 464-472: `seen_ids = {h[\"id\"] for h in existing}` operates on `existing = G.graph.get(\"hyperedges\", [])` with no .get()/isinstance guard, exactly the KeyError('id') class described. build.py:1049-1063 shows build_merge() reaches this via the carried-hyperedges path when existing_hyperedges is non-empty.",
+        "disposition": "present"
+      },
+      {
+        "title": "cluster-only recovery flags exist as claimed",
+        "anchor": "graphify/__main__.py:3055-3058",
+        "claim": "Task 5 assumes `graphify cluster-only . --no-label --no-viz` is a valid non-LLM recovery command.",
+        "evidence": "CLI help text confirms `cluster-only <path>` supports `--no-viz` (skip HTML), `--no-label` (skip LLM community naming), and `--graph`/`--backend`/`--model` \u2014 matches the plan's Task 5 verify command and grep check.",
+        "disposition": "present"
+      },
+      {
+        "title": "Synthesis-vs-drop wording is now internally consistent",
+        "anchor": "plan Success State / Architecture Decisions / Task 2 / Risks",
+        "claim": "Prior round flagged ambiguous synthesis/drop wording as an issue to resolve.",
+        "evidence": "Success State, Architecture Decision #1, Task 2 acceptance criteria, and the Risks section now uniformly describe: synthesize a deterministic ID for hyperedges with >=2 valid member nodes, drop only non-dict or unmeaningful entries. graphify/ids.py's make_id()/normalize_id() gives a ready-made deterministic-ID primitive matching the described approach (source_file, relation, label, member IDs).",
+        "disposition": "present"
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "root-cause code reality; cluster-only flags; test files; reinstall extras; synthesis/drop wording",
+          "upstream-posture claim (unverifiable external repo)",
+          ""
+        ],
+        [
+          "",
+          "",
+          "no live conversation transcript was provided in this turn beyond the prior-round packet"
+        ],
+        [
+          "single-plan freeze-gate review only",
+          "",
+          "no visibility into other in-flight plans/campaign items"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": false,
+      "sources": [],
+      "summary": "No live conversation transcript was supplied for this review turn; only the embedded plan document and the prior-round review packet (peer-review-014aa29cd24a) were available as caller-side context.",
+      "gaps": [
+        "Cannot confirm from conversation whether the caller independently re-ran any commands between round 1 and round 2; this review relied solely on static inspection of the current plan text and current repo source."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "graphify-hyperedge-id-normalization-plan.md (full document)",
+        "graphify/build.py (full file)",
+        "graphify/export.py (full file, two reads)",
+        "graphify/__main__.py (CLI help text section covering cluster-only/label/extract flags)",
+        "graphify/ids.py (full file)",
+        "graphify/cache.py (partial, module-boundary check)",
+        "tests/test_hypergraph.py, tests/test_build_merge_hyperedges_and_prune.py, tests/test_extract_cli.py (existence + opening content)",
+        "pyproject.toml (dependency/optional-dependency check for Task 4's uv tool install extras)"
+      ],
+      "missing": [
+        "Full graphify/__main__.py body (file is very large; only help-text and install-related sections were read, not every subcommand dispatch branch)",
+        "graphify/validate.py (validate_extraction) \u2014 referenced by build.py but not opened",
+        "graphify/security.py check_graph_file_size_cap \u2014 referenced but not opened",
+        "The real incident artifact at /Users/mase/Codebase/Personal-Projects/my-second-brain-build/graphify-out/graph.json \u2014 not accessible/opened in this review, so the plan's specific counts (41 hyperedges, 23 missing id, 15 cached/5 missing id) are unverified"
+      ],
+      "gaps": [
+        "This review covers only the freeze-gate slice for this one plan document plus the directly implicated code paths; it does not constitute a review of any broader campaign or other in-flight Graphify plans."
+      ]
+    },
+    "issues": [
+      {
+        "title": "Upstream-posture claim is unverifiable from local sources",
+        "details": "The Summary states current upstream safishamsi/graphify v8 'still contains the same unsafe attach_hyperedges() implementation as of a 2026-07-01 raw-source check.' This review has no access to the external GitHub repo and cannot verify that specific claim. It is used only as rationale for keeping the fix as a local-fork delta rather than as a load-bearing technical assumption that changes what code gets edited or how tests are structured \u2014 the local checkout's own attach_hyperedges() bug is independently confirmed regardless of upstream's state.",
+        "suggested_fix": "Optional: soften the wording to 'observed as of a 2026-07-01 check' (already effectively done) and treat as non-blocking context; no plan change required before execution.",
+        "severity": "NOTE"
+      },
+      {
+        "title": "Incident-artifact counts are asserted but not independently reverified this round",
+        "details": "The specific figures (41 hyperedges/23 missing id in the local Second Brain graph.json, 15 cached/5 missing id) come from the caller's prior investigation and were not re-opened/re-verified against the actual file in this review pass, since that path lives outside the graphify repo and was not provided for inspection.",
+        "suggested_fix": "No action needed before freezing the plan \u2014 Task 5's verify commands already re-run the real-artifact probe at execution time, which will surface any discrepancy in these counts organically.",
+        "severity": "NOTE"
+      }
+    ],
+    "verification_gaps": [
+      "Did not open the actual incident graph.json at /Users/mase/Codebase/Personal-Projects/my-second-brain-build/graphify-out/graph.json to confirm the specific hyperedge/cache counts cited in the Summary.",
+      "Did not verify the external safishamsi/graphify upstream repo state (no URL access in scope for this review).",
+      "Did not read graphify/validate.py or graphify/security.py, both referenced by build.py, though neither is load-bearing for the plan's freeze-readiness assessment."
+    ],
+    "recommended_fixes": [],
+    "evidence_sources": [
+      "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/graphify-hyperedge-id-normalization-plan.md",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/build.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/export.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/__main__.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/ids.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/cache.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_build_merge_hyperedges_and_prune.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_hypergraph.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_extract_cli.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/pyproject.toml"
+    ],
+    "error": null,
+    "verdict": "Sound-with-issues",
+    "workflow_compliance": [
+      "Plan includes explicit Task List with acceptance criteria, likely files touched, verify commands, and dependencies per task \u2014 matches expected plan structure.",
+      "Checkpoints (A/B/C) map cleanly onto task groupings and give clear go/no-go gates before code edits, before targeted-test completion, and before CLI reinstall.",
+      "Non-Goals section explicitly excludes scope creep (schema redesign, prompt changes, site-packages patching, broad multi-repo refresh, blocking the Pi rollout) \u2014 good anti-churn discipline.",
+      "Responsibility Boundaries section correctly maps to the actual module structure (build.py/export.py/cache.py) verified in this review."
+    ],
+    "technical_reality": [
+      "graphify/export.py:464-472 attach_hyperedges() currently performs `h[\"id\"]` on `existing` (already-stored) hyperedges with no defensive .get()/type check \u2014 this is the exact KeyError('id') failure mode the plan targets.",
+      "graphify/build.py's build_merge() (lines 1049-1063) calls attach_hyperedges(G, carried) whenever existing_hyperedges from a loaded graph.json is non-empty, which is the reachable crash path from an --update/incremental workflow.",
+      "graphify/build.py's build_from_json() stores hyperedges into G.graph['hyperedges'] essentially verbatim (line 786, only source_file relativization applied) \u2014 no id validation happens there, so malformed entries persist into G.graph until attach_hyperedges is invoked, consistent with the plan's Responsibility Boundaries characterization.",
+      "cluster-only's --no-label and --no-viz flags exist in the current CLI (confirmed in __main__.py help text) exactly as used in Task 5's verify commands.",
+      "graphify/ids.py provides make_id()/normalize_id(), a ready deterministic-ID primitive matching Architecture Decision #1's proposed synthesis approach (source_file, relation, label, normalized member IDs).",
+      "Task 4's `uv tool install --with openai --with tiktoken --with faster-whisper --with yt-dlp --with watchdog --with tree-sitter-sql` extras all correspond to real optional-dependency groups declared in pyproject.toml (kimi/openai, video, watch, sql).",
+      "All three test files named as 'Likely files touched' (test_hypergraph.py, test_build_merge_hyperedges_and_prune.py, test_extract_cli.py) exist and already contain related hyperedge/cli test scaffolding, reducing execution risk for Task 1."
+    ],
+    "assumptions_to_verify": [
+      "Whether the real incident artifact still reproduces the specific counts cited (41/23 hyperedges, 15/5 cache entries) at the time Task 5 is actually executed \u2014 Task 5's own verify commands will surface this.",
+      "Whether upstream safishamsi/graphify v8 genuinely still has the same unsafe attach_hyperedges() implementation \u2014 stated as rationale only, not load-bearing for the fix itself."
+    ],
+    "verification_sufficiency": [
+      "Sufficient: the plan's core technical premise (attach_hyperedges unsafe id access, build_merge's crash path, cluster-only flag availability, existence of named test files, validity of reinstall extras) was directly verified against the current repo source rather than taken on the caller's word.",
+      "Not independently re-verified: the exact incident-artifact counts and the upstream-repo claim, both external to this repo and non-blocking for freeze readiness."
+    ],
+    "downstream_risks": [
+      "If Task 2's normalization helper is not actually shared between build.py and export.py (per Architecture Decision #3), attach_hyperedges() could remain unsafe for any caller other than build_merge's carried-hyperedge path (e.g. watch.py or a direct API caller) \u2014 worth confirming at implementation/review time that the helper is applied at both ingestion points, not just the one reproduced in Task 1's tests.",
+      "The safety-shrink check in build_merge (lines 1105-1114) is skipped when dedup or prune_sources is active; if Task 2's normalization drops any 'unusable' hyperedges silently, node/edge counts are unaffected so this guard won't catch a hyperedge-count regression \u2014 acceptable per plan's stated Non-Goals but worth a stderr log per the plan's Open Questions."
+    ],
+    "freeze_recommendation": "Safe to freeze. Carry the remaining WARN/NOTE items as explicit follow-ups or implementation-time checks.",
+    "prior_round_closure": [
+      {
+        "title": "cluster-only recovery flags unclear/unverified",
+        "severity": "WARN",
+        "caller_claim": "Plan now confirms --no-label and --no-viz flags on cluster-only and adds a grep check before running the incident-repo command.",
+        "verification_status": "resolved",
+        "verification_notes": "Directly confirmed in graphify/__main__.py help text (lines 3055-3058): cluster-only supports --no-viz and --no-label exactly as used in Task 5's verify commands and grep check."
+      },
+      {
+        "title": "Upstream posture unclear (is this a real local-fork situation or should the fix go upstream first?)",
+        "severity": "WARN",
+        "caller_claim": "Plan states upstream v8 still has the same bug as of a 2026-07-01 raw-source check and frames this as a maintained local-fork delta pending upstream reconciliation.",
+        "verification_status": "not-proven",
+        "verification_notes": "Cannot verify the external GitHub repo's current state from local tools. However, this claim is not load-bearing for the plan's execution \u2014 the local repo's own attach_hyperedges() bug is independently confirmed, and the plan already frames upstream reconciliation as a future, non-blocking action (see Recommended Next Action and Risks 'Upstream later lands a different fix'). Downgraded from a plan-blocking concern to informational context."
+      },
+      {
+        "title": "Synthesis vs. drop wording ambiguous",
+        "severity": "WARN",
+        "caller_claim": "Plan now consistently describes synthesizing IDs for meaningful (>=2 valid member) hyperedges and dropping only non-dict/unusable entries, aligned across Success State, Architecture Decisions, Task 2 acceptance criteria, and Risks.",
+        "verification_status": "resolved",
+        "verification_notes": "Cross-checked all four sections of the current plan text; wording is now internally consistent. graphify/ids.py's make_id()/normalize_id() gives a concrete, already-existing implementation path for the described synthesis approach, reinforcing feasibility."
+      }
+    ],
+    "closure_verification": "All three prior-round carried issues were checked against the current plan text and the current graphify source (not the caller's narrative alone). Two are resolved with direct code/CLI evidence (cluster-only flags, synthesis/drop wording consistency); one (upstream posture) is not independently provable from available tools but has been correctly reclassified as non-blocking context rather than a plan defect, since it does not change any task's acceptance criteria or verify commands.",
+    "rerun_recommendation": "stop"
+  }
+}
