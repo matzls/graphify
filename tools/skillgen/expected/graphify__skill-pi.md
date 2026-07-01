@@ -62,45 +62,58 @@ Follow these steps in order. Do not skip steps.
 
 Only when the path is one or more `https://github.com/...` URLs, or several local subfolders to merge. See `references/github-and-merge.md` for the clone, cross-repo merge, and monorepo flow, then continue with the resolved local path. A plain local path skips this step.
 
-### Step 1 - Ensure graphify is installed
+### Step 1 - Ensure graphify is installed from Mase's fork
+
+The Pi setup for Mase must use the local Graphify fork, not PyPI. Never repair a
+missing or wrong install with `uv tool install --upgrade graphifyy` or `pip
+install graphifyy`; that can replace the fork with the public package and drop
+local behavior.
 
 ```bash
-# Detect the correct Python interpreter (handles uv tool, pipx, venv, system installs)
-PYTHON=""
-GRAPHIFY_BIN=$(which graphify 2>/dev/null)
-# 1. uv tool installs — most reliable on modern Mac/Linux
-if [ -z "$PYTHON" ] && command -v uv >/dev/null 2>&1; then
-    _UV_PY=$(uv tool run --from graphifyy python -c "import sys; print(sys.executable)" 2>/dev/null)
-    if [ -n "$_UV_PY" ]; then PYTHON="$_UV_PY"; fi
+EXPECTED_GRAPHIFY_SOURCE="/Users/mase/Codebase/Personal-Projects/graphify"
+GRAPHIFY_BIN=$(command -v graphify 2>/dev/null || true)
+
+if [ -z "$GRAPHIFY_BIN" ]; then
+    echo "graphify is not installed. Install it from Mase's local fork:" >&2
+    echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
+    echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
+    echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    exit 1
 fi
-# 2. Read shebang from graphify binary (pipx and direct pip installs)
-if [ -z "$PYTHON" ] && [ -n "$GRAPHIFY_BIN" ]; then
-    _SHEBANG=$(head -1 "$GRAPHIFY_BIN" | tr -d '#!')
-    case "$_SHEBANG" in
-        *[!a-zA-Z0-9/_.@-]*) ;;
-        *) "$_SHEBANG" -c "import graphify" 2>/dev/null && PYTHON="$_SHEBANG" ;;
-    esac
+
+DOCTOR_LOG=$(mktemp)
+if ! graphify doctor \
+    --require-source "$EXPECTED_GRAPHIFY_SOURCE" \
+    >"$DOCTOR_LOG" 2>&1; then
+    cat "$DOCTOR_LOG" >&2
+    rm -f "$DOCTOR_LOG"
+    echo "Reinstall graphify from Mase's local fork, then retry:" >&2
+    echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
+    echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
+    echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    exit 1
 fi
-# 3. Fall back to python3
-if [ -z "$PYTHON" ]; then PYTHON="python3"; fi
-if ! "$PYTHON" -c "import graphify" 2>/dev/null; then
-    if command -v uv >/dev/null 2>&1; then
-        uv tool install --upgrade graphifyy -q 2>&1 | tail -3
-        _UV_PY=$(uv tool run --from graphifyy python -c "import sys; print(sys.executable)" 2>/dev/null)
-        if [ -n "$_UV_PY" ]; then PYTHON="$_UV_PY"; fi
-    else
-        "$PYTHON" -m pip install graphifyy -q 2>/dev/null \
-          || "$PYTHON" -m pip install graphifyy -q --break-system-packages 2>&1 | tail -3
-    fi
+rm -f "$DOCTOR_LOG"
+
+PYTHON=$(head -1 "$GRAPHIFY_BIN" | sed 's/^#!//')
+if [ -z "$PYTHON" ] || ! "$PYTHON" -c "import graphify" 2>/dev/null; then
+    echo "Could not resolve graphify's Python interpreter from $GRAPHIFY_BIN." >&2
+    echo "Reinstall graphify from Mase's local fork, then retry:" >&2
+    echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
+    echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
+    echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    exit 1
 fi
+
 # Write interpreter path for all subsequent steps (persists across invocations)
 mkdir -p graphify-out
 "$PYTHON" -c "import sys; open('graphify-out/.graphify_python', 'w', encoding='utf-8').write(sys.executable)"
-# Save scan root so `graphify update` (no args) knows where to look next time
+# Save the resolved root for query/update references
+mkdir -p graphify-out
 echo "$(cd INPUT_PATH && pwd)" > graphify-out/.graphify_root
 ```
 
-If the import succeeds, print nothing and move straight to Step 2.
+If verification succeeds, print nothing and move straight to Step 2.
 
 **In every subsequent bash block, replace `python3` with `$(cat graphify-out/.graphify_python)` to use the correct interpreter.**
 

@@ -59,9 +59,60 @@ Follow these steps in order. Do not skip steps.
 
 Only when the path is one or more `https://github.com/...` URLs, or several local subfolders to merge. See `references/github-and-merge.md` for the clone, cross-repo merge, and monorepo flow, then continue with the resolved local path. A plain local path skips this step.
 
-### Step 1 - Ensure graphify is installed
+### Step 1 - Ensure graphify is installed from Mase's fork
 
-@@INSTALL@@
+The Pi setup for Mase must use the local Graphify fork, not PyPI. Never repair a
+missing or wrong install with `uv tool install --upgrade graphifyy` or `pip
+install graphifyy`; that can replace the fork with the public package and drop
+local behavior.
+
+```bash
+EXPECTED_GRAPHIFY_SOURCE="/Users/mase/Codebase/Personal-Projects/graphify"
+GRAPHIFY_BIN=$(command -v graphify 2>/dev/null || true)
+
+if [ -z "$GRAPHIFY_BIN" ]; then
+    echo "graphify is not installed. Install it from Mase's local fork:" >&2
+    echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
+    echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
+    echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    exit 1
+fi
+
+DOCTOR_LOG=$(mktemp)
+if ! graphify doctor \
+    --require-source "$EXPECTED_GRAPHIFY_SOURCE" \
+    >"$DOCTOR_LOG" 2>&1; then
+    cat "$DOCTOR_LOG" >&2
+    rm -f "$DOCTOR_LOG"
+    echo "Reinstall graphify from Mase's local fork, then retry:" >&2
+    echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
+    echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
+    echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    exit 1
+fi
+rm -f "$DOCTOR_LOG"
+
+PYTHON=$(head -1 "$GRAPHIFY_BIN" | sed 's/^#!//')
+if [ -z "$PYTHON" ] || ! "$PYTHON" -c "import graphify" 2>/dev/null; then
+    echo "Could not resolve graphify's Python interpreter from $GRAPHIFY_BIN." >&2
+    echo "Reinstall graphify from Mase's local fork, then retry:" >&2
+    echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
+    echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
+    echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    exit 1
+fi
+
+# Write interpreter path for all subsequent steps (persists across invocations)
+mkdir -p graphify-out
+"$PYTHON" -c "import sys; open('graphify-out/.graphify_python', 'w', encoding='utf-8').write(sys.executable)"
+# Save the resolved root for query/update references
+mkdir -p graphify-out
+echo "$(cd INPUT_PATH && pwd)" > graphify-out/.graphify_root
+```
+
+If verification succeeds, print nothing and move straight to Step 2.
+
+**In every subsequent bash block, replace `python3` with `$(cat graphify-out/.graphify_python)` to use the correct interpreter.**
 
 ### Step 2 - Detect files
 

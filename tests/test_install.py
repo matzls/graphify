@@ -8,6 +8,13 @@ from unittest.mock import patch
 import pytest  # type: ignore[reportMissingImports]
 
 
+def _rmtree_if_exists(path: Path) -> None:
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        pass
+
+
 PLATFORMS = {
     "claude": (".claude/skills/graphify/SKILL.md",),
     "codebuddy": (".codebuddy/skills/graphify/SKILL.md",),
@@ -123,11 +130,25 @@ def test_install_project_codex_writes_skill_agents_and_session_start(tmp_path, m
 def _assert_pi_skill_install(skill_dir: Path):
     from graphify.__main__ import __version__
 
-    assert (skill_dir / "SKILL.md").exists()
+    skill = skill_dir / "SKILL.md"
+    assert skill.exists()
+    content = skill.read_text(encoding="utf-8")
+    assert (
+        content.find('EXPECTED_GRAPHIFY_SOURCE="/Users/mase/Codebase/Personal-Projects/graphify"')
+        != -1
+    )
+    assert content.find("graphify doctor") != -1
+    assert content.find('--require-source "$EXPECTED_GRAPHIFY_SOURCE"') != -1
+    assert content.find("uv tool install --upgrade graphifyy -q") == -1
+    assert content.find("pip install graphifyy -q") == -1
     assert (skill_dir / ".graphify_version").read_text(encoding="utf-8") == __version__
     refs = skill_dir / "references"
     assert refs.is_dir()
     assert (refs / "extraction-spec.md").exists()
+    update_ref = (refs / "update.md").read_text(encoding="utf-8")
+    assert update_ref.find("graphify update INPUT_PATH") != -1
+    assert update_ref.find("graphify cluster-only INPUT_PATH --backend ollama") != -1
+    assert update_ref.find("Step 3A") == -1
 
 
 def test_pi_user_install_paths_are_native_pi_scope(tmp_path, monkeypatch):
@@ -144,7 +165,7 @@ def test_pi_user_install_paths_are_native_pi_scope(tmp_path, monkeypatch):
         ["graphify", "install", "--platform", "pi"],
         ["graphify", "install", "--platform=pi"],
     ):
-        shutil.rmtree(home, ignore_errors=True)
+        _rmtree_if_exists(home)
         monkeypatch.setattr(sys, "argv", argv)
         with patch("graphify.__main__.Path.home", return_value=home):
             main()
@@ -168,7 +189,7 @@ def test_pi_project_install_paths_are_project_discoverable(tmp_path, monkeypatch
         ["graphify", "install", "--platform", "pi", "--project"],
         ["graphify", "install", "--platform=pi", "--project"],
     ):
-        shutil.rmtree(project / ".pi", ignore_errors=True)
+        _rmtree_if_exists(project / ".pi")
         monkeypatch.setattr(sys, "argv", argv)
         with patch("graphify.__main__.Path.home", return_value=home):
             main()
@@ -332,7 +353,7 @@ def test_codex_agents_guidance_uses_graphify_with_dirty_graph_output(tmp_path):
     """Codex guidance must keep graph-first orientation even without a skill file."""
     _agents_install(tmp_path, "codex")
     content = (tmp_path / "AGENTS.md").read_text()
-    assert "graphify-out/ is a derived local output directory" in content
+    assert content.find("graphify-out/ is a derived local output directory") != -1
     assert "do not stage or commit it" in content
     assert "Dirty graphify-out/ files are expected" in content
     assert "not a reason to skip graphify" in content
@@ -657,7 +678,7 @@ def test_startup_version_check_warns_for_agents_skill_path(tmp_path, monkeypatch
         monkeypatch.setattr(sys, "argv", ["graphify", "version"])
         main()
 
-    assert "warning: skill is from graphify 0.8.25" in capsys.readouterr().err
+    assert capsys.readouterr().err.find("warning: skill is from graphify 0.8.25") != -1
 
 
 def test_antigravity_global_uninstall_removes_gemini_config_skill(tmp_path, monkeypatch):
@@ -722,8 +743,10 @@ def test_codex_agents_install_writes_agents_md(tmp_path):
     assert "graphify cluster-only . --backend ollama`" in content
     assert "--model kimi-k2.7-code:cloud" not in content
     assert (
-        "Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then Graphify's built-in Kimi default."
-        in content
+        content.find(
+            "Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then Graphify's built-in Kimi default."
+        )
+        != -1
     )
     assert "Mase explicitly authorizes use of the configured Ollama backend" in content
     assert "does not authorize unrelated third-party uploads" in content
@@ -946,7 +969,9 @@ def test_opencode_plugin_reminder_has_no_backticks(tmp_path):
     m = re.search(r'echo "([^"]*)"', body)
     assert m, "echo reminder not found in plugin body"
     reminder = m.group(1)
-    assert "`" not in reminder, f"backtick in reminder would trigger command substitution: {reminder!r}"
+    assert "`" not in reminder, (
+        f"backtick in reminder would trigger command substitution: {reminder!r}"
+    )
     assert "$(" not in reminder, f"$() in reminder would trigger command substitution: {reminder!r}"
 
 
@@ -1333,8 +1358,11 @@ def test_hermes_skill_destination_windows_uses_localappdata():
     """#1403: on Windows, Hermes scans %LOCALAPPDATA%\\hermes\\skills, so the global
     skill must land there — not ~/.hermes/skills (the POSIX path)."""
     from graphify.__main__ import _platform_skill_destination
-    with patch("graphify.__main__.platform.system", return_value="Windows"), \
-         patch.dict(os.environ, {"LOCALAPPDATA": str(Path("/tmp/AppDataLocal"))}):
+
+    with (
+        patch("graphify.__main__.platform.system", return_value="Windows"),
+        patch.dict(os.environ, {"LOCALAPPDATA": str(Path("/tmp/AppDataLocal"))}),
+    ):
         dst = _platform_skill_destination("hermes", project=False)
     assert dst == Path("/tmp/AppDataLocal") / "hermes" / "skills" / "graphify" / "SKILL.md", dst
 
@@ -1342,6 +1370,7 @@ def test_hermes_skill_destination_windows_uses_localappdata():
 def test_hermes_skill_destination_posix_uses_home():
     """Non-Windows hermes destination is unchanged (~/.hermes/skills)."""
     from graphify.__main__ import _platform_skill_destination
+
     with patch("graphify.__main__.platform.system", return_value="Linux"):
         dst = _platform_skill_destination("hermes", project=False)
     assert str(dst).endswith(".hermes/skills/graphify/SKILL.md"), dst
