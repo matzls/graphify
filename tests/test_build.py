@@ -535,7 +535,7 @@ def test_build_rewrites_hyperedge_nodes_after_dedup():
     ]
 
 
-def test_build_merge_prunes_hyperedges_with_removed_nodes(tmp_path):
+def test_build_merge_trims_source_less_hyperedges_with_removed_nodes(tmp_path):
     graph_path = tmp_path / "graph.json"
     graph_path.write_text(json.dumps({
         "nodes": [
@@ -545,6 +545,7 @@ def test_build_merge_prunes_hyperedges_with_removed_nodes(tmp_path):
         "links": [{"source": "stale", "target": "keep", "relation": "mentions"}],
         "hyperedges": [
             {"id": "stale_group", "nodes": ["stale", "keep"], "relation": "topic_cluster"},
+            {"id": "source_group", "source_file": "changed.md", "nodes": ["stale"], "relation": "topic_cluster"},
             {"id": "keep_group", "nodes": ["keep"], "relation": "topic_cluster"},
         ],
     }), encoding="utf-8")
@@ -553,6 +554,7 @@ def test_build_merge_prunes_hyperedges_with_removed_nodes(tmp_path):
 
     assert "stale" not in G.nodes
     assert G.graph.get("hyperedges") == [
+        {"id": "stale_group", "nodes": ["keep"], "relation": "topic_cluster"},
         {"id": "keep_group", "nodes": ["keep"], "relation": "topic_cluster"},
     ]
 

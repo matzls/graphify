@@ -607,7 +607,7 @@ def _filter_hyperedges_for_valid_nodes(
     *,
     prune_sources: set[str] | None = None,
 ) -> list:
-    """Drop hyperedges that point at removed nodes or pruned source files."""
+    """Drop source-specific stale hyperedges and trim source-less cross-file ones."""
     filtered = []
     for hyperedge in hyperedges:
         if not isinstance(hyperedge, dict):
@@ -616,8 +616,15 @@ def _filter_hyperedges_for_valid_nodes(
         if prune_sources and hyperedge.get("source_file") in prune_sources:
             continue
         nodes = hyperedge.get("nodes")
-        if isinstance(nodes, list) and any(node_id not in valid_ids for node_id in nodes):
-            continue
+        if isinstance(nodes, list):
+            valid_nodes = [node_id for node_id in nodes if node_id in valid_ids]
+            if len(valid_nodes) != len(nodes):
+                if hyperedge.get("source_file") or not valid_nodes:
+                    continue
+                item = dict(hyperedge)
+                item["nodes"] = valid_nodes
+                filtered.append(item)
+                continue
         filtered.append(hyperedge)
     return filtered
 
