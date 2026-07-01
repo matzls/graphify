@@ -394,10 +394,51 @@ def test_run_suite_records_fixture_failures_without_live_model_calls(tmp_path, m
     )
 
     assert summary["failures"] == [{"id": "router_privacy", "error": "router failed"}]
+    assert summary["gate_passed"] is False
+    assert "1 fixture(s) failed" in summary["gate_failures"]
     assert summary["fixtures"][1]["error"] == "router failed"
     summary_md = (tmp_path / "suite-run-failure" / "SUMMARY.md").read_text(encoding="utf-8")
+    assert "Quality gate: fail" in summary_md
     assert summary_md.count("router failed") == 1
     assert summary_md.count("## Fixture Scores") == 1
+
+
+def test_run_suite_fails_gate_when_no_fixture_scores_complete(tmp_path, monkeypatch):
+    def fake_run_harness(corpus, expected, out_dir, *, backend, model, timeout, token_budget):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "run.json").write_text(
+            json.dumps(
+                {
+                    "backend": backend,
+                    "model": model,
+                    "commands": [{"returncode": 1, "elapsed_seconds": 1.0}],
+                    "score": {"scores": {}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        raise SystemExit(f"{out_dir.name} failed")
+
+    monkeypatch.setattr(semantic_eval, "run_harness", fake_run_harness)
+
+    summary = run_suite(
+        FIXTURES / "suite.json",
+        tmp_path / "suite-run-all-failed",
+        backend="ollama",
+        model="deepseek-v4-flash:cloud",
+        timeout=1,
+        token_budget=100,
+    )
+
+    assert summary["scores"] == {}
+    assert summary["gate_passed"] is False
+    assert "6 fixture(s) failed" in summary["gate_failures"]
+    assert "no scored fixtures completed" in summary["gate_failures"]
+    summary_md = (tmp_path / "suite-run-all-failed" / "SUMMARY.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Weighted overall: None" in summary_md
+    assert "Quality gate: fail" in summary_md
 
 
 def test_parse_judge_spec_allows_colon_in_model_name():
