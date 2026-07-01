@@ -1208,13 +1208,23 @@ def _call_openai_compat(
             {"role": "system", "content": _extraction_system(deep=deep_mode)},
             {"role": "user", "content": _openai_content(user_message, images or [])},
         ],
-        "max_completion_tokens": max_completion_tokens,
         "stream": False,
     }
+    if backend == "ollama":
+        # Ollama's OpenAI-compatible chat endpoint documents max_tokens, not
+        # max_completion_tokens. The latter works with several hosted APIs but
+        # is not the portable request shape for Ollama Cloud models.
+        kwargs["max_tokens"] = max_completion_tokens
+    else:
+        kwargs["max_completion_tokens"] = max_completion_tokens
     if temperature is not None:
         kwargs["temperature"] = temperature
     if reasoning_effort is not None:
         kwargs["reasoning_effort"] = reasoning_effort
+    elif backend == "ollama":
+        ollama_reasoning_effort = _resolve_ollama_reasoning_effort(model)
+        if ollama_reasoning_effort is not None:
+            kwargs["reasoning_effort"] = ollama_reasoning_effort
     # A custom provider in providers.json can pass its own extra_body (e.g.
     # `chat_template_kwargs.enable_thinking=false` for self-hosted Qwen3 served
     # by vLLM). When supplied, it wins over the moonshot default — the user has
@@ -1291,6 +1301,8 @@ def _call_openai_compat(
             details += f", num_ctx={num_ctx_trace}"
         if keep_alive_trace is not None:
             details += f", keep_alive={keep_alive_trace}"
+        if kwargs.get("reasoning_effort") is not None:
+            details += f", reasoning_effort={kwargs['reasoning_effort']}"
         _trace_print(details)
     t0 = time.time()
     try:
@@ -1299,7 +1311,7 @@ def _call_openai_compat(
         if trace:
             _trace_print(
                 f"request failed: backend={backend or 'openai-compatible'}, "
-                f"elapsed_seconds={time.time() - t0:.2f}, error={type(exc).__name__}"
+                f"elapsed_seconds={time.time() - t0:.2f}, error={_exception_summary(exc)}"
             )
         raise
     if not resp.choices or resp.choices[0].message is None:

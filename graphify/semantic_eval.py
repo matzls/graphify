@@ -1013,9 +1013,20 @@ def _aggregate_suite(suite: dict[str, Any], fixture_runs: list[dict[str, Any]]) 
     minimum_overall = quality_gate.get("minimum_overall")
     minimum_critical = quality_gate.get("minimum_critical_dimension")
     critical_dimensions = [str(d) for d in quality_gate.get("critical_dimensions", [])]
+    fixture_failures = [
+        {"id": fixture["id"], "error": fixture["error"]}
+        for fixture in fixture_summaries
+        if fixture.get("error")
+    ]
     gate_failures: list[str] = []
-    if minimum_overall is not None and aggregate_scores.get("overall") is not None:
-        if aggregate_scores["overall"] < float(minimum_overall):
+    if fixture_failures:
+        gate_failures.append(f"{len(fixture_failures)} fixture(s) failed")
+    if not any(fixture.get("overall") is not None for fixture in fixture_summaries):
+        gate_failures.append("no scored fixtures completed")
+    if minimum_overall is not None:
+        if aggregate_scores.get("overall") is None:
+            gate_failures.append(f"overall score missing; minimum_overall {minimum_overall}")
+        elif aggregate_scores["overall"] < float(minimum_overall):
             gate_failures.append(
                 f"overall {aggregate_scores['overall']} < minimum_overall {minimum_overall}"
             )
@@ -1037,11 +1048,7 @@ def _aggregate_suite(suite: dict[str, Any], fixture_runs: list[dict[str, Any]]) 
         "quality_gate": quality_gate,
         "gate_passed": not gate_failures,
         "gate_failures": gate_failures,
-        "failures": [
-            {"id": fixture["id"], "error": fixture["error"]}
-            for fixture in fixture_summaries
-            if fixture.get("error")
-        ],
+        "failures": fixture_failures,
     }
 
 

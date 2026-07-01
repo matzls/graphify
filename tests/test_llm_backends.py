@@ -561,6 +561,51 @@ def test_llm_trace_reports_safe_diagnostics_without_prompt_or_response(monkeypat
     assert result["nodes"] == [{"id": "trace_node"}]
 
 
+def test_llm_trace_reports_provider_error_detail(monkeypatch, capsys):
+    import sys
+    import types
+
+    class _FakeResponse:
+        text = '{"error":"model temporarily overloaded"}'
+
+        def json(self):
+            return {"error": "model temporarily overloaded"}
+
+    class _ProviderError(Exception):
+        status_code = 503
+        response = _FakeResponse()
+
+    class _FakeOpenAI:
+        def __init__(self, *_, **__):
+            self.chat = self
+            self.completions = self
+
+        def create(self, **__):
+            raise _ProviderError("provider failed")
+
+    fake_module = types.ModuleType("openai")
+    setattr(fake_module, "OpenAI", _FakeOpenAI)
+    monkeypatch.setitem(sys.modules, "openai", fake_module)
+    monkeypatch.setenv("GRAPHIFY_LLM_TRACE", "1")
+
+    with pytest.raises(_ProviderError):
+        llm._call_openai_compat(
+            "http://localhost:11434/v1",
+            "ollama",
+            "deepseek-v4-flash:cloud",
+            "prompt-secret-content",
+            temperature=0,
+            max_completion_tokens=8192,
+            backend="ollama",
+        )
+
+    err = capsys.readouterr().err
+    assert "request failed" in err
+    assert "status=503" in err
+    assert "model temporarily overloaded" in err
+    assert "prompt-secret-content" not in err
+
+
 # ---------------------------------------------------------------------------
 # Ollama context-window fix (#798): num_ctx + keep_alive in extra_body,
 # serial execution by default.
@@ -597,6 +642,7 @@ def test_ollama_extra_body_sets_num_ctx_and_keep_alive(monkeypatch):
     captured = _install_capturing_openai(monkeypatch)
     monkeypatch.delenv("GRAPHIFY_OLLAMA_NUM_CTX", raising=False)
     monkeypatch.delenv("GRAPHIFY_OLLAMA_KEEP_ALIVE", raising=False)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_REASONING_EFFORT", raising=False)
 
     llm._call_openai_compat(
         "http://localhost:11434/v1",
@@ -616,6 +662,64 @@ def test_ollama_extra_body_sets_num_ctx_and_keep_alive(monkeypatch):
     assert eb.get("keep_alive") == "30m", "default keep_alive must be 30m"
 
 
+def test_ollama_chat_completion_uses_documented_max_tokens(monkeypatch):
+    captured = _install_capturing_openai(monkeypatch)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_NUM_CTX", raising=False)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_KEEP_ALIVE", raising=False)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_REASONING_EFFORT", raising=False)
+
+    llm._call_openai_compat(
+        "http://localhost:11434/v1",
+        "ollama",
+        "qwen2.5-coder:7b",
+        "user msg",
+        temperature=0,
+        max_completion_tokens=8192,
+        backend="ollama",
+    )
+
+    assert captured["max_tokens"] == 8192
+    assert "max_completion_tokens" not in captured
+
+
+def test_deepseek_v4_ollama_defaults_to_non_thinking(monkeypatch):
+    captured = _install_capturing_openai(monkeypatch)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_NUM_CTX", raising=False)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_KEEP_ALIVE", raising=False)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_REASONING_EFFORT", raising=False)
+
+    llm._call_openai_compat(
+        "http://localhost:11434/v1",
+        "ollama",
+        "deepseek-v4-flash:cloud",
+        "user msg",
+        temperature=0,
+        max_completion_tokens=8192,
+        backend="ollama",
+    )
+
+    assert captured["reasoning_effort"] == "none"
+
+
+def test_ollama_reasoning_effort_env_override(monkeypatch):
+    captured = _install_capturing_openai(monkeypatch)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_NUM_CTX", raising=False)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_KEEP_ALIVE", raising=False)
+    monkeypatch.setenv("GRAPHIFY_OLLAMA_REASONING_EFFORT", "max")
+
+    llm._call_openai_compat(
+        "http://localhost:11434/v1",
+        "ollama",
+        "deepseek-v4-flash:cloud",
+        "user msg",
+        temperature=0,
+        max_completion_tokens=8192,
+        backend="ollama",
+    )
+
+    assert captured["reasoning_effort"] == "max"
+
+
 def test_ollama_num_ctx_scales_with_small_token_budget(monkeypatch):
     # Regression for #798 follow-up: with --token-budget 8192, the old hardcoded
     # 131072 forced Ollama to allocate 128k KV-cache slots on a 31B model, causing
@@ -623,6 +727,7 @@ def test_ollama_num_ctx_scales_with_small_token_budget(monkeypatch):
     captured = _install_capturing_openai(monkeypatch)
     monkeypatch.delenv("GRAPHIFY_OLLAMA_NUM_CTX", raising=False)
     monkeypatch.delenv("GRAPHIFY_OLLAMA_KEEP_ALIVE", raising=False)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_REASONING_EFFORT", raising=False)
 
     # Simulate an 8k-token chunk: ~32k chars of content
     small_chunk_msg = "x" * 32_000
@@ -651,6 +756,7 @@ def test_ollama_num_ctx_env_override(monkeypatch):
     captured = _install_capturing_openai(monkeypatch)
     monkeypatch.setenv("GRAPHIFY_OLLAMA_NUM_CTX", "65536")
     monkeypatch.delenv("GRAPHIFY_OLLAMA_KEEP_ALIVE", raising=False)
+    monkeypatch.delenv("GRAPHIFY_OLLAMA_REASONING_EFFORT", raising=False)
 
     llm._call_openai_compat(
         "http://localhost:11434/v1",
