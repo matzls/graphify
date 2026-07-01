@@ -253,6 +253,19 @@ def test_pi_cli_backend_runbook_has_no_legacy_temp_or_duplicate_transcribe_flow(
     assert "If `--no-cluster` was passed and no report exists, skip report pasteback" in core
 
 
+def test_pi_skill_uses_local_fork_install_and_cli_update_reference():
+    """Mase's Pi skill must stay on the local fork and use CLI update commands."""
+    core, refs = _platform_artifacts("pi")
+    assert 'EXPECTED_GRAPHIFY_SOURCE="/Users/mase/Codebase/Personal-Projects/graphify"' in core
+    assert "graphify doctor" in core
+    assert '--require-source "$EXPECTED_GRAPHIFY_SOURCE"' in core
+    assert "uv tool install --upgrade graphifyy -q" not in core
+    update = refs["update.md"]
+    assert "graphify update INPUT_PATH" in update
+    assert "graphify cluster-only INPUT_PATH --backend ollama" in update
+    assert "Step 3A" not in update
+
+
 def test_check_passes_for_codex_and_windows():
     """The committed codex/windows artifacts match a fresh render and expected/."""
     platforms = gen.load_platforms()

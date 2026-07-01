@@ -196,6 +196,13 @@ Prefer tests in `tests/test_watch.py`, `tests/test_transcribe.py`,
 `tests/test_hooks.py`, `tests/test_cli_semantic_fail_closed.py`,
 `tests/test_llm_backends.py`, and `tests/test_cli_export.py` for these patches.
 
+## Pi Runtime Note: GSD
+
+The generated GSD routing block below is for Codex sessions only. Pi currently
+does not load this repo's `.codex/skills/gsd-*`, and Mase is not using GSD in
+Pi. In Pi, do not route work through GSD unless Mase explicitly asks to port or
+enable it for Pi.
+
 <!-- gsd-routing-start -->
 <!-- template-version: 2026-05-11.1 -->
 <!-- template-sha256: a268dee324e539b5e9c735b0eb34e95b479eaa6e531df938174b87d5d15a6022 -->
@@ -262,7 +269,8 @@ Safety rules:
 This project has historical knowledge graph artifacts at `graphify-out/`, but
 Graphify should not be executed automatically against its own source repo.
 
-When the user types `/graphify`, invoke the `skill` tool with `skill: "graphify"` before doing anything else.
+When the user types `/graphify`, use the installed Graphify Agent Skill or
+instructions before doing anything else.
 
 Rules:
 

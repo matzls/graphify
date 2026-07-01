@@ -134,9 +134,9 @@ ALWAYS_ON_LOCAL_OVERLAYS: frozenset[str] = frozenset(
 ENUM_VALUES = "code|document|paper|image|rationale|concept"
 ENUM_PROSE = "`code`, `document`, `paper`, `image`, `rationale`, `concept`"
 
-# The eight on-demand references every split platform renders. Six are
-# shared-verbatim; two (extraction-spec, hooks) are variant-selected and resolved
-# per platform from the extraction/hooks_variant fields.
+# Default on-demand references for split platforms. Most are shared-verbatim;
+# extraction-spec and hooks are variant-selected, and platforms may override a
+# source path while keeping the rendered reference filename stable.
 _SHARED_REFERENCES = {
     "update": "references/shared/update.md",
     "exports": "references/shared/exports.md",
@@ -283,6 +283,8 @@ _CONSOLIDATION_ALLOWLIST: dict[str, frozenset[str]] = {
     # tools/skillgen/fragments/core/pi.md.
     "pi": frozenset(
         {
+            "### Step 1 - Ensure graphify is installed",
+            "## For --update (incremental re-extraction)",
             "### Step 3 - Extract entities and relationships",
             "#### Part A - Structural extraction for code files",
             "#### Part B - Semantic extraction (parallel subagents)",
@@ -319,6 +321,7 @@ class Platform:
     shell: str = "posix"
     claude_md: bool = False
     hooks_variant: str = "claude-md"
+    reference_overrides: dict[str, str] = field(default_factory=dict)
     extra_sections: tuple[str, ...] = ()
     # monolith-only inputs
     monolith: str | None = None
@@ -330,6 +333,7 @@ class Platform:
         refs["extraction-spec"] = _EXTRACTION_SOURCE[self.extraction]
         refs["query"] = _QUERY_REFERENCE
         refs["hooks"] = _HOOKS_SOURCE[self.hooks_variant]
+        refs.update(self.reference_overrides)
         return refs
 
     @property
@@ -357,6 +361,7 @@ def load_platforms() -> dict[str, Platform]:
             shell=cfg.get("shell", "posix"),
             claude_md=bool(cfg.get("claude_md", False)),
             hooks_variant=cfg.get("hooks_variant", "claude-md"),
+            reference_overrides=dict(cfg.get("reference_overrides", {})),
             extra_sections=tuple(cfg.get("extra_sections", [])),
             monolith=cfg.get("monolith"),
             roundtrip_ref=cfg.get("roundtrip_ref"),
