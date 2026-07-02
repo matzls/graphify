@@ -568,6 +568,7 @@ def test_default_hooks_dir_unaffected(tmp_path):
 
 # ── foreground hook cost: probes must be cheap and quiet ─────────────────────
 
+
 def test_probes_use_find_spec_not_full_import():
     """`python -c "import graphify"` executes the FULL package import — 10s+ on a
     cold cache or AV-scanned site-packages — and could run up to four times
@@ -576,6 +577,7 @@ def test_probes_use_find_spec_not_full_import():
     importlib.util.find_spec (no execution); the detached rebuild still reports
     a broken install loudly in its log."""
     from graphify.hooks import _PYTHON_DETECT
+
     assert '-c "import graphify"' not in _PYTHON_DETECT, (
         "interpreter probe still imports the full package in the hook foreground"
     )
@@ -589,6 +591,7 @@ def test_shebang_read_is_null_byte_safe():
     the extracted garbage always falls through to the slow fallbacks. The read
     must strip NULs before the command substitution sees them."""
     from graphify.hooks import _PYTHON_DETECT
+
     assert "tr -d '\\000'" in _PYTHON_DETECT, "shebang read is not NUL-safe"
 
 
@@ -597,6 +600,7 @@ def test_probe_prefers_sibling_python_exe_on_windows_layouts():
     .\\python.exe in a venv). Resolving that directly beats shebang-parsing a
     binary launcher — and works whether or not command -v kept the suffix."""
     from graphify.hooks import _PYTHON_DETECT
+
     assert "/../python.exe" in _PYTHON_DETECT
     assert "/python.exe" in _PYTHON_DETECT
 
