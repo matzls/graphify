@@ -482,14 +482,37 @@ def _hooks_dir(root: Path) -> Path:
     return d
 
 
-def _install_hook(hooks_dir: Path, name: str, script: str, marker: str) -> str:
-    """Install a single git hook, appending if an existing hook is present."""
+def _install_hook(
+    hooks_dir: Path,
+    name: str,
+    script: str,
+    marker: str,
+    marker_end: str,
+) -> str:
+    """Install or update a single git hook, preserving unrelated hook content."""
     hook_path = hooks_dir / name
     if hook_path.exists():
         content = hook_path.read_text(encoding="utf-8")
-        if marker in content:
-            return f"already installed at {hook_path}"
+        if marker in content and marker_end in content:
+            new_content, count = re.subn(
+                rf"{re.escape(marker)}.*?{re.escape(marker_end)}\n?",
+                lambda _match: script,
+                content,
+                count=1,
+                flags=re.DOTALL,
+            )
+            if count:
+                hook_path.write_text(new_content.rstrip() + "\n", encoding="utf-8", newline="\n")
+                hook_path.chmod(0o755)
+                return f"updated existing {name} hook at {hook_path}"
+        if marker in content or marker_end in content:
+            backup = hook_path.with_name(f"{name}.graphify-backup")
+            backup.write_text(content, encoding="utf-8", newline="\n")
+            hook_path.write_text(content.rstrip() + "\n\n" + script, encoding="utf-8", newline="\n")
+            hook_path.chmod(0o755)
+            return f"appended to existing {name} hook at {hook_path} (backed up partial graphify block to {backup})"
         hook_path.write_text(content.rstrip() + "\n\n" + script, encoding="utf-8", newline="\n")
+        hook_path.chmod(0o755)
         return f"appended to existing {name} hook at {hook_path}"
     hook_path.write_text("#!/bin/sh\n" + script, encoding="utf-8", newline="\n")
     hook_path.chmod(0o755)
@@ -687,8 +710,10 @@ def install(path: Path = Path(".")) -> str:
     hook = _HOOK_SCRIPT.replace("__PINNED_PYTHON__", pinned)
     checkout = _CHECKOUT_SCRIPT.replace("__PINNED_PYTHON__", pinned)
 
-    commit_msg = _install_hook(hooks_dir, "post-commit", hook, _HOOK_MARKER)
-    checkout_msg = _install_hook(hooks_dir, "post-checkout", checkout, _CHECKOUT_MARKER)
+    commit_msg = _install_hook(hooks_dir, "post-commit", hook, _HOOK_MARKER, _HOOK_MARKER_END)
+    checkout_msg = _install_hook(
+        hooks_dir, "post-checkout", checkout, _CHECKOUT_MARKER, _CHECKOUT_MARKER_END
+    )
     merge_msg = _register_merge_driver(root)
 
     return f"post-commit: {commit_msg}\npost-checkout: {checkout_msg}\nmerge driver: {merge_msg}"
