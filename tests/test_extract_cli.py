@@ -592,6 +592,125 @@ def test_cache_check_mode_deep_reads_deep_namespace(monkeypatch, tmp_path, capsy
     assert "Cache: 1 hit, 0 miss" in capsys.readouterr().out
 
 
+def test_extract_normalizes_missing_id_hyperedge_from_fresh_semantic_result(
+    monkeypatch, tmp_path
+):
+    corpus = _make_corpus(tmp_path)
+    out_dir = tmp_path / "out"
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+
+    def _missing_id_hyperedge(paths, **kwargs):
+        on_chunk = kwargs.get("on_chunk_done")
+        if on_chunk:
+            on_chunk(0, 1, {"nodes": [], "edges": [], "hyperedges": []})
+        return {
+            "nodes": [
+                {
+                    "id": "readme_notes",
+                    "label": "Notes",
+                    "file_type": "document",
+                    "source_file": "README.md",
+                },
+                {
+                    "id": "readme_entrypoint",
+                    "label": "Entrypoint",
+                    "file_type": "document",
+                    "source_file": "README.md",
+                },
+            ],
+            "edges": [],
+            "hyperedges": [
+                {
+                    "label": "Legacy semantic group",
+                    "relation": "participate_in",
+                    "source_file": "README.md",
+                    "nodes": ["readme_notes", "readme_entrypoint"],
+                }
+            ],
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "failed_chunks": 0,
+            "total_chunks": 1,
+        }
+
+    monkeypatch.setattr("graphify.llm.extract_corpus_parallel", _missing_id_hyperedge)
+    monkeypatch.setattr("graphify.llm.validate_backend_dependencies", lambda _: None)
+    monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
+    _run_extract(
+        monkeypatch,
+        ["graphify", "extract", str(corpus), "--backend", "ollama", "--out", str(out_dir)],
+    )
+
+    graph = json.loads((out_dir / "graphify-out" / "graph.json").read_text())
+    hyperedges = graph.get("hyperedges", [])
+    assert len(hyperedges) == 1
+    assert hyperedges[0]["label"] == "Legacy semantic group"
+    assert hyperedges[0]["source_file"] == "README.md"
+    assert isinstance(hyperedges[0].get("id"), str) and hyperedges[0]["id"]
+
+
+def test_extract_normalizes_missing_id_hyperedge_from_semantic_cache(
+    monkeypatch, tmp_path
+):
+    from graphify.cache import save_cached
+    from graphify.llm import _extraction_system
+
+    corpus = _make_corpus(tmp_path)
+    out_dir = tmp_path / "out"
+    readme = corpus / "README.md"
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+    save_cached(
+        readme,
+        {
+            "nodes": [
+                {
+                    "id": "readme_notes",
+                    "label": "Notes",
+                    "file_type": "document",
+                    "source_file": str(readme),
+                },
+                {
+                    "id": "readme_entrypoint",
+                    "label": "Entrypoint",
+                    "file_type": "document",
+                    "source_file": str(readme),
+                },
+            ],
+            "edges": [],
+            "hyperedges": [
+                {
+                    "label": "Cached legacy group",
+                    "relation": "participate_in",
+                    "source_file": str(readme),
+                    "nodes": ["readme_notes", "readme_entrypoint"],
+                }
+            ],
+        },
+        root=corpus,
+        cache_root=out_dir,
+        kind="semantic",
+        prompt=_extraction_system(),
+    )
+
+    def _unexpected_fresh_extraction(paths, **kwargs):  # pragma: no cover
+        raise AssertionError("semantic cache hit should avoid fresh extraction")
+
+    monkeypatch.setattr("graphify.llm.extract_corpus_parallel", _unexpected_fresh_extraction)
+    monkeypatch.setattr("graphify.llm.validate_backend_dependencies", lambda _: None)
+    monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
+    _run_extract(
+        monkeypatch,
+        ["graphify", "extract", str(corpus), "--backend", "ollama", "--out", str(out_dir)],
+    )
+
+    graph = json.loads((out_dir / "graphify-out" / "graph.json").read_text())
+    hyperedges = graph.get("hyperedges", [])
+    assert len(hyperedges) == 1
+    assert hyperedges[0]["label"] == "Cached legacy group"
+    assert hyperedges[0]["source_file"] == "README.md"
+    assert isinstance(hyperedges[0].get("id"), str) and hyperedges[0]["id"]
+
+
 def _code_only_corpus(tmp_path):
     """A corpus with only code — no docs/papers/images."""
     (tmp_path / "auth.py").write_text(

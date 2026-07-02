@@ -1,11 +1,11 @@
 """Tests for hyperedge support in graphify."""
+
 from __future__ import annotations
 import json
 import tempfile
 from pathlib import Path
 
 import networkx as nx
-import pytest
 
 from graphify.build import build_from_json
 from graphify.export import attach_hyperedges, to_json
@@ -22,10 +22,22 @@ SAMPLE_EXTRACTION = {
         {"id": "DigestAuth", "label": "DigestAuth", "file_type": "code", "source_file": "auth.py"},
         {"id": "Request", "label": "Request", "file_type": "code", "source_file": "http.py"},
         {"id": "Response", "label": "Response", "file_type": "code", "source_file": "http.py"},
-        {"id": "BaseClient", "label": "BaseClient", "file_type": "code", "source_file": "client.py"},
+        {
+            "id": "BaseClient",
+            "label": "BaseClient",
+            "file_type": "code",
+            "source_file": "client.py",
+        },
     ],
     "edges": [
-        {"source": "BasicAuth", "target": "Request", "relation": "uses", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "auth.py"},
+        {
+            "source": "BasicAuth",
+            "target": "Request",
+            "relation": "uses",
+            "confidence": "EXTRACTED",
+            "confidence_score": 1.0,
+            "source_file": "auth.py",
+        },
     ],
     "hyperedges": [
         {
@@ -51,9 +63,17 @@ SAMPLE_DETECTION = {
 }
 
 
+def _read_json(path: str) -> dict:
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AssertionError(f"expected valid JSON at {path}: {exc}") from exc
+
+
 # ---------------------------------------------------------------------------
 # 1. Hyperedges survive build_from_json round-trip
 # ---------------------------------------------------------------------------
+
 
 def test_build_from_json_stores_hyperedges():
     G = build_from_json(SAMPLE_EXTRACTION)
@@ -104,9 +124,42 @@ def test_build_from_json_missing_hyperedges_key():
     assert G.graph.get("hyperedges", []) == []
 
 
+def test_build_from_json_synthesizes_missing_hyperedge_ids_and_skips_unusable():
+    extraction = {
+        "nodes": [
+            {"id": "a", "label": "A", "file_type": "document", "source_file": "doc.md"},
+            {"id": "b", "label": "B", "file_type": "document", "source_file": "doc.md"},
+            {"id": "c", "label": "C", "file_type": "document", "source_file": "doc.md"},
+        ],
+        "edges": [],
+        "hyperedges": [
+            {
+                "label": "Legacy Flow",
+                "relation": "participate_in",
+                "source_file": "doc.md",
+                "nodes": ["b", "missing", "a"],
+            },
+            {"label": "Too Small", "nodes": ["a"]},
+            {"id": "kept_single", "label": "Kept", "nodes": ["c"]},
+            "not-a-hyperedge",
+        ],
+    }
+
+    G = build_from_json(extraction)
+
+    hyperedges = G.graph.get("hyperedges", [])
+    assert len(hyperedges) == 2
+    by_label = {he["label"]: he for he in hyperedges}
+    assert by_label["Legacy Flow"]["id"]
+    assert by_label["Legacy Flow"]["nodes"] == ["b", "a"]
+    assert by_label["Kept"]["id"] == "kept_single"
+    assert all("id" in he for he in hyperedges)
+
+
 # ---------------------------------------------------------------------------
 # 2. attach_hyperedges deduplicates by id
 # ---------------------------------------------------------------------------
+
 
 def test_attach_hyperedges_adds_new():
     G = nx.Graph()
@@ -124,22 +177,46 @@ def test_attach_hyperedges_deduplicates():
 
 def test_attach_hyperedges_multiple_different_ids():
     G = nx.Graph()
-    attach_hyperedges(G, [
-        {"id": "flow_a", "label": "Flow A", "nodes": ["A", "B", "C"]},
-        {"id": "flow_b", "label": "Flow B", "nodes": ["D", "E", "F"]},
-    ])
+    attach_hyperedges(
+        G,
+        [
+            {"id": "flow_a", "label": "Flow A", "nodes": ["A", "B", "C"]},
+            {"id": "flow_b", "label": "Flow B", "nodes": ["D", "E", "F"]},
+        ],
+    )
     assert len(G.graph["hyperedges"]) == 2
 
 
-def test_attach_hyperedges_skips_entry_without_id():
+def test_attach_hyperedges_synthesizes_missing_ids_and_cleans_existing_metadata():
     G = nx.Graph()
-    attach_hyperedges(G, [{"label": "No ID", "nodes": ["A", "B", "C"]}])
-    assert G.graph.get("hyperedges", []) == []
+    G.add_nodes_from(["A", "B", "C"])
+    G.graph["hyperedges"] = [
+        {"label": "Legacy Flow", "relation": "participate_in", "nodes": ["C", "A", "B"]},
+        {"label": "Too Small", "nodes": ["A"]},
+        "not-a-hyperedge",
+    ]
+
+    attach_hyperedges(G, [{"id": "fresh_flow", "label": "Fresh", "nodes": ["A", "B"]}])
+
+    hyperedges = G.graph["hyperedges"]
+    assert len(hyperedges) == 2
+    by_label = {he["label"]: he for he in hyperedges}
+    legacy_id = by_label["Legacy Flow"]["id"]
+    assert isinstance(legacy_id, str) and legacy_id
+    assert by_label["Fresh"]["id"] == "fresh_flow"
+    assert all("id" in he for he in hyperedges)
+
+    attach_hyperedges(
+        G, [{"label": "Legacy Flow", "relation": "participate_in", "nodes": ["B", "C", "A"]}]
+    )
+    assert len(G.graph["hyperedges"]) == 2
+    assert by_label["Legacy Flow"]["id"] == legacy_id
 
 
 # ---------------------------------------------------------------------------
 # 3. to_json includes hyperedges key
 # ---------------------------------------------------------------------------
+
 
 def test_to_json_includes_hyperedges():
     G = build_from_json(SAMPLE_EXTRACTION)
@@ -147,10 +224,34 @@ def test_to_json_includes_hyperedges():
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
         path = f.name
     to_json(G, communities, path)
-    data = json.loads(Path(path).read_text())
+    data = _read_json(path)
     assert "hyperedges" in data
     assert len(data["hyperedges"]) == 1
     assert data["hyperedges"][0]["id"] == "auth_flow"
+
+
+def test_to_json_normalizes_direct_graph_metadata_hyperedges():
+    G = nx.Graph()
+    G.add_nodes_from(["A", "B"])
+    G.graph["hyperedges"] = [
+        {
+            "label": "Legacy Flow",
+            "relation": "participate_in",
+            "nodes": ["B", "A"],
+        },
+        {"label": "Too Small", "nodes": ["A"]},
+        "not-a-hyperedge",
+    ]
+    communities = {0: list(G.nodes())}
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+        path = f.name
+
+    to_json(G, communities, path)
+
+    hyperedges = _read_json(path)["hyperedges"]
+    assert len(hyperedges) == 1
+    assert hyperedges[0]["label"] == "Legacy Flow"
+    assert isinstance(hyperedges[0].get("id"), str) and hyperedges[0]["id"]
 
 
 def test_to_json_hyperedges_empty_when_none():
@@ -160,7 +261,7 @@ def test_to_json_hyperedges_empty_when_none():
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
         path = f.name
     to_json(G, communities, path)
-    data = json.loads(Path(path).read_text())
+    data = _read_json(path)
     assert "hyperedges" in data
     assert data["hyperedges"] == []
 
@@ -168,6 +269,7 @@ def test_to_json_hyperedges_empty_when_none():
 # ---------------------------------------------------------------------------
 # 4. Hyperedges loaded from graph.json via build_from_json
 # ---------------------------------------------------------------------------
+
 
 def test_hyperedges_roundtrip_via_json_file():
     """Write graph.json then reload it - hyperedges must survive."""
@@ -178,12 +280,23 @@ def test_hyperedges_roundtrip_via_json_file():
     to_json(G, communities, path)
 
     # Reload the JSON as if build_from_json were called on it
-    data = json.loads(Path(path).read_text())
-    G2 = build_from_json({
-        "nodes": [{"id": n["id"], **{k: v for k, v in n.items() if k != "id"}} for n in data["nodes"]],
-        "edges": [{"source": e["source"], "target": e["target"], **{k: v for k, v in e.items() if k not in ("source", "target")}} for e in data.get("links", [])],
-        "hyperedges": data.get("hyperedges", []),
-    })
+    data = _read_json(path)
+    G2 = build_from_json(
+        {
+            "nodes": [
+                {"id": n["id"], **{k: v for k, v in n.items() if k != "id"}} for n in data["nodes"]
+            ],
+            "edges": [
+                {
+                    "source": e["source"],
+                    "target": e["target"],
+                    **{k: v for k, v in e.items() if k not in ("source", "target")},
+                }
+                for e in data.get("links", [])
+            ],
+            "hyperedges": data.get("hyperedges", []),
+        }
+    )
     assert G2.graph.get("hyperedges", []) != []
     assert G2.graph["hyperedges"][0]["id"] == "auth_flow"
 
@@ -192,13 +305,24 @@ def test_hyperedges_roundtrip_via_json_file():
 # 5. Report includes hyperedges section when hyperedges present
 # ---------------------------------------------------------------------------
 
+
 def _make_report(G):
     communities = {0: list(G.nodes())}
     cohesion = {0: 1.0}
     labels = {0: "All"}
     gods = [{"label": "BasicAuth", "degree": 2}]
     surprises = []
-    return generate(G, communities, cohesion, labels, gods, surprises, SAMPLE_DETECTION, {"input": 10, "output": 5}, ".")
+    return generate(
+        G,
+        communities,
+        cohesion,
+        labels,
+        gods,
+        surprises,
+        SAMPLE_DETECTION,
+        {"input": 10, "output": 5},
+        ".",
+    )
 
 
 def test_report_includes_hyperedges_section():
@@ -221,6 +345,7 @@ def test_report_includes_hyperedge_node_list():
 # 6. Report skips hyperedges section when none present
 # ---------------------------------------------------------------------------
 
+
 def test_report_skips_hyperedges_section_when_empty():
     extraction = {**SAMPLE_EXTRACTION, "hyperedges": []}
     G = build_from_json(extraction)
@@ -238,6 +363,7 @@ def test_report_skips_hyperedges_section_when_key_missing():
 # ---------------------------------------------------------------------------
 # 7. Hyperedge member-key alias normalization (#1561)
 # ---------------------------------------------------------------------------
+
 
 def _alias_extraction():
     """Three hyperedges, one per member-key spelling: nodes / members / node_ids."""

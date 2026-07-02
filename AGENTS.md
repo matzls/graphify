@@ -191,10 +191,15 @@ Current local fixes should stay small and upstream-friendly:
   see `docs/codex-pi-semantic-refresh.md`.
 - Fail closed on degraded semantic refreshes unless `--allow-partial` is
   explicit; partial markers must prevent wiki refreshes from looking clean.
+- Normalize legacy or model-produced hyperedges missing `id` so `build_merge`,
+  semantic-cache reuse, and exports cannot crash or preserve malformed graph
+  metadata.
 
 Prefer tests in `tests/test_watch.py`, `tests/test_transcribe.py`,
 `tests/test_hooks.py`, `tests/test_cli_semantic_fail_closed.py`,
-`tests/test_llm_backends.py`, and `tests/test_cli_export.py` for these patches.
+`tests/test_llm_backends.py`, `tests/test_cli_export.py`,
+`tests/test_hypergraph.py`, `tests/test_build_merge_hyperedges_and_prune.py`,
+and `tests/test_extract_cli.py` for these patches.
 
 ## Pi Runtime Note: GSD
 

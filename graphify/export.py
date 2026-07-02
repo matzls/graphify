@@ -15,7 +15,7 @@ import networkx as nx
 from networkx.readwrite import json_graph
 from graphify.security import sanitize_label
 from graphify.analyze import _node_community_map
-from graphify.build import edge_data
+from graphify.build import _normalize_hyperedges, edge_data
 
 from graphify.exporters.graphdb import push_to_falkordb, push_to_neo4j  # noqa: E402,F401
 
@@ -159,12 +159,18 @@ from graphify.exporters.html import to_html  # noqa: E402,F401
 _CONFIDENCE_SCORE_DEFAULTS = {"EXTRACTED": 1.0, "INFERRED": 0.5, "AMBIGUOUS": 0.2}
 
 
-def attach_hyperedges(G: nx.Graph, hyperedges: list) -> None:
+def attach_hyperedges(G: nx.Graph, hyperedges: list, *, root: str | Path | None = None) -> None:
     """Store hyperedges in the graph's metadata dict."""
-    existing = G.graph.get("hyperedges", [])
+    root_str = str(Path(root).resolve()) if root is not None else None
+    valid_ids = set(G.nodes) if G.number_of_nodes() else None
+    existing = _normalize_hyperedges(
+        G.graph.get("hyperedges", []),
+        root=root_str,
+        valid_ids=valid_ids,
+    )
     seen_ids = {h["id"] for h in existing}
-    for h in hyperedges:
-        if h.get("id") and h["id"] not in seen_ids:
+    for h in _normalize_hyperedges(hyperedges, root=root_str, valid_ids=valid_ids):
+        if h["id"] not in seen_ids:
             existing.append(h)
             seen_ids.add(h["id"])
     G.graph["hyperedges"] = existing
@@ -311,7 +317,10 @@ def to_json(G: nx.Graph, communities: dict[int, list[str]], output_path: str, *,
         if true_src is not None and true_tgt is not None:
             link["source"] = true_src
             link["target"] = true_tgt
-    data["hyperedges"] = getattr(G, "graph", {}).get("hyperedges", [])
+    data["hyperedges"] = _normalize_hyperedges(
+        getattr(G, "graph", {}).get("hyperedges", []),
+        valid_ids=set(G.nodes),
+    )
     commit = built_at_commit if built_at_commit is not None else _git_head()
     if commit:
         data["built_at_commit"] = commit
