@@ -22,6 +22,7 @@
 #
 from __future__ import annotations
 import fnmatch
+import hashlib
 import json
 import math
 import os
@@ -129,6 +130,99 @@ def _normalize_hyperedge_members(he: object) -> None:
     # Drop any leftover alias keys regardless of which branch ran above.
     for alias in _HE_MEMBER_ALIASES:
         he.pop(alias, None)
+
+
+def _has_usable_hyperedge_id(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _dedupe_hyperedge_nodes(raw_nodes: object, valid_ids: set | None) -> list:
+    if not isinstance(raw_nodes, list):
+        return []
+    seen: set = set()
+    nodes: list = []
+    for node_id in raw_nodes:
+        try:
+            if valid_ids is not None and node_id not in valid_ids:
+                continue
+            if node_id in seen:
+                continue
+            seen.add(node_id)
+        except TypeError:
+            continue
+        nodes.append(node_id)
+    return nodes
+
+
+def _synthesize_hyperedge_id(hyperedge: dict, nodes: list) -> str:
+    payload = {
+        "label": str(hyperedge.get("label") or ""),
+        "nodes": sorted(str(node_id) for node_id in nodes),
+        "relation": str(hyperedge.get("relation") or ""),
+        "source_file": str(hyperedge.get("source_file") or ""),
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:12]
+    return make_id("hyperedge", payload["relation"], payload["label"], digest)
+
+
+def _normalize_hyperedge(
+    hyperedge: object,
+    *,
+    root: str | None = None,
+    valid_ids: set | None = None,
+) -> dict | None:
+    """Return a canonical hyperedge dict, or None when it is unusable.
+
+    Legacy graph.json and semantic-cache entries can contain hyperedges without
+    an ``id``. Preserve existing non-blank string IDs exactly; synthesize a
+    stable deterministic ID for otherwise-valid missing-ID hyperedges with at
+    least two surviving member nodes; drop non-dicts and unmeaningful entries.
+    """
+    if not isinstance(hyperedge, dict):
+        return None
+
+    item = dict(hyperedge)
+    _normalize_hyperedge_members(item)
+    if item.get("source_file"):
+        item["source_file"] = _norm_source_file(item["source_file"], root)
+
+    nodes = _dedupe_hyperedge_nodes(item.get("nodes"), valid_ids)
+    if isinstance(item.get("nodes"), list):
+        item["nodes"] = nodes
+
+    if _has_usable_hyperedge_id(item.get("id")):
+        return item
+
+    if len(nodes) < 2:
+        return None
+    item["id"] = _synthesize_hyperedge_id(item, nodes)
+    return item
+
+
+def _normalize_hyperedges(
+    hyperedges: object,
+    *,
+    root: str | None = None,
+    valid_ids: set | None = None,
+) -> list[dict]:
+    """Canonicalize, ID-normalize, and deduplicate hyperedges by id."""
+    if not isinstance(hyperedges, list):
+        return []
+
+    normalized: list[dict] = []
+    seen_ids: set[str] = set()
+    for hyperedge in hyperedges:
+        item = _normalize_hyperedge(hyperedge, root=root, valid_ids=valid_ids)
+        if item is None:
+            continue
+        hyperedge_id = item.get("id")
+        if not isinstance(hyperedge_id, str) or hyperedge_id in seen_ids:
+            continue
+        normalized.append(item)
+        seen_ids.add(hyperedge_id)
+    return normalized
 
 
 def _norm_source_file(p: str | None, root: str | None = None) -> str | None:
@@ -1100,8 +1194,13 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
                 if valid_members != he["nodes"]:
                     he["nodes"] = valid_members
             kept_hyperedges.append(he)
-        if kept_hyperedges:
-            G.graph["hyperedges"] = kept_hyperedges
+        normalized_hyperedges = _normalize_hyperedges(
+            kept_hyperedges,
+            root=_root,
+            valid_ids=node_set,
+        )
+        if normalized_hyperedges:
+            G.graph["hyperedges"] = normalized_hyperedges
     # Runs LAST, after the alias-competition above (which relies on file-node
     # labels still being bare basenames): give colliding-basename file nodes a
     # directory-qualified display label so lookup/discovery can disambiguate
@@ -1314,11 +1413,12 @@ def build_merge(
     )
 
     internal_sources = {
-        item.get("source_file")
+        source
         for item in [*existing_nodes, *existing_edges, *existing_hyperedges]
-        if isinstance(item, dict) and is_internal_graphify_source(item.get("source_file"))
+        if isinstance(item, dict)
+        for source in [item.get("source_file")]
+        if isinstance(source, str) and is_internal_graphify_source(source)
     }
-    internal_sources.discard(None)
     if internal_sources:
         prune_sources = sorted(set(prune_sources or []) | internal_sources)
 
@@ -1360,7 +1460,13 @@ def build_merge(
     ] if had_graph else []
 
     all_chunks = base + list(new_chunks)
-    G = build(all_chunks, directed=directed, dedup=dedup, dedup_llm_backend=dedup_llm_backend, root=root)
+    G = build(
+        all_chunks,
+        directed=directed,
+        dedup=dedup,
+        dedup_llm_backend=dedup_llm_backend,
+        root=_eff_root,
+    )
 
     # Prune set for deleted source files — both the raw form (matches nodes that
     # kept absolute source_file) and the normalised relative form (matches nodes
@@ -1428,7 +1534,8 @@ def build_merge(
             carried.append(he)
         if carried:
             from graphify.export import attach_hyperedges
-            attach_hyperedges(G, carried)
+
+            attach_hyperedges(G, carried, root=_eff_root)
 
     # Prune nodes and edges from deleted source files
     if prune_sources:

@@ -10,13 +10,14 @@ build_merge backs `graphify --update`. Two regressions covered here:
   prune_sources never relativized to match the stored relative source_file keys, so
   deleted files' nodes survived as ghosts. build_merge now infers a fallback root.
 """
+
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
 
-import pytest
+import pytest  # type: ignore[reportMissingImports]
 
 from graphify.build import build_merge, _infer_merge_root
 
@@ -34,6 +35,7 @@ def _he_ids(G) -> set[str]:
 
 
 # ── #1574: hyperedge preservation ─────────────────────────────────────────────
+
 
 def _seed_two_file_graph(tmp_path):
     root = tmp_path / "corpus"
@@ -58,14 +60,16 @@ def test_update_preserves_hyperedges_of_unchanged_files(tmp_path):
     new_chunk = {
         "nodes": [{"id": "b1", "label": "b1", "file_type": "document", "source_file": "b.md"}],
         "edges": [],
-        "hyperedges": [{"id": "he_b_v2", "label": "flow B v2", "source_file": "b.md", "nodes": ["b1"]}],
+        "hyperedges": [
+            {"id": "he_b_v2", "label": "flow B v2", "source_file": "b.md", "nodes": ["b1"]}
+        ],
     }
     G = build_merge([new_chunk], graph_path, dedup=False, root=root)
     ids = _he_ids(G)
-    assert "he_a" in ids           # unchanged file's hyperedge preserved (the bug)
-    assert "he_global" in ids      # source_file-less hyperedge preserved
-    assert "he_b_v2" in ids        # re-extracted file's new hyperedge present
-    assert "he_b" not in ids       # re-extracted file's OLD hyperedge replaced
+    assert "he_a" in ids  # unchanged file's hyperedge preserved (the bug)
+    assert "he_global" in ids  # source_file-less hyperedge preserved
+    assert "he_b_v2" in ids  # re-extracted file's new hyperedge present
+    assert "he_b" not in ids  # re-extracted file's OLD hyperedge replaced
 
 
 def test_update_without_root_still_preserves_hyperedges(tmp_path):
@@ -82,19 +86,74 @@ def test_update_without_root_still_preserves_hyperedges(tmp_path):
     assert "he_b" not in ids
 
 
+def test_update_normalizes_legacy_hyperedge_missing_id(tmp_path):
+    root = tmp_path / "corpus"
+    root.mkdir()
+    graph_path = tmp_path / "graph.json"
+    nodes = [
+        {"id": "a1", "label": "a1", "file_type": "document", "source_file": "a.md"},
+        {"id": "b1", "label": "b1", "file_type": "document", "source_file": "b.md"},
+    ]
+    _write_graph(
+        graph_path,
+        nodes,
+        [],
+        [{"label": "legacy flow", "relation": "participate_in", "nodes": ["a1", "b1"]}],
+    )
+
+    G = build_merge([], graph_path, dedup=False, root=root)
+
+    hyperedges = G.graph.get("hyperedges", [])
+    assert len(hyperedges) == 1
+    assert hyperedges[0]["label"] == "legacy flow"
+    assert isinstance(hyperedges[0]["id"], str) and hyperedges[0]["id"]
+
+
+def test_update_normalizes_absolute_source_on_carried_missing_id_hyperedge(tmp_path):
+    root = tmp_path / "corpus"
+    root.mkdir()
+    graph_path = tmp_path / "graph.json"
+    nodes = [
+        {"id": "a1", "label": "a1", "file_type": "document", "source_file": "a.md"},
+        {"id": "b1", "label": "b1", "file_type": "document", "source_file": "b.md"},
+    ]
+    _write_graph(
+        graph_path,
+        nodes,
+        [],
+        [
+            {
+                "label": "legacy flow",
+                "relation": "participate_in",
+                "source_file": str(root / "a.md"),
+                "nodes": ["a1", "b1"],
+            }
+        ],
+    )
+
+    (graph_path.parent / ".graphify_root").write_text(str(root), encoding="utf-8")
+    G = build_merge([], graph_path, dedup=False)
+
+    hyperedges = G.graph.get("hyperedges", [])
+    assert len(hyperedges) == 1
+    assert hyperedges[0]["source_file"] == "a.md"
+    assert isinstance(hyperedges[0]["id"], str) and hyperedges[0]["id"]
+
+
 def test_deleted_file_hyperedges_are_pruned(tmp_path):
     root, graph_path = _seed_two_file_graph(tmp_path)
     deleted_abs = [str(root / "a.md")]
     G = build_merge([], graph_path, prune_sources=deleted_abs, dedup=False, root=root)
     ids = _he_ids(G)
-    assert "he_a" not in ids        # deleted file's hyperedge pruned
-    assert "he_b" in ids            # untouched file's hyperedge kept
-    assert "he_global" in ids       # global hyperedge kept
+    assert "he_a" not in ids  # deleted file's hyperedge pruned
+    assert "he_b" in ids  # untouched file's hyperedge kept
+    assert "he_global" in ids  # global hyperedge kept
     # and its node is gone too
     assert "a1" not in set(G.nodes)
 
 
 # ── #1571: root-less prune (absolute deleted paths vs relative node keys) ──────
+
 
 def test_prune_without_root_removes_ghost_nodes_via_grandparent_fallback(tmp_path):
     root = tmp_path / "corpus"
@@ -140,13 +199,23 @@ def test_prune_matches_across_symlinked_root(tmp_path):
     link = tmp_path / "link"
     os.symlink(real, link)
     graph_path = real / "graphify-out" / "graph.json"
-    _write_graph(graph_path, [
-        {"id": "h1", "label": "handoff", "file_type": "document", "source_file": "HANDOFF.md"},
-        {"id": "k1", "label": "keep", "file_type": "document", "source_file": "KEEP.md"},
-    ], [], [])
+    _write_graph(
+        graph_path,
+        [
+            {"id": "h1", "label": "handoff", "file_type": "document", "source_file": "HANDOFF.md"},
+            {"id": "k1", "label": "keep", "file_type": "document", "source_file": "KEEP.md"},
+        ],
+        [],
+        [],
+    )
     # prune path addressed via the SYMLINK, root resolved to the real dir
-    G = build_merge([], graph_path=graph_path,
-                    prune_sources=[str(link / "HANDOFF.md")], root=str(real), dedup=False)
+    G = build_merge(
+        [],
+        graph_path=graph_path,
+        prune_sources=[str(link / "HANDOFF.md")],
+        root=str(real),
+        dedup=False,
+    )
     labels = {d["label"] for _, d in G.nodes(data=True)}
     assert "handoff" not in labels and "keep" in labels
 

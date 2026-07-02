@@ -8,8 +8,8 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-06-12
-last_verified: 2026-06-12
+updated: 2026-07-02
+last_verified: 2026-07-02
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -220,10 +220,17 @@ Mase-specific or recently upstream-oriented changes in these areas:
   and mark partial outputs so wiki refreshes cannot look clean.
 - `graphify/watch.py`: code-only rebuilds preserve upstream v8's stable graph
   behavior while dropping stale edges from changed sources.
+- `graphify/build.py` and `graphify/export.py`: legacy or model-produced
+  hyperedges missing `id` are normalized with deterministic stable IDs during
+  build, merge, and export so semantic-cache reuse cannot re-poison graph
+  output.
 - `tests/test_install.py`, `tests/test_transcribe.py`, `tests/test_watch.py`,
-  `tests/test_cli_semantic_fail_closed.py`, `tests/test_llm_backends.py`, and
-  `tests/test_cli_export.py`: coverage for the local install, transcript,
-  watcher, and local semantic-refresh safety behavior above.
+  `tests/test_cli_semantic_fail_closed.py`, `tests/test_llm_backends.py`,
+  `tests/test_cli_export.py`, `tests/test_hypergraph.py`,
+  `tests/test_build_merge_hyperedges_and_prune.py`, and
+  `tests/test_extract_cli.py`: coverage for the local install, transcript,
+  watcher, hyperedge-normalization, and local semantic-refresh safety behavior
+  above.
 
 Refresh this section from `git diff upstream/v8..HEAD` before relying on it for
 shipping decisions.
