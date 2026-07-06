@@ -23,6 +23,7 @@ from graphify.file_slice import (
     FileSlice,
     bisect_slice,
     expand_oversized_files,
+    is_splittable_text,
     read_slice_text,
     unit_path,
 )
@@ -37,6 +38,24 @@ _PER_FILE_OVERHEAD_CHARS = 160
 # Coarse fallback used only when `tiktoken` is not installed. 1 token ≈ 4 chars
 # is the standard heuristic for English/code on BPE tokenizers.
 _CHARS_PER_TOKEN = 4
+_MIN_ADAPTIVE_SLICE_CHARS = _CHARS_PER_TOKEN * 128
+
+
+def _file_slice_char_cap_for_token_budget(token_budget: int | None) -> int:
+    """Return the per-slice char cap implied by a semantic token budget.
+
+    ``_FILE_CHAR_CAP`` is the hard safety cap for a single prompt block. When an
+    operator lowers ``--token-budget`` to recover from truncation, splittable
+    text files should shrink with that budget too; otherwise a single README can
+    still be sent as one oversized unit and fail closed after max-output
+    truncation.
+    """
+    if token_budget is None:
+        return _FILE_CHAR_CAP
+    budget_chars = (token_budget * _CHARS_PER_TOKEN) - _PER_FILE_OVERHEAD_CHARS
+    if budget_chars <= 0:
+        return _CHARS_PER_TOKEN
+    return max(_CHARS_PER_TOKEN * 128, min(_FILE_CHAR_CAP, budget_chars))
 
 
 def _get_tokenizer():
@@ -2097,6 +2116,15 @@ def _strip_partial_markers(result: dict) -> None:
                 item.pop("_partial", None)
 
 
+_TIMEOUT_MARKERS = ("timed out", "timeout", "readtimeout", "read timeout")
+
+
+def _looks_like_timeout(exc: BaseException) -> bool:
+    """Heuristically classify provider read/connect timeouts for retry splitting."""
+    msg = f"{type(exc).__name__}: {exc}".lower()
+    return any(marker in msg for marker in _TIMEOUT_MARKERS)
+
+
 def _extract_with_adaptive_retry(
     chunk: "list[Path | FileSlice]",
     backend: str,
@@ -2136,10 +2164,10 @@ def _extract_with_adaptive_retry(
     still failing at the cap, we surface the (likely empty) result with a
     warning rather than infinite-loop.
 
-    A single-file chunk that overflows is recoverable only when it's a slice of
-    a splittable document: the slice is bisected and retried (#1369). A whole
-    non-splittable file (e.g. one huge code file) can't be made smaller than
-    itself, so we return what we got and warn.
+    A single-file chunk that overflows is recoverable when it is splittable
+    text: a whole file is converted to a slice, then slices are bisected and
+    retried (#1369). A non-splittable file cannot be made smaller, so the
+    failure is marked partial and returned for fail-closed handling.
     """
 
     def _merge_two(left_units, right_units) -> dict:
@@ -2162,31 +2190,50 @@ def _extract_with_adaptive_retry(
             + right.get("partial_chunks", 0),
         }
 
-    def _split_lone_slice() -> "tuple[FileSlice, FileSlice] | None":
-        # When a single-unit chunk is a slice, bisect the slice so we can retry
-        # on a smaller range rather than give up (#1369).
-        if len(chunk) == 1 and isinstance(chunk[0], FileSlice) and _depth < max_depth:
-            return bisect_slice(chunk[0])
-        return None
+    def _split_lone_text_unit() -> "tuple[FileSlice, FileSlice] | None":
+        # When a single-unit chunk is splittable text, bisect it so retry can
+        # shrink output size instead of accepting a partial result. This covers
+        # both pre-sliced units and whole Markdown/text files whose input fits
+        # but whose extracted JSON overflows max_completion_tokens.
+        if len(chunk) != 1 or _depth >= max_depth:
+            return None
+        unit = chunk[0]
+        if isinstance(unit, FileSlice):
+            if unit.end - unit.start <= _MIN_ADAPTIVE_SLICE_CHARS:
+                return None
+            return bisect_slice(unit)
+        if not is_splittable_text(unit):
+            return None
+        try:
+            text = unit.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        if len(text) <= _MIN_ADAPTIVE_SLICE_CHARS:
+            return None
+        return bisect_slice(FileSlice(unit, 0, len(text), 0, 1))
 
     try:
         result = extract_files_direct(
             chunk, backend=backend, api_key=api_key, model=model, root=root, deep_mode=deep_mode
         )
-    except Exception as exc:  # noqa: BLE001 — re-raise unless it's a known context overflow
-        if not _looks_like_context_exceeded(exc):
+    except Exception as exc:  # noqa: BLE001 — re-raise unless recoverable by splitting
+        recoverable_timeout = _looks_like_timeout(exc)
+        recoverable_context = _looks_like_context_exceeded(exc)
+        if not (recoverable_context or recoverable_timeout):
             raise
         if len(chunk) <= 1:
-            halves = _split_lone_slice()
+            halves = _split_lone_text_unit()
             if halves is not None:
+                reason = "timed out" if recoverable_timeout else "exceeded context"
                 print(
-                    f"[graphify] slice of {unit_path(chunk[0])} exceeded context at "
-                    f"depth {_depth}; splitting the slice and retrying",
+                    f"[graphify] text unit {unit_path(chunk[0])} {reason} at depth {_depth}; "
+                    "splitting the slice and retrying",
                     file=sys.stderr,
                 )
                 return _merge_two([halves[0]], [halves[1]])
+            reason = "timed out" if recoverable_timeout else "exceeds model context"
             print(
-                f"[graphify] single-file chunk {unit_path(chunk[0])} exceeds model context "
+                f"[graphify] single-file chunk {unit_path(chunk[0])} {reason} "
                 f"and cannot be split further: {exc}",
                 file=sys.stderr,
             )
@@ -2198,11 +2245,13 @@ def _extract_with_adaptive_retry(
                 "output_tokens": 0,
                 "model": model,
                 "finish_reason": "stop",
+                "_partial_files": _chunk_partial_files(chunk),
                 "partial_chunks": 1,
             }
         if _depth >= max_depth:
+            reason = "timed out" if recoverable_timeout else "overflows context"
             print(
-                f"[graphify] chunk of {len(chunk)} still overflows context at "
+                f"[graphify] chunk of {len(chunk)} still {reason} at "
                 f"recursion depth {_depth} (max {max_depth}) — dropping",
                 file=sys.stderr,
             )
@@ -2214,11 +2263,13 @@ def _extract_with_adaptive_retry(
                 "output_tokens": 0,
                 "model": model,
                 "finish_reason": "stop",
+                "_partial_files": _chunk_partial_files(chunk),
                 "partial_chunks": 1,
             }
+        reason = "timed out" if recoverable_timeout else "exceeded context"
         print(
-            f"[graphify] chunk of {len(chunk)} exceeded context at depth "
-            f"{_depth} ({type(exc).__name__}); splitting in half and retrying",
+            f"[graphify] chunk of {len(chunk)} {reason} at depth {_depth} "
+            f"({type(exc).__name__}); splitting in half and retrying",
             file=sys.stderr,
         )
         mid = len(chunk) // 2
@@ -2245,10 +2296,10 @@ def _extract_with_adaptive_retry(
         return result
 
     if len(chunk) <= 1:
-        halves = _split_lone_slice()
+        halves = _split_lone_text_unit()
         if halves is not None:
             print(
-                f"[graphify] slice of {unit_path(chunk[0])} truncated at depth {_depth}; "
+                f"[graphify] text unit {unit_path(chunk[0])} truncated at depth {_depth}; "
                 f"splitting the slice and retrying",
                 file=sys.stderr,
             )
@@ -2380,8 +2431,10 @@ def extract_corpus_parallel(
     ]
     # Split oversized splittable documents into slices that cover the whole file
     # before packing, so content past _FILE_CHAR_CAP is extracted instead of
-    # silently dropped (#1369). Files at/under the cap pass through unchanged.
-    units = expand_oversized_files(units, _FILE_CHAR_CAP)
+    # silently dropped (#1369). In token-budget mode, use the budget-derived cap
+    # so lowering --token-budget also shrinks single large documents rather than
+    # only changing how multiple files are grouped.
+    units = expand_oversized_files(units, _file_slice_char_cap_for_token_budget(token_budget))
     if token_budget is not None:
         chunks = _pack_chunks_by_tokens(units, token_budget=token_budget)
     else:

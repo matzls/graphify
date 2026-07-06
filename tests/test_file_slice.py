@@ -147,6 +147,129 @@ def test_pack_chunks_handles_slices(tmp_path):
     assert len(flat) == len(units)
 
 
+def test_token_budget_can_shrink_single_splittable_file(tmp_path, monkeypatch):
+    text = ("# H\n\n" + "word " * 120 + "\n\n") * 20
+    f = _write(tmp_path / "budgeted.md", text)
+    assert len(text) < llm._FILE_CHAR_CAP
+
+    seen_chunks = []
+
+    def fake_extract(chunk, **_kwargs):
+        seen_chunks.append(list(chunk))
+        return {
+            "nodes": [],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+        }
+
+    monkeypatch.setattr(llm, "extract_files_direct", fake_extract)
+    merged = llm.extract_corpus_parallel(
+        [f],
+        backend="gemini",
+        root=tmp_path,
+        token_budget=1000,
+        max_concurrency=1,
+    )
+
+    flat = [unit for chunk in seen_chunks for unit in chunk]
+    assert merged["failed_chunks"] == 0
+    assert len(flat) >= 2
+    assert all(isinstance(unit, FileSlice) for unit in flat)
+
+
+def test_single_splittable_file_truncation_retries_as_slices(tmp_path, monkeypatch):
+    text = ("# H\n\n" + "word " * 80 + "\n\n") * 10
+    f = _write(tmp_path / "verbose.md", text)
+    seen_chunks = []
+
+    def fake_extract(chunk, **_kwargs):
+        seen_chunks.append(list(chunk))
+        if all(isinstance(unit, FileSlice) for unit in chunk):
+            return {
+                "nodes": [{"id": f"slice_{len(seen_chunks)}"}],
+                "edges": [],
+                "hyperedges": [],
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "finish_reason": "stop",
+            }
+        return {
+            "nodes": [],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "finish_reason": "length",
+        }
+
+    monkeypatch.setattr(llm, "extract_files_direct", fake_extract)
+    merged = llm.extract_corpus_parallel(
+        [f],
+        backend="gemini",
+        root=tmp_path,
+        token_budget=10_000,
+        max_concurrency=1,
+    )
+
+    assert merged["partial_chunks"] == 0
+    assert len(merged["nodes"]) == 2
+    assert any(isinstance(unit, FileSlice) for chunk in seen_chunks for unit in chunk)
+
+
+def test_single_splittable_file_timeout_retries_as_slices(tmp_path, monkeypatch):
+    text = ("# H\n\n" + "word " * 80 + "\n\n") * 10
+    f = _write(tmp_path / "slow.md", text)
+    seen_chunks = []
+
+    def fake_extract(chunk, **_kwargs):
+        seen_chunks.append(list(chunk))
+        if all(isinstance(unit, FileSlice) for unit in chunk):
+            return {
+                "nodes": [{"id": f"slice_{len(seen_chunks)}"}],
+                "edges": [],
+                "hyperedges": [],
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "finish_reason": "stop",
+            }
+        raise TimeoutError("Request timed out")
+
+    monkeypatch.setattr(llm, "extract_files_direct", fake_extract)
+    merged = llm.extract_corpus_parallel(
+        [f],
+        backend="gemini",
+        root=tmp_path,
+        token_budget=10_000,
+        max_concurrency=1,
+    )
+
+    assert merged["failed_chunks"] == 0
+    assert len(merged["nodes"]) == 2
+    assert any(isinstance(unit, FileSlice) for chunk in seen_chunks for unit in chunk)
+
+
+def test_unsplittable_timeout_records_partial_source(tmp_path, monkeypatch):
+    image = tmp_path / "diagram.png"
+    image.write_bytes(b"not really a png")
+
+    def fake_extract(_chunk, **_kwargs):
+        raise TimeoutError("Request timed out")
+
+    monkeypatch.setattr(llm, "extract_files_direct", fake_extract)
+    merged = llm.extract_corpus_parallel(
+        [image],
+        backend="gemini",
+        root=tmp_path,
+        max_concurrency=1,
+    )
+
+    assert merged["failed_chunks"] == 0
+    assert merged["partial_chunks"] == 1
+    assert merged["_partial_files"] == [str(image)]
+
+
 # ── bisect_slice (adaptive-retry path) ──────────────────────────────────────
 
 def test_bisect_slice_splits_at_newline(tmp_path):
