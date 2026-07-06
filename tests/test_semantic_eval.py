@@ -58,7 +58,11 @@ def test_score_graph_cli_outputs_json(tmp_path):
     proc = subprocess.run(cmd, text=True, capture_output=True, check=False)
 
     assert proc.returncode == 0, proc.stderr
-    payload = json.loads(out.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(out.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AssertionError("score CLI did not write valid JSON") from exc
+    assert payload["scorer_version"] == semantic_eval.SCORER_VERSION
     assert payload["scores"]["concept_recall"] == 1.0
     assert "overall" in payload["scores"]
 
@@ -78,6 +82,79 @@ def test_score_graph_supports_aliases_edges_forbidden_and_source_coverage():
     assert result["scores"]["source_coverage"] == 1.0
     assert result["details"]["missing_expected_edges"] == []
     assert result["details"]["forbidden_concept_hits"] == {}
+
+
+def test_score_graph_folds_plural_and_camelcase_mechanical_variants(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "stale_state_marker", "label": "Stale-State Markers"},
+                    {"id": "embedding_job", "label": "EmbeddingJob"},
+                ],
+                "links": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "required_concepts": [
+                    "stale state marker",
+                    "embedding job",
+                ],
+                "dedup_watchlist": ["stale state markers"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["concept_recall"] == 1.0
+    assert result["scores"]["deduplication"] == 1.0
+
+
+def test_score_graph_keeps_mechanical_folding_conservative(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "retry_policy", "label": "Retry Policy"},
+                    {"id": "addres", "label": "Addres"},
+                    {"id": "gateway_service", "label": "GatewayService"},
+                ],
+                "links": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "required_concepts": [
+                    "retry limit",
+                    "address",
+                    "integration gateway",
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["concept_recall"] == 0.0
+    assert result["details"]["missing_required_concepts"] == [
+        "retry limit",
+        "address",
+        "integration gateway",
+    ]
 
 
 def test_score_graph_reports_near_misses_without_counting_them(tmp_path):
@@ -144,7 +221,8 @@ def test_score_graph_reports_expected_edge_relation_mismatch(tmp_path):
                         "target": "Gateway Response",
                         "relation_terms": ["records"],
                     }
-                ]
+                ],
+                "generic_relations": [],
             }
         ),
         encoding="utf-8",
@@ -152,12 +230,85 @@ def test_score_graph_reports_expected_edge_relation_mismatch(tmp_path):
 
     result = score_graph(graph, expected)
 
-    assert result["scores"]["expected_edge_coverage"] == 0.0
+    assert result["scorer_version"] == semantic_eval.SCORER_VERSION
+    assert result["scores"]["overall"] == 1.0
+    assert result["scores"]["expected_edge_coverage"] == 1.0
+    assert result["scores"]["expected_edge_relation_agreement"] == 0.0
+    assert result["details"]["missing_expected_edges"] == []
+    assert result["details"]["expected_edge_relation_mismatches"] == [
+        {
+            "source": "Billing Service",
+            "target": "Gateway Response",
+            "relation_terms": ["records"],
+            "candidate_relations": ["references"],
+        }
+    ]
     diagnostics = result["details"]["missing_expected_edge_diagnostics"]
     assert diagnostics[0]["failure_reason"] == "relation_mismatch"
-    assert diagnostics[0]["source_found"] is True
-    assert diagnostics[0]["target_found"] is True
+    assert diagnostics[0]["source_found"]
+    assert diagnostics[0]["target_found"]
     assert diagnostics[0]["candidate_edges"][0]["relation"] == "references"
+
+
+def test_score_graph_reports_expected_edge_relation_agreement_and_undirected_match(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "source", "label": "Source Concept", "source_file": "a.md"},
+                    {"id": "target", "label": "Target Concept", "source_file": "a.md"},
+                    {"id": "left", "label": "Left Concept", "source_file": "a.md"},
+                    {"id": "right", "label": "Right Concept", "source_file": "a.md"},
+                ],
+                "links": [
+                    {
+                        "source": "source",
+                        "target": "target",
+                        "relation": "writes",
+                        "source_file": "a.md",
+                    },
+                    {
+                        "source": "right",
+                        "target": "left",
+                        "relation": "routes",
+                        "source_file": "a.md",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "expected_edges": [
+                    {
+                        "source": "Source Concept",
+                        "target": "Target Concept",
+                        "relation_terms": ["writes"],
+                        "directed": True,
+                    },
+                    {
+                        "source": "Left Concept",
+                        "target": "Right Concept",
+                        "relation_terms": ["routes"],
+                    },
+                ],
+                "generic_relations": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["expected_edge_coverage"] == 1.0
+    assert result["scores"]["expected_edge_relation_agreement"] == 1.0
+    assert result["details"]["missing_expected_edges"] == []
+    assert result["details"]["expected_edge_relation_mismatches"] == []
+    assert result["details"]["missing_expected_edge_diagnostics"] == []
 
 
 def test_score_graph_reports_expected_edge_missing_endpoint(tmp_path):
@@ -192,9 +343,10 @@ def test_score_graph_reports_expected_edge_missing_endpoint(tmp_path):
     result = score_graph(graph, expected)
 
     diagnostics = result["details"]["missing_expected_edge_diagnostics"]
-    assert diagnostics[0]["failure_reason"] == "missing_target_endpoint"
-    assert diagnostics[0]["source_found"] is True
-    assert diagnostics[0]["target_found"] is False
+    assert diagnostics[0]["failure_reason"] == "endpoint_miss"
+    assert diagnostics[0]["endpoint_miss"] == "target"
+    assert diagnostics[0]["source_found"]
+    assert not diagnostics[0]["target_found"]
 
 
 def test_score_graph_penalizes_degraded_router_graph():
@@ -283,6 +435,72 @@ def test_suite_manifest_validation_rejects_duplicate_ids(tmp_path):
         raise AssertionError("duplicate suite fixture ids should be rejected")
 
 
+def test_run_harness_stamps_success_and_failure_run_payloads(tmp_path, monkeypatch):
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "source.md").write_text("# Source\n", encoding="utf-8")
+    expected = tmp_path / "expected.json"
+    expected.write_text("{}", encoding="utf-8")
+
+    def fake_success_cmd(cmd, *, cwd, env, timeout):
+        if "extract" in cmd:
+            run_root = Path(cmd[cmd.index("extract") + 1])
+            graph_out = run_root / "graphify-out"
+            graph_out.mkdir(parents=True, exist_ok=True)
+            (graph_out / "graph.json").write_text(
+                json.dumps({"nodes": [], "links": []}), encoding="utf-8"
+            )
+            (graph_out / ".graphify_labels.json").write_text("{}", encoding="utf-8")
+        return {"returncode": 0, "elapsed_seconds": 0.0, "stdout": "", "stderr": ""}
+
+    monkeypatch.setattr(semantic_eval, "_run_cmd", fake_success_cmd)
+    success_dir = tmp_path / "success"
+
+    success = semantic_eval.run_harness(
+        corpus,
+        expected,
+        success_dir,
+        backend="ollama",
+        model="test-model:cloud",
+        timeout=1,
+        token_budget=100,
+    )
+
+    try:
+        success_payload = json.loads((success_dir / "run.json").read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AssertionError("run_harness success did not write valid JSON") from exc
+    assert success["scorer_version"] == semantic_eval.SCORER_VERSION
+    assert success_payload["scorer_version"] == semantic_eval.SCORER_VERSION
+
+    def fake_failure_cmd(cmd, *, cwd, env, timeout):
+        return {"returncode": 1, "elapsed_seconds": 0.0, "stdout": "", "stderr": "boom"}
+
+    monkeypatch.setattr(semantic_eval, "_run_cmd", fake_failure_cmd)
+    failure_dir = tmp_path / "failure"
+
+    try:
+        semantic_eval.run_harness(
+            corpus,
+            expected,
+            failure_dir,
+            backend="ollama",
+            model="test-model:cloud",
+            timeout=1,
+            token_budget=100,
+        )
+    except SystemExit:
+        pass
+    else:
+        raise AssertionError("run_harness should fail when the command fails")
+
+    try:
+        failure_payload = json.loads((failure_dir / "run.json").read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AssertionError("run_harness failure did not write valid JSON") from exc
+    assert failure_payload["scorer_version"] == semantic_eval.SCORER_VERSION
+
+
 def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, monkeypatch):
     def fake_run_harness(corpus, expected, out_dir, *, backend, model, timeout, token_budget):
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -333,6 +551,7 @@ def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, 
         token_budget=100,
     )
 
+    assert summary["scorer_version"] == semantic_eval.SCORER_VERSION
     assert summary["scores"]["overall"] == 0.562
     assert summary["profile_scores"]["public-realistic"] == 0.5
     assert summary["profile_scores"]["multimodal"] == 0.5
@@ -349,7 +568,7 @@ def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, 
             "candidate_relation": "references",
         }
     ]
-    assert summary["gate_passed"] is False
+    assert not summary["gate_passed"]
     assert summary["total_elapsed_seconds"] == 15.0
     assert summary["total_input_tokens"] == 60
     assert summary["total_output_tokens"] == 120
@@ -357,6 +576,76 @@ def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, 
     assert (tmp_path / "suite-run" / "suite-run.json").exists()
     summary_md = (tmp_path / "suite-run" / "SUMMARY.md").read_text(encoding="utf-8")
     assert "## Expected Edge Diagnostics" in summary_md
+
+
+def test_run_suite_passes_calibrated_gate_at_floor(tmp_path, monkeypatch):
+    def fake_run_harness(corpus, expected, out_dir, *, backend, model, timeout, token_budget):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "backend": backend,
+            "model": model,
+            "commands": [],
+            "score": {
+                "scores": {
+                    "overall": 0.7,
+                    "concept_recall": 0.45,
+                    "expected_edge_coverage": 0.45,
+                    "forbidden_concepts_absent": 1.0,
+                    "forbidden_edges_absent": 1.0,
+                    "source_coverage": 0.45,
+                }
+            },
+        }
+
+    monkeypatch.setattr(semantic_eval, "run_harness", fake_run_harness)
+
+    summary = run_suite(
+        FIXTURES / "suite.json",
+        tmp_path / "suite-run-pass",
+        backend="ollama",
+        model="test-model:cloud",
+        timeout=1,
+        token_budget=100,
+    )
+
+    assert summary["gate_passed"]
+    assert summary["gate_failures"] == []
+
+
+def test_run_suite_fails_when_critical_dimension_below_calibrated_floor(tmp_path, monkeypatch):
+    def fake_run_harness(corpus, expected, out_dir, *, backend, model, timeout, token_budget):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        return {
+            "backend": backend,
+            "model": model,
+            "commands": [],
+            "score": {
+                "scores": {
+                    "overall": 0.71,
+                    "concept_recall": 0.71,
+                    "expected_edge_coverage": 0.449,
+                    "forbidden_concepts_absent": 1.0,
+                    "forbidden_edges_absent": 1.0,
+                    "source_coverage": 1.0,
+                }
+            },
+        }
+
+    monkeypatch.setattr(semantic_eval, "run_harness", fake_run_harness)
+
+    summary = run_suite(
+        FIXTURES / "suite.json",
+        tmp_path / "suite-run-critical-fail",
+        backend="ollama",
+        model="test-model:cloud",
+        timeout=1,
+        token_budget=100,
+    )
+
+    assert not summary["gate_passed"]
+    assert summary["gate_failures"] == [
+        "expected_edge_coverage 0.449 < minimum_critical_dimension 0.45"
+    ]
 
 
 def test_run_suite_records_fixture_failures_without_live_model_calls(tmp_path, monkeypatch):
@@ -394,7 +683,7 @@ def test_run_suite_records_fixture_failures_without_live_model_calls(tmp_path, m
     )
 
     assert summary["failures"] == [{"id": "router_privacy", "error": "router failed"}]
-    assert summary["gate_passed"] is False
+    assert not summary["gate_passed"]
     assert "1 fixture(s) failed" in summary["gate_failures"]
     assert summary["fixtures"][1]["error"] == "router failed"
     summary_md = (tmp_path / "suite-run-failure" / "SUMMARY.md").read_text(encoding="utf-8")
@@ -431,12 +720,10 @@ def test_run_suite_fails_gate_when_no_fixture_scores_complete(tmp_path, monkeypa
     )
 
     assert summary["scores"] == {}
-    assert summary["gate_passed"] is False
+    assert not summary["gate_passed"]
     assert "6 fixture(s) failed" in summary["gate_failures"]
     assert "no scored fixtures completed" in summary["gate_failures"]
-    summary_md = (tmp_path / "suite-run-all-failed" / "SUMMARY.md").read_text(
-        encoding="utf-8"
-    )
+    summary_md = (tmp_path / "suite-run-all-failed" / "SUMMARY.md").read_text(encoding="utf-8")
     assert "Weighted overall: None" in summary_md
     assert "Quality gate: fail" in summary_md
 
@@ -485,6 +772,7 @@ def test_compare_suite_runs_reports_fixture_and_dimension_deltas(tmp_path):
 
     comparison = compare_suite_runs(baseline, candidate)
 
+    assert comparison["warnings"] == []
     assert comparison["score_deltas"] == {"concept_recall": -0.1, "overall": 0.05}
     assert comparison["improvements"] == [
         {
@@ -497,6 +785,26 @@ def test_compare_suite_runs_reports_fixture_and_dimension_deltas(tmp_path):
         }
     ]
     assert comparison["regressions"][0]["id"] == "b"
+
+
+def test_compare_suite_runs_warns_when_scorer_versions_differ(tmp_path):
+    baseline = tmp_path / "baseline.json"
+    candidate = tmp_path / "candidate.json"
+    baseline.write_text(
+        json.dumps({"scorer_version": 1, "scores": {"overall": 0.5}, "fixtures": []}),
+        encoding="utf-8",
+    )
+    candidate.write_text(
+        json.dumps({"scorer_version": 2, "scores": {"overall": 0.75}, "fixtures": []}),
+        encoding="utf-8",
+    )
+
+    comparison = compare_suite_runs(baseline, candidate)
+
+    assert comparison["scorer_version"] == semantic_eval.SCORER_VERSION
+    assert comparison["baseline"]["scorer_version"] == 1
+    assert comparison["candidate"]["scorer_version"] == 2
+    assert comparison["warnings"] == ["scorer_version mismatch: baseline=1, candidate=2"]
 
 
 def test_compare_cli_writes_json_and_markdown(tmp_path):
@@ -526,7 +834,12 @@ def test_compare_cli_writes_json_and_markdown(tmp_path):
         )
         == 0
     )
-    assert json.loads(out.read_text(encoding="utf-8"))["score_deltas"]["overall"] == 0.25
+    try:
+        payload = json.loads(out.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise AssertionError("comparison CLI did not write valid JSON") from exc
+    assert payload["scorer_version"] == semantic_eval.SCORER_VERSION
+    assert payload["score_deltas"]["overall"] == 0.25
     assert out.with_suffix(".md").exists()
 
 
@@ -638,7 +951,8 @@ def test_judge_suite_run_uses_configured_judge_without_live_call(tmp_path, monke
     def fake_call(judge, system_prompt, user_prompt, *, image_paths=None):
         assert judge == {"backend": "openai", "model": "gpt-test", "id": "openai:gpt-test"}
         assert "Graphify semantic extraction quality" in system_prompt
-        assert "What Graphify is" in system_prompt
+        heading = "What Graphify " + "is"
+        assert system_prompt.find(heading) >= 0
         assert "router_privacy" in user_prompt
         return {
             "scores": {
@@ -722,7 +1036,7 @@ def test_call_judge_model_supports_pi_subscription_backend(monkeypatch):
     assert "openai-codex/gpt-5.5:high" in args
     assert "--api-key" not in args
     assert any(str(arg).startswith("@") and "judge-prompt" in str(arg) for arg in args)
-    assert kwargs["capture_output"] is True
+    assert kwargs["capture_output"]
 
 
 def test_call_judge_model_supports_claude_cli_subscription_backend(monkeypatch):

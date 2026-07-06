@@ -3,7 +3,7 @@ title: "Semantic Model Quality Harness"
 kind: "operator-guide"
 status: "active"
 created: 2026-06-02
-updated: 2026-07-01
+updated: 2026-07-06
 audience: "maintainers"
 ---
 
@@ -113,11 +113,69 @@ not attach pixels to the Ollama request. Record this setting in the run notes.
   timings, token counts, and fixture scores
 - `SUMMARY.md`: operator-readable aggregate summary
 
+## Scorer v2 Calibration
+
+Scorer v2 stamps every score, run, run-suite, and compare payload with
+`scorer_version: 2`. Historical artifacts without this field are scorer-v1
+numbers and should not be compared silently; the `compare` command emits a
+warning when scorer versions differ.
+
+The v2 changes are intentionally scorer-only:
+
+- concept matching folds mechanical variants: CamelCase boundaries and simple
+  trailing plurals such as `markers` -> `marker`; semantic synonyms still
+  require explicit fixture aliases
+- `expected_edge_coverage` now measures whether the expected concepts are
+  connected by an edge, honoring `directed`
+- `expected_edge_relation_agreement` separately reports whether endpoint-matched
+  expected edges used one of the expected relation terms
+- `expected_edge_relation_agreement` is report-only for this cycle: it is not
+  part of weighted `overall` and is not a quality-gate critical dimension
+
+The offline re-baseline for saved graph-bearing artifacts is at:
+
+```text
+.semantic-evals/comparisons/scorer-v2-rebaseline/rebaseline.md
+.semantic-evals/comparisons/scorer-v2-rebaseline/rebaseline.json
+```
+
+No model calls were made for that re-baseline. It processed 45 saved graphs
+across 15 graph-bearing run directories and skipped the empty
+`model-quality-comparison-20260614-191220/gemma4_12b` artifact directory.
+Dated snapshot copies under each `graphify-out/` were excluded by using only
+`**/corpus/graphify-out/graph.json`.
+
+The full-suite v2 aggregates show model separation but still expose the old
+prompt ceiling on relation terms:
+
+| Run | New overall | Concept recall | Edge coverage | Relation agreement | Gate |
+| --- | ---: | ---: | ---: | ---: | --- |
+| `glm-5.2-cloud-suite-amended-20260629-151816` | 0.745 | 0.689 | 0.491 | 0.118 | pass |
+| `glm-5.2-cloud-suite-20260629-120625` | 0.737 | 0.714 | 0.451 | 0.132 | pass |
+| `deepseek-v4-pro-cloud-suite-20260701-compare` | 0.710 | 0.612 | 0.335 | 0.117 | fail |
+| `minimax-m3-cloud-suite-20260614-112409` | 0.697 | 0.693 | 0.497 | 0.220 | fail |
+| `model-quality-comparison-20260614-191220/kimi-k2.7-code_cloud` | 0.697 | 0.749 | 0.448 | 0.048 | fail |
+| `model-quality-comparison-20260614-191220/qwen3.5_397b-cloud` | 0.695 | 0.560 | 0.442 | 0.210 | fail |
+
+The calibrated quality gate in `tests/fixtures/semantic_eval/suite.json` is:
+
+- `minimum_overall`: `0.70`
+- `minimum_critical_dimension`: `0.45`
+
+Rationale: the best observed full-suite v2 run reaches 0.745 overall; keeping
+0.70 makes the gate failable but reachable by the current top candidates. The
+critical floor is set at 0.45 because the strongest full-suite edge-coverage
+runs cluster at 0.451-0.497 while concept recall and safety/source dimensions
+are higher. This avoids the old aspirational 0.80 critical floor that no saved
+candidate could reach after the scorer contract changed.
+
 ## Current Candidate Baselines
 
-These are the latest local suite artifacts that should anchor the next model
-decision. `.semantic-evals/` is intentionally ignored, so rerun or copy the
-needed artifacts before making a durable policy change.
+These are scorer-v1 historical baselines and are superseded for model-gate
+decisions by the scorer-v2 re-baseline above. They remain useful only as a
+record of the saved local artifacts that anchored earlier model comparisons.
+`.semantic-evals/` is intentionally ignored, so rerun or copy the needed
+artifacts before making a durable policy change.
 
 | Model | Backend | Local artifact | Overall | Gate | Notes |
 |---|---|---|---:|---|---|
@@ -368,8 +426,12 @@ Richer contracts can use:
 - `score_weights`: per-dimension weights used for the fixture overall score.
 
 The suite manifest can also define a `quality_gate` with critical dimensions and
-minimum aggregate floors. `run-suite` exits non-zero when a fixture command fails
-or the quality gate fails.
+minimum aggregate floors. The current scorer-v2 gate requires weighted overall
+`>= 0.70` and every present critical dimension `>= 0.45`; the critical
+dimensions are `concept_recall`, `expected_edge_coverage`,
+`forbidden_concepts_absent`, `forbidden_edges_absent`, and `source_coverage`.
+`expected_edge_relation_agreement` is intentionally report-only. `run-suite`
+exits non-zero when a fixture command fails or the quality gate fails.
 
 When a required concept is missed, the scorer also records diagnostic
 near-matches from extracted node labels. Near-matches are explanatory only:

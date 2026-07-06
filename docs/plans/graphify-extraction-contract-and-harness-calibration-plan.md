@@ -1,7 +1,7 @@
 ---
 title: "Graphify Extraction Contract And Harness Calibration Plan"
 kind: plan
-status: review
+status: active
 audience: "agents-operators"
 canonicality: canonical
 created: 2026-07-06
@@ -21,24 +21,28 @@ tags:
 
 ## Summary
 
-The fork-local semantic quality harness currently cannot distinguish capable
-models from weak ones, because two of its gate dimensions are structurally
-unpassable under the current extraction prompt:
+Status as of 2026-07-06: Checkpoints A and B are reached. Scorer v2 is
+implemented and re-baselined offline; the extraction prompt contract is updated
+and downstream relation rendering paths are covered by tests. One bounded
+`integration_gateway` live smoke passed with the new prompt, but the full Task 7
+live A/B and Task 8 closeout remain operator-gated and not done.
 
-- The extraction prompt (`graphify/llm.py`, `_EXTRACTION_SYSTEM`, schema line
-  near line 591) restricts every edge to a closed enum of 7 relations
-  (`calls, implements, references, cites, conceptually_related_to,
-  shares_data_with, semantically_similar_to`).
+The fork-local semantic quality harness previously could not distinguish capable
+models from weak ones, because two of its gate dimensions were structurally
+unpassable under the pre-v2 extraction prompt:
+
+- The old extraction prompt (`graphify/llm.py`, `_EXTRACTION_SYSTEM`) restricted
+  every edge to a closed enum of 7 relations (`calls, implements, references,
+  cites, conceptually_related_to, shares_data_with, semantically_similar_to`).
 - The harness fixtures (`tests/fixtures/semantic_eval/*/expected.json`) expect
   source-grounded verbs (`feeds, routes, writes, stores, validates, gates,
-  maps, preserves, governs, ...`) that the prompt forbids, and
-  `_edge_matches()` (`graphify/semantic_eval.py:242`) requires BOTH endpoint
-  match AND relation-term match, so `expected_edge_coverage` reads ~0 for any
-  obedient model.
-- Concept matching is exact normalized equality (`_norm`,
-  `semantic_eval.py:35`): plural and CamelCase variants at 0.9–0.97 measured
-  similarity count as full misses ("Stale-State Markers" vs
-  "stale state marker"; "EmbeddingJob" vs "embedding job").
+  maps, preserves, governs, ...`) that the old prompt forbade, and the old
+  edge matcher required BOTH endpoint match AND relation-term match, so
+  `expected_edge_coverage` read ~0 for any obedient model.
+- Old concept matching used exact normalized equality: plural and CamelCase
+  variants at 0.9–0.97 measured similarity counted as full misses
+  ("Stale-State Markers" vs "stale state marker"; "EmbeddingJob" vs
+  "embedding job").
 
 Empirical proof (2026-07-06 live run, artifacts in
 `.semantic-evals/claude-cli-sonnet-integration-gateway-20260706/`): the
@@ -167,10 +171,12 @@ Commit the existing uncommitted slicing/timeout work as its own commit(s) on
 `mase/local-fixes` before any plan work starts.
 
 Acceptance criteria:
+
 - `git status --short` is clean before Task 2 begins.
 - The slicing/timeout commit passes its own tests.
 
 Verify:
+
 - `uv run pytest tests/test_file_slice.py -q`
 - `git status --short`
 
@@ -191,6 +197,7 @@ In `graphify/semantic_eval.py`:
   labels.
 
 Tests first, in `tests/test_semantic_eval.py` (offline, handcrafted graphs):
+
 - positive: plural fold, CamelCase fold, combined ("Stale-State Markers"
   matches "stale state marker"; "EmbeddingJob" matches "embedding job").
 - negative (near-miss must NOT match): "retry limit" vs "retry policy";
@@ -200,10 +207,12 @@ Tests first, in `tests/test_semantic_eval.py` (offline, handcrafted graphs):
   the delta explained in the test diff.
 
 Acceptance criteria:
+
 - All new tests pass; no live model calls anywhere in the test path.
 - Near-match diagnostics still list the raw labels and similarities.
 
 Verify:
+
 - `uv run pytest tests/test_semantic_eval.py -q`
 
 ### Task 3: Split expected-edge scoring; stamp scorer version
@@ -230,11 +239,13 @@ as mismatch; fully matched edge scores in both dimensions; undirected edges;
 version stamp present; compare-version warning.
 
 Acceptance criteria:
+
 - A handcrafted graph with correct endpoints but generic relations scores
   `expected_edge_coverage` > 0 and low `expected_edge_relation_agreement`,
   with `relation_mismatch` diagnostics naming the found relation.
 
 Verify:
+
 - `uv run pytest tests/test_semantic_eval.py -q`
 
 ### Task 4: Offline re-baseline of all saved artifacts
@@ -275,11 +286,13 @@ Output: one comparison table (Markdown + JSON) under
 per-fixture, per-dimension scores, old vs new scorer side by side.
 
 Acceptance criteria:
+
 - Every listed run re-scored; table shows whether models now separate on
   `expected_edge_coverage` and `concept_recall` (either outcome is a valid
   finding and must be stated).
 
 Verify:
+
 - deterministic re-run of the loop produces identical JSON
 - spot-check: Sonnet `integration_gateway` re-score shows
   `expected_edge_coverage` > 0 (its `EmbeddingJob → VectorIndex` edge has
@@ -298,10 +311,12 @@ Verify:
   superseded (old aggregates are scorer-v1 numbers).
 
 Acceptance criteria:
+
 - `run-suite` gate logic honors the new floors; offline tests covering gate
   pass/fail behavior updated.
 
 Verify:
+
 - `uv run pytest tests/test_semantic_eval.py -q`
 - readback of the doc section against `suite.json` values
 
@@ -337,11 +352,13 @@ Testing posture: unit tests for any downstream fallback added; prompt-text
 change itself is validated end-to-end in Task 7.
 
 Acceptance criteria:
+
 - Prompt contains the guided-open vocabulary and canonical-naming rules.
 - A synthetic fragment with a free-form relation (`writes`) passes
   validation/sanitization and renders in callflow HTML without error.
 
 Verify:
+
 - `uv run pytest tests/test_semantic_eval.py tests/test_file_slice.py -q`
   plus the nearest existing test files for callflow/report if present
 - `grep -n "writes" graphify/llm.py` readback of the schema line
@@ -373,6 +390,7 @@ deltas. Optional: one pointwise judge pass (`--allow-external-judge`) if the
 deterministic deltas are ambiguous.
 
 Acceptance criteria:
+
 - New-prompt arm completes without extraction/parse/cluster failures.
 - `expected_edge_coverage` and `relation_specificity` improve materially vs
   the re-scored old arm for at least the strong reference model; target for
@@ -383,6 +401,7 @@ Acceptance criteria:
   relations across the suite), else record sprawl as a follow-up finding.
 
 Verify:
+
 - `suite-run.json` gate state per arm; `compare` JSON/Markdown outputs saved
   under `.semantic-evals/comparisons/prompt-v2-ab/`
 
@@ -402,6 +421,7 @@ Verify:
 - Mark this plan `status: complete` (or record deviations).
 
 Verify:
+
 - `uv run pytest tests/ -q` (nearest broader suite; record runtime)
 - `graphify --version` resolves to the checkout install
 - readback of updated docs
@@ -410,13 +430,18 @@ Verify:
 
 ### Checkpoint A: Instrument calibrated (after Tasks 1–5)
 
-Offline tests green; re-baseline table exists; gate floors justified from
-data. No prompt changes yet. Safe pause point.
+Reached 2026-07-06. Offline tests are green; the re-baseline table exists at
+`.semantic-evals/comparisons/scorer-v2-rebaseline/`; gate floors are justified
+from saved-run data. Parent closeout:
+`orchestration/tasks-1-5-parent-closeout.md`.
 
 ### Checkpoint B: Contract updated (after Task 6)
 
-Prompt delta merged on `mase/local-fixes`; downstream consumers verified;
-still no live spend. Safe pause point.
+Reached 2026-07-06. Prompt delta is implemented in the working tree;
+downstream consumers are verified with focused tests. A bounded
+`integration_gateway` live smoke was run after explicit approval, but the full
+Task 7 A/B remains unrun. Parent closeout:
+`orchestration/task-6-parent-closeout.md`.
 
 ### Checkpoint C: Evidence in hand (after Tasks 7–8)
 
@@ -436,8 +461,8 @@ updated; CLI reinstalled. Model-selection decisions are now evidence-based.
   Mitigation: preferred-verb list in the prompt, histogram check in Task 7,
   explicit deferred option of a normalization map.
 - **Downstream rendering of unknown relations.** Callflow/report views may
-  hide or mis-render new verbs. Mitigation: Task 6 verification with a
-  synthetic free-form-relation fragment before any live run.
+  hide new verbs or render them incorrectly. Mitigation: Task 6 verification
+  with a synthetic free-form-relation fragment before any live run.
 - **Stale semantic caches in real repos.** Prompt changes do not invalidate
   the content-keyed semantic cache; mixed-vocabulary graphs persist.
   Mitigation: documented operator guidance (Task 8); no cache machinery.
@@ -458,6 +483,8 @@ updated; CLI reinstalled. Model-selection decisions are now evidence-based.
 
 ## Recommended Next Action
 
-Run Task 1 (commit the in-flight slicing/timeout work), then start Task 2
-with the tests-first scorer changes. Tasks 1–5 are offline and free; pause at
-Checkpoint A for operator review before the prompt change and any live spend.
+Continue from Checkpoint B. First verify the worktree and read the two parent
+closeouts, then decide whether to proceed with the operator-approved Task 7
+full live A/B. Do not rerun Tasks 1–6 unless inspection shows the working tree
+or validation evidence has changed. Task 8 remains after Task 7 and includes
+final docs, baselines, active-CLI reinstall, and marking this plan complete.

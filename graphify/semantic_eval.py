@@ -29,15 +29,36 @@ from pathlib import Path
 from typing import Any
 
 
+SCORER_VERSION = 2
+SCORER_V1_VERSION = 1
+
 _WORD_RE = re.compile(r"[a-z0-9]+")
+_CAMEL_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 
 
 def _norm(text: str) -> str:
-    return " ".join(_WORD_RE.findall(text.lower()))
+    prepared = _CAMEL_BOUNDARY_RE.sub(" ", text)
+    return " ".join(_WORD_RE.findall(prepared.lower()))
+
+
+def _fold_plural_token(token: str) -> str:
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
+def _comparison_norm(text: str) -> str:
+    return " ".join(_fold_plural_token(token) for token in _norm(text).split())
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"failed to load JSON from {path}") from exc
+    if not isinstance(data, dict):
+        raise ValueError(f"expected JSON object in {path}")
+    return data
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
@@ -45,16 +66,41 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _safe_rmtree(path: Path) -> None:
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        return
+
+
 def _safe_name(value: str) -> str:
     """Return a filesystem-safe, readable identifier for model/fixture names."""
     return re.sub(r"[^a-zA-Z0-9_.-]+", "-", value).strip("-") or "unnamed"
 
 
-def _as_weight(value: Any, *, default: float = 1.0) -> float:
+def _as_float(value: Any, *, default: float = 0.0) -> float:
     try:
-        weight = float(value)
+        return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _as_int(value: Any, *, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _json_loads_or_none(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+
+def _as_weight(value: Any, *, default: float = 1.0) -> float:
+    weight = _as_float(value, default=default)
     return weight if weight > 0 else default
 
 
@@ -84,12 +130,14 @@ def _concept_specs(items: list[Any]) -> list[dict[str, Any]]:
 
 
 def _concept_norms(spec: dict[str, Any]) -> set[str]:
-    return {_norm(v) for v in [spec["name"], *spec.get("aliases", [])] if _norm(v)}
+    return {
+        _comparison_norm(v) for v in [spec["name"], *spec.get("aliases", [])] if _comparison_norm(v)
+    }
 
 
 def _node_norms(node: dict[str, Any]) -> set[str]:
     values = [node.get("label", ""), str(node.get("id", "")).replace("_", " ")]
-    return {_norm(v) for v in values if _norm(v)}
+    return {_comparison_norm(v) for v in values if _comparison_norm(v)}
 
 
 def _diagnostic_node_norms(node: dict[str, Any]) -> set[str]:
@@ -105,8 +153,8 @@ def _matching_nodes(nodes: list[dict[str, Any]], spec: dict[str, Any]) -> list[d
 
 
 def _token_overlap_score(expected: str, candidate: str) -> float:
-    expected_tokens = set(expected.split())
-    candidate_tokens = set(candidate.split())
+    expected_tokens = set(_comparison_norm(expected).split())
+    candidate_tokens = set(_comparison_norm(candidate).split())
     if not expected_tokens or not candidate_tokens:
         return 0.0
     overlap = len(expected_tokens & candidate_tokens)
@@ -143,8 +191,8 @@ def _near_concept_matches(
         best_expected = ""
         best_candidate = ""
         best_score = 0.0
-        for expected_norm in wanted:
-            for node_norm in _diagnostic_node_norms(node):
+        for expected_norm in sorted(wanted):
+            for node_norm in sorted(_diagnostic_node_norms(node)):
                 score = _near_match_score(expected_norm, node_norm)
                 if score > best_score:
                     best_expected = expected_norm
@@ -154,7 +202,7 @@ def _near_concept_matches(
             continue
         node_id = str(node.get("id", ""))
         current = candidates.get(node_id)
-        if current and float(current["similarity"]) >= best_score:
+        if current and _as_float(current["similarity"]) >= best_score:
             continue
         candidates[node_id] = {
             "id": node.get("id"),
@@ -164,9 +212,9 @@ def _near_concept_matches(
             "expected_norm": best_expected,
             "candidate_norm": best_candidate,
         }
-    return sorted(candidates.values(), key=lambda item: float(item["similarity"]), reverse=True)[
-        :limit
-    ]
+    return sorted(
+        candidates.values(), key=lambda item: _as_float(item["similarity"]), reverse=True
+    )[:limit]
 
 
 def _weighted_score(hits: list[tuple[bool, float]]) -> float | None:
@@ -180,7 +228,7 @@ def _weighted_score(hits: list[tuple[bool, float]]) -> float | None:
 
 def _copy_corpus(src: Path, dst: Path) -> None:
     if dst.exists():
-        shutil.rmtree(dst)
+        _safe_rmtree(dst)
 
     def ignore(_dir: str, names: list[str]) -> set[str]:
         ignored = {"graphify-out", "expected.json"}
@@ -260,8 +308,10 @@ def _edge_matches(
 def _edge_relation_matches(edge: dict[str, Any], relation_terms: list[str]) -> bool:
     if not relation_terms:
         return True
-    relation = _norm(str(edge.get("relation", "")))
-    return any(_norm(term) in relation for term in relation_terms if _norm(term))
+    relation = _comparison_norm(str(edge.get("relation", "")))
+    return any(
+        _comparison_norm(term) in relation for term in relation_terms if _comparison_norm(term)
+    )
 
 
 def _edge_endpoint_matches(
@@ -347,14 +397,17 @@ def _expected_edge_diagnostic(
     if not target_ids:
         diagnostic["target_near_matches"] = _near_concept_matches(nodes, target_spec)
     if not source_ids and not target_ids:
-        diagnostic["failure_reason"] = "missing_both_endpoints"
+        diagnostic["failure_reason"] = "endpoint_miss"
+        diagnostic["endpoint_miss"] = "both"
         return diagnostic
     if not source_ids:
-        diagnostic["failure_reason"] = "missing_source_endpoint"
+        diagnostic["failure_reason"] = "endpoint_miss"
+        diagnostic["endpoint_miss"] = "source"
         diagnostic["target_neighbor_edges"] = _neighbor_edges(links, target_ids, node_by_id)
         return diagnostic
     if not target_ids:
-        diagnostic["failure_reason"] = "missing_target_endpoint"
+        diagnostic["failure_reason"] = "endpoint_miss"
+        diagnostic["endpoint_miss"] = "target"
         diagnostic["source_neighbor_edges"] = _neighbor_edges(links, source_ids, node_by_id)
         return diagnostic
 
@@ -375,7 +428,7 @@ def _expected_edge_diagnostic(
         ]
         return diagnostic
 
-    diagnostic["failure_reason"] = "no_edge_between_matched_endpoints"
+    diagnostic["failure_reason"] = "edge_miss"
     diagnostic["source_neighbor_edges"] = _neighbor_edges(links, source_ids, node_by_id)
     diagnostic["target_neighbor_edges"] = _neighbor_edges(links, target_ids, node_by_id)
     return diagnostic
@@ -385,8 +438,10 @@ def _expected_edge_coverage(
     nodes: list[dict[str, Any]], links: list[dict[str, Any]], expected_edges: list[dict[str, Any]]
 ) -> dict[str, Any]:
     checks: list[tuple[bool, float]] = []
+    relation_checks: list[tuple[bool, float]] = []
     missing: list[dict[str, Any]] = []
     diagnostics: list[dict[str, Any]] = []
+    relation_mismatches: list[dict[str, Any]] = []
     for spec in expected_edges:
         source_spec = _concept_spec(spec.get("source", ""))
         target_spec = _concept_spec(spec.get("target", ""))
@@ -395,21 +450,37 @@ def _expected_edge_coverage(
         relation_terms = spec.get("relation_terms") or spec.get("relations") or []
         if isinstance(relation_terms, str):
             relation_terms = [relation_terms]
+        normalized_relation_terms = [str(term) for term in relation_terms]
         directed = bool(spec.get("directed", False))
         weight = _as_weight(spec.get("weight"))
-        ok = bool(source_ids and target_ids) and any(
-            _edge_matches(
+        endpoint_edges = [
+            edge
+            for edge in links
+            if _edge_endpoint_matches(
                 edge,
                 source_ids=source_ids,
                 target_ids=target_ids,
-                relation_terms=[str(term) for term in relation_terms],
                 directed=directed,
             )
-            for edge in links
+        ]
+        endpoint_ok = bool(source_ids and target_ids and endpoint_edges)
+        checks.append((endpoint_ok, weight))
+        relation_ok = any(
+            _edge_relation_matches(edge, normalized_relation_terms) for edge in endpoint_edges
         )
-        checks.append((ok, weight))
-        if not ok:
-            normalized_relation_terms = [str(term) for term in relation_terms]
+        if endpoint_ok and normalized_relation_terms:
+            relation_checks.append((relation_ok, weight))
+        if not endpoint_ok or (normalized_relation_terms and not relation_ok):
+            diagnostic = _expected_edge_diagnostic(
+                nodes,
+                links,
+                source_spec=source_spec,
+                target_spec=target_spec,
+                relation_terms=normalized_relation_terms,
+                directed=directed,
+            )
+            diagnostics.append(diagnostic)
+        if not endpoint_ok:
             missing.append(
                 {
                     "source": source_spec["name"],
@@ -417,21 +488,27 @@ def _expected_edge_coverage(
                     "relation_terms": normalized_relation_terms,
                 }
             )
-            diagnostics.append(
-                _expected_edge_diagnostic(
-                    nodes,
-                    links,
-                    source_spec=source_spec,
-                    target_spec=target_spec,
-                    relation_terms=normalized_relation_terms,
-                    directed=directed,
-                )
+        elif normalized_relation_terms and not relation_ok:
+            relation_mismatches.append(
+                {
+                    "source": source_spec["name"],
+                    "target": target_spec["name"],
+                    "relation_terms": normalized_relation_terms,
+                    "candidate_relations": [
+                        str(edge.get("relation", ""))
+                        for edge in endpoint_edges
+                        if edge.get("relation")
+                    ],
+                }
             )
     return {
         "score": _weighted_score(checks),
+        "relation_agreement": _weighted_score(relation_checks),
         "missing": missing,
+        "relation_mismatches": relation_mismatches,
         "diagnostics": diagnostics,
         "total": len(expected_edges),
+        "relation_total": len(relation_checks),
     }
 
 
@@ -550,7 +627,7 @@ def score_graph(
             "confidence_score": e.get("confidence_score"),
         }
         for e in inferred_edges
-        if float(e.get("confidence_score", 0) or 0) >= 1.0
+        if _as_float(e.get("confidence_score", 0) or 0) >= 1.0
     ]
 
     forbidden_specs = _concept_specs(expected.get("forbidden_concepts", []))
@@ -569,9 +646,12 @@ def score_graph(
         if expected_edges
         else {
             "score": None,
+            "relation_agreement": None,
             "missing": [],
+            "relation_mismatches": [],
             "diagnostics": [],
             "total": 0,
+            "relation_total": 0,
         }
     )
     forbidden_edges = _forbidden_edge_absence(nodes, links, expected.get("forbidden_edges", []))
@@ -603,6 +683,7 @@ def score_graph(
         "relation_specificity": relation_specificity["score"],
         "inferred_confidence_calibration": inferred_confidence_score,
         "expected_edge_coverage": edge_coverage["score"],
+        "expected_edge_relation_agreement": edge_coverage["relation_agreement"],
         "forbidden_concepts_absent": forbidden_score,
         "forbidden_edges_absent": forbidden_edges["score"],
         "source_coverage": source_coverage["score"],
@@ -613,7 +694,7 @@ def score_graph(
     weighted_dimensions = [
         (value, _as_weight(score_weights.get(key)))
         for key, value in scores.items()
-        if value is not None
+        if value is not None and key != "expected_edge_relation_agreement"
     ]
     if weighted_dimensions:
         scores["overall"] = round(
@@ -625,6 +706,7 @@ def score_graph(
         scores["overall"] = None
 
     return {
+        "scorer_version": SCORER_VERSION,
         "graph_path": str(graph_path),
         "expected_path": str(expected_path),
         "nodes": len(nodes),
@@ -637,6 +719,7 @@ def score_graph(
             "relation_specificity": relation_specificity["score"],
             "inferred_confidence_calibration": inferred_confidence_score,
             "expected_edge_coverage": edge_coverage["score"],
+            "expected_edge_relation_agreement": edge_coverage["relation_agreement"],
             "forbidden_concepts_absent": forbidden_score,
             "forbidden_edges_absent": forbidden_edges["score"],
             "source_coverage": source_coverage["score"],
@@ -652,6 +735,7 @@ def score_graph(
             "inferred_edges": len(inferred_edges),
             "overconfident_inferred_edges": overconfident_inferred,
             "missing_expected_edges": edge_coverage["missing"],
+            "expected_edge_relation_mismatches": edge_coverage["relation_mismatches"],
             "missing_expected_edge_diagnostics": edge_coverage["diagnostics"],
             "forbidden_concept_hits": forbidden_hits,
             "forbidden_edge_hits": forbidden_edges["hits"],
@@ -794,14 +878,19 @@ def run_harness(
         command_results.append(result)
         if result["returncode"] != 0:
             if artifact_root.exists():
-                shutil.rmtree(artifact_root)
+                _safe_rmtree(artifact_root)
             shutil.copytree(run_root, artifact_root)
-            summary = {"backend": backend, "model": model, "commands": command_results}
+            summary = {
+                "scorer_version": SCORER_VERSION,
+                "backend": backend,
+                "model": model,
+                "commands": command_results,
+            }
             _write_json(out_dir / "run.json", summary)
             raise SystemExit(f"semantic eval command failed: {' '.join(cmd)}")
 
     if artifact_root.exists():
-        shutil.rmtree(artifact_root)
+        _safe_rmtree(artifact_root)
     shutil.copytree(run_root, artifact_root)
 
     score = score_graph(
@@ -809,7 +898,13 @@ def run_harness(
         expected,
         labels_path=artifact_root / "graphify-out" / ".graphify_labels.json",
     )
-    summary = {"backend": backend, "model": model, "commands": command_results, "score": score}
+    summary = {
+        "scorer_version": SCORER_VERSION,
+        "backend": backend,
+        "model": model,
+        "commands": command_results,
+        "score": score,
+    }
     _write_json(out_dir / "run.json", summary)
     (out_dir / "EVALUATION.md").write_text(
         _markdown_report(score, backend=backend, model=model),
@@ -876,7 +971,7 @@ def _load_suite(suite_path: Path) -> dict[str, Any]:
 
 
 def _sum_command_elapsed(commands: list[dict[str, Any]]) -> float:
-    return round(sum(float(cmd.get("elapsed_seconds", 0) or 0) for cmd in commands), 2)
+    return round(sum(_as_float(cmd.get("elapsed_seconds", 0) or 0) for cmd in commands), 2)
 
 
 def _token_counts(commands: list[dict[str, Any]]) -> dict[str, int]:
@@ -886,8 +981,8 @@ def _token_counts(commands: list[dict[str, Any]]) -> dict[str, int]:
     matches = re.findall(r"tokens:\s*([0-9,]+)\s+in\s*/\s*([0-9,]+)\s+out", text)
     if not matches:
         return {"input": 0, "output": 0}
-    input_tokens = sum(int(i.replace(",", "")) for i, _ in matches)
-    output_tokens = sum(int(o.replace(",", "")) for _, o in matches)
+    input_tokens = sum(_as_int(i.replace(",", "")) for i, _ in matches)
+    output_tokens = sum(_as_int(o.replace(",", "")) for _, o in matches)
     return {"input": input_tokens, "output": output_tokens}
 
 
@@ -971,15 +1066,17 @@ def _aggregate_suite(suite: dict[str, Any], fixture_runs: list[dict[str, Any]]) 
     fixture_by_id = {fixture["id"]: fixture for fixture in suite["fixtures"]}
     for run in fixture_runs:
         fixture = fixture_by_id[run["fixture_id"]]
-        weight = float(fixture["weight"])
+        weight = _as_float(fixture["weight"])
         score = run.get("score", {})
         scores = score.get("scores", {})
         for key, value in scores.items():
             if value is not None:
-                dimension_values.setdefault(key, []).append((float(value), weight))
+                dimension_values.setdefault(key, []).append((_as_float(value), weight))
         if scores.get("overall") is not None:
             for profile in _fixture_profiles(fixture):
-                profile_values.setdefault(profile, []).append((float(scores["overall"]), weight))
+                profile_values.setdefault(profile, []).append(
+                    (_as_float(scores["overall"]), weight)
+                )
         tokens = _token_counts(run.get("commands", []))
         fixture_summaries.append(
             {
@@ -1026,18 +1123,19 @@ def _aggregate_suite(suite: dict[str, Any], fixture_runs: list[dict[str, Any]]) 
     if minimum_overall is not None:
         if aggregate_scores.get("overall") is None:
             gate_failures.append(f"overall score missing; minimum_overall {minimum_overall}")
-        elif aggregate_scores["overall"] < float(minimum_overall):
+        elif _as_float(aggregate_scores["overall"]) < _as_float(minimum_overall):
             gate_failures.append(
                 f"overall {aggregate_scores['overall']} < minimum_overall {minimum_overall}"
             )
     if minimum_critical is not None:
         for dimension in critical_dimensions:
             value = aggregate_scores.get(dimension)
-            if value is not None and value < float(minimum_critical):
+            if value is not None and _as_float(value) < _as_float(minimum_critical):
                 gate_failures.append(
                     f"{dimension} {value} < minimum_critical_dimension {minimum_critical}"
                 )
     return {
+        "scorer_version": SCORER_VERSION,
         "suite": suite.get("name", "semantic-eval-suite"),
         "fixtures": fixture_summaries,
         "scores": aggregate_scores,
@@ -1140,12 +1238,22 @@ def compare_suite_runs(baseline_path: Path, candidate_path: Path) -> dict[str, A
     candidate = _load_json(candidate_path)
     baseline_scores = baseline.get("scores", {})
     candidate_scores = candidate.get("scores", {})
+    baseline_scorer_version = baseline.get("scorer_version")
+    candidate_scorer_version = candidate.get("scorer_version")
+    warnings = []
+    if baseline_scorer_version != candidate_scorer_version:
+        warnings.append(
+            "scorer_version mismatch: "
+            f"baseline={baseline_scorer_version!r}, candidate={candidate_scorer_version!r}"
+        )
     dimensions = sorted(set(baseline_scores) | set(candidate_scores))
     score_deltas = {}
     for key in dimensions:
         b = baseline_scores.get(key)
         c = candidate_scores.get(key)
-        score_deltas[key] = None if b is None or c is None else round(float(c) - float(b), 3)
+        score_deltas[key] = (
+            None if b is None or c is None else round(_as_float(c) - _as_float(b), 3)
+        )
 
     baseline_fixtures = {f.get("id"): f for f in baseline.get("fixtures", [])}
     candidate_fixtures = {f.get("id"): f for f in candidate.get("fixtures", [])}
@@ -1158,7 +1266,7 @@ def compare_suite_runs(baseline_path: Path, candidate_path: Path) -> dict[str, A
         delta = (
             None
             if b_overall is None or c_overall is None
-            else round(float(c_overall) - float(b_overall), 3)
+            else round(_as_float(c_overall) - _as_float(b_overall), 3)
         )
         fixture_deltas.append(
             {
@@ -1174,12 +1282,14 @@ def compare_suite_runs(baseline_path: Path, candidate_path: Path) -> dict[str, A
     regressions = [f for f in fixture_deltas if f["delta"] is not None and f["delta"] < 0]
     improvements = [f for f in fixture_deltas if f["delta"] is not None and f["delta"] > 0]
     return {
+        "scorer_version": SCORER_VERSION,
         "baseline": {
             "path": str(baseline_path),
             "backend": baseline.get("backend"),
             "model": baseline.get("model"),
             "overall": baseline_scores.get("overall"),
             "gate_passed": baseline.get("gate_passed"),
+            "scorer_version": baseline_scorer_version,
         },
         "candidate": {
             "path": str(candidate_path),
@@ -1187,12 +1297,445 @@ def compare_suite_runs(baseline_path: Path, candidate_path: Path) -> dict[str, A
             "model": candidate.get("model"),
             "overall": candidate_scores.get("overall"),
             "gate_passed": candidate.get("gate_passed"),
+            "scorer_version": candidate_scorer_version,
         },
+        "warnings": warnings,
         "score_deltas": score_deltas,
         "fixture_deltas": fixture_deltas,
         "regressions": regressions,
         "improvements": improvements,
     }
+
+
+def _score_graph_v1_compat(
+    graph_path: Path, expected_path: Path, *, labels_path: Path | None = None
+) -> dict[str, Any]:
+    """Score with the pre-v2 semantics for offline re-baseline comparisons."""
+
+    def raw_norm(text: str) -> str:
+        return " ".join(_WORD_RE.findall(text.lower()))
+
+    def concept_norms(spec: dict[str, Any]) -> set[str]:
+        return {raw_norm(v) for v in [spec["name"], *spec.get("aliases", [])] if raw_norm(v)}
+
+    def node_norms(node: dict[str, Any]) -> set[str]:
+        values = [node.get("label", ""), str(node.get("id", "")).replace("_", " ")]
+        return {raw_norm(v) for v in values if raw_norm(v)}
+
+    def matching_nodes(nodes: list[dict[str, Any]], spec: dict[str, Any]) -> list[dict[str, Any]]:
+        wanted = concept_norms(spec)
+        return [node for node in nodes if node_norms(node) & wanted]
+
+    def edge_relation_matches(edge: dict[str, Any], relation_terms: list[str]) -> bool:
+        if not relation_terms:
+            return True
+        relation = raw_norm(str(edge.get("relation", "")))
+        return any(raw_norm(term) in relation for term in relation_terms if raw_norm(term))
+
+    def edge_matches(
+        edge: dict[str, Any],
+        *,
+        source_ids: set[str],
+        target_ids: set[str],
+        relation_terms: list[str],
+        directed: bool,
+    ) -> bool:
+        source = str(edge.get("source", ""))
+        target = str(edge.get("target", ""))
+        endpoints_match = source in source_ids and target in target_ids
+        if not directed:
+            endpoints_match = endpoints_match or (source in target_ids and target in source_ids)
+        return endpoints_match and edge_relation_matches(edge, relation_terms)
+
+    def expected_edge_coverage(
+        nodes: list[dict[str, Any]],
+        links: list[dict[str, Any]],
+        expected_edges: list[dict[str, Any]],
+    ) -> float | None:
+        checks: list[tuple[bool, float]] = []
+        for spec in expected_edges:
+            source_spec = _concept_spec(spec.get("source", ""))
+            target_spec = _concept_spec(spec.get("target", ""))
+            source_ids = {str(n.get("id")) for n in matching_nodes(nodes, source_spec)}
+            target_ids = {str(n.get("id")) for n in matching_nodes(nodes, target_spec)}
+            relation_terms = spec.get("relation_terms") or spec.get("relations") or []
+            if isinstance(relation_terms, str):
+                relation_terms = [relation_terms]
+            terms = [str(term) for term in relation_terms]
+            directed = bool(spec.get("directed", False))
+            ok = bool(source_ids and target_ids) and any(
+                edge_matches(
+                    edge,
+                    source_ids=source_ids,
+                    target_ids=target_ids,
+                    relation_terms=terms,
+                    directed=directed,
+                )
+                for edge in links
+            )
+            checks.append((ok, _as_weight(spec.get("weight"))))
+        return _weighted_score(checks)
+
+    graph = _load_json(graph_path)
+    expected = _load_json(expected_path)
+    nodes = graph.get("nodes", [])
+    links = graph.get("links", graph.get("edges", []))
+    labels = _load_json(labels_path) if labels_path and labels_path.exists() else {}
+
+    required_specs = _concept_specs(expected.get("required_concepts", []))
+    concept_checks = [
+        (bool(matching_nodes(nodes, spec)), spec["weight"]) for spec in required_specs
+    ]
+    duplicate_specs = _concept_specs(expected.get("dedup_watchlist", []))
+    duplicate_hits = {
+        raw_norm(spec["name"]): matching_nodes(nodes, spec)
+        for spec in duplicate_specs
+        if len(matching_nodes(nodes, spec)) > 1
+    }
+    forbidden_specs = _concept_specs(expected.get("forbidden_concepts", []))
+    forbidden_hits = [spec for spec in forbidden_specs if matching_nodes(nodes, spec)]
+    forbidden_edges = []
+    for spec in expected.get("forbidden_edges", []):
+        source_spec = _concept_spec(spec.get("source", ""))
+        target_spec = _concept_spec(spec.get("target", ""))
+        source_ids = {str(n.get("id")) for n in matching_nodes(nodes, source_spec)}
+        target_ids = {str(n.get("id")) for n in matching_nodes(nodes, target_spec)}
+        relation_terms = spec.get("relation_terms") or spec.get("relations") or []
+        if isinstance(relation_terms, str):
+            relation_terms = [relation_terms]
+        if source_ids and target_ids:
+            forbidden_edges.extend(
+                edge
+                for edge in links
+                if edge_matches(
+                    edge,
+                    source_ids=source_ids,
+                    target_ids=target_ids,
+                    relation_terms=[str(term) for term in relation_terms],
+                    directed=bool(spec.get("directed", False)),
+                )
+            )
+    inferred_edges = [e for e in links if str(e.get("confidence", "")).upper() == "INFERRED"]
+    overconfident_inferred = [
+        e for e in inferred_edges if _as_float(e.get("confidence_score", 0) or 0) >= 1.0
+    ]
+
+    expected_edges = expected.get("expected_edges", [])
+    source_coverage = _source_coverage(nodes, links, expected.get("expected_source_files", []))
+    relation_specificity = _relation_specificity(
+        links, {str(r).lower() for r in expected.get("generic_relations", ["references"])}
+    )
+    community_labels = _community_label_hits(
+        labels, expected.get("expected_community_label_terms", [])
+    )
+    dedup_score = (
+        round((len(duplicate_specs) - len(duplicate_hits)) / len(duplicate_specs), 3)
+        if duplicate_specs
+        else None
+    )
+    inferred_confidence_score = (
+        round((len(inferred_edges) - len(overconfident_inferred)) / len(inferred_edges), 3)
+        if inferred_edges
+        else None
+    )
+    forbidden_score = (0.0 if forbidden_hits else 1.0) if forbidden_specs else None
+    forbidden_edge_score = (
+        round(
+            max(0, len(expected.get("forbidden_edges", [])) - len(forbidden_edges))
+            / len(expected.get("forbidden_edges", [])),
+            3,
+        )
+        if expected.get("forbidden_edges", [])
+        else None
+    )
+    scores = {
+        "concept_recall": _weighted_score(concept_checks),
+        "deduplication": dedup_score,
+        "community_labels": community_labels["score"],
+        "relation_specificity": relation_specificity["score"],
+        "inferred_confidence_calibration": inferred_confidence_score,
+        "expected_edge_coverage": expected_edge_coverage(nodes, links, expected_edges)
+        if expected_edges
+        else None,
+        "forbidden_concepts_absent": forbidden_score,
+        "forbidden_edges_absent": forbidden_edge_score,
+        "source_coverage": source_coverage["score"],
+    }
+    score_weights = (
+        expected.get("score_weights", {}) if isinstance(expected.get("score_weights"), dict) else {}
+    )
+    weighted_dimensions = [
+        (value, _as_weight(score_weights.get(key)))
+        for key, value in scores.items()
+        if value is not None
+    ]
+    scores["overall"] = (
+        round(
+            sum(value * weight for value, weight in weighted_dimensions)
+            / sum(weight for _, weight in weighted_dimensions),
+            3,
+        )
+        if weighted_dimensions
+        else None
+    )
+    return {
+        "scorer_version": SCORER_V1_VERSION,
+        "graph_path": str(graph_path),
+        "expected_path": str(expected_path),
+        "nodes": len(nodes),
+        "edges": len(links),
+        "scores": {
+            "overall": scores["overall"],
+            **{k: v for k, v in scores.items() if k != "overall"},
+        },
+    }
+
+
+def _fixture_id_for_saved_graph(
+    graph_path: Path, semantic_eval_root: Path, fixture_ids: set[str]
+) -> tuple[str | None, str]:
+    run_or_fixture = graph_path.parents[2]
+    if run_or_fixture.name in fixture_ids:
+        return run_or_fixture.name, str(run_or_fixture.parent.relative_to(semantic_eval_root))
+    run_root = run_or_fixture
+    run_id = str(run_root.relative_to(semantic_eval_root))
+    normalized_run_name = run_root.name.replace("-", "_")
+    for fixture_id in sorted(fixture_ids, key=len, reverse=True):
+        if fixture_id in normalized_run_name:
+            return fixture_id, run_id
+    run_json = run_root / "run.json"
+    if run_json.exists():
+        data = _load_json(run_json)
+        corpus = str(data.get("corpus") or data.get("corpus_path") or "")
+        for fixture_id in sorted(fixture_ids, key=len, reverse=True):
+            if fixture_id in corpus:
+                return fixture_id, run_id
+    return None, run_id
+
+
+def _weighted_aggregate_scores(
+    fixture_records: list[dict[str, Any]], suite: dict[str, Any], *, score_key: str
+) -> dict[str, float | None]:
+    weights = {fixture["id"]: _as_weight(fixture.get("weight")) for fixture in suite["fixtures"]}
+    dimension_values: dict[str, list[tuple[float, float]]] = {}
+    for record in fixture_records:
+        weight = weights.get(record["fixture_id"], 1.0)
+        scores = record[score_key].get("scores", {})
+        for key, value in scores.items():
+            if value is not None:
+                dimension_values.setdefault(key, []).append((_as_float(value), weight))
+    return {
+        key: score
+        for key, values in sorted(dimension_values.items())
+        if (score := _weighted_average(values)) is not None
+    }
+
+
+def _run_gate(scores: dict[str, Any], quality_gate: dict[str, Any]) -> dict[str, Any]:
+    failures: list[str] = []
+    minimum_overall = quality_gate.get("minimum_overall")
+    minimum_critical = quality_gate.get("minimum_critical_dimension")
+    if minimum_overall is not None and scores.get("overall") is not None:
+        if _as_float(scores["overall"]) < _as_float(minimum_overall):
+            failures.append(f"overall {scores['overall']} < minimum_overall {minimum_overall}")
+    if minimum_critical is not None:
+        for dimension in [str(d) for d in quality_gate.get("critical_dimensions", [])]:
+            value = scores.get(dimension)
+            if value is not None and _as_float(value) < _as_float(minimum_critical):
+                failures.append(
+                    f"{dimension} {value} < minimum_critical_dimension {minimum_critical}"
+                )
+    return {"passed": not failures, "failures": failures}
+
+
+def rebaseline_saved_artifacts(
+    semantic_eval_root: Path,
+    suite_path: Path,
+    out_dir: Path,
+) -> dict[str, Any]:
+    suite = _load_suite(suite_path)
+    fixture_ids = {fixture["id"] for fixture in suite["fixtures"]}
+    required_targets = [
+        semantic_eval_root / "glm-5.2-cloud-suite-amended-20260629-151816",
+        semantic_eval_root / "deepseek-v4-pro-cloud-suite-20260701-compare",
+        semantic_eval_root / "minimax-m3-cloud-suite-20260614-112409",
+        semantic_eval_root / "claude-cli-sonnet-integration-gateway-20260706",
+    ]
+    comparison_root = semantic_eval_root / "model-quality-comparison-20260614-191220"
+    if comparison_root.exists():
+        required_targets.extend(sorted(path for path in comparison_root.iterdir() if path.is_dir()))
+
+    graph_paths = []
+    for graph_path in sorted(semantic_eval_root.glob("**/corpus/graphify-out/graph.json")):
+        relative_parts = graph_path.relative_to(semantic_eval_root).parts
+        if "comparisons" in relative_parts:
+            continue
+        graph_paths.append(graph_path)
+
+    records: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for graph_path in graph_paths:
+        fixture_id, run_id = _fixture_id_for_saved_graph(
+            graph_path, semantic_eval_root, fixture_ids
+        )
+        if fixture_id is None:
+            skipped.append(
+                {
+                    "path": str(graph_path),
+                    "reason": "fixture could not be inferred from graph path or run metadata",
+                }
+            )
+            continue
+        expected_path = suite_path.parent / fixture_id / "expected.json"
+        labels_path = graph_path.with_name(".graphify_labels.json")
+        if not expected_path.exists():
+            skipped.append({"path": str(graph_path), "reason": "expected.json missing"})
+            continue
+        if not labels_path.exists():
+            skipped.append({"path": str(graph_path), "reason": ".graphify_labels.json missing"})
+            continue
+        old_score = _score_graph_v1_compat(graph_path, expected_path, labels_path=labels_path)
+        new_score = score_graph(graph_path, expected_path, labels_path=labels_path)
+        old_scores = old_score["scores"]
+        new_scores = new_score["scores"]
+        records.append(
+            {
+                "run_id": run_id,
+                "fixture_id": fixture_id,
+                "graph_path": str(graph_path),
+                "labels_path": str(labels_path),
+                "expected_path": str(expected_path),
+                "old_score": old_score,
+                "new_score": new_score,
+                "deltas": {
+                    key: None
+                    if old_scores.get(key) is None or new_scores.get(key) is None
+                    else round(_as_float(new_scores[key]) - _as_float(old_scores[key]), 3)
+                    for key in sorted(set(old_scores) | set(new_scores))
+                },
+            }
+        )
+
+    for target in required_targets:
+        if not target.exists():
+            skipped.append({"path": str(target), "reason": "required artifact directory missing"})
+            continue
+        if not list(target.glob("**/corpus/graphify-out/graph.json")):
+            skipped.append({"path": str(target), "reason": "no graph-bearing artifacts found"})
+
+    groups: list[dict[str, Any]] = []
+    for run_id in sorted({record["run_id"] for record in records}):
+        group_records = [record for record in records if record["run_id"] == run_id]
+        old_aggregate = _weighted_aggregate_scores(group_records, suite, score_key="old_score")
+        new_aggregate = _weighted_aggregate_scores(group_records, suite, score_key="new_score")
+        groups.append(
+            {
+                "run_id": run_id,
+                "fixture_count": len(group_records),
+                "fixtures": sorted(record["fixture_id"] for record in group_records),
+                "old_scores": old_aggregate,
+                "new_scores": new_aggregate,
+                "score_deltas": {
+                    key: None
+                    if old_aggregate.get(key) is None or new_aggregate.get(key) is None
+                    else round(_as_float(new_aggregate[key]) - _as_float(old_aggregate[key]), 3)
+                    for key in sorted(set(old_aggregate) | set(new_aggregate))
+                },
+                "quality_gate_v2": _run_gate(
+                    new_aggregate,
+                    suite.get("quality_gate", {})
+                    if isinstance(suite.get("quality_gate"), dict)
+                    else {},
+                ),
+            }
+        )
+
+    sonnet_spot_checks = [
+        record
+        for record in records
+        if record["run_id"] == "claude-cli-sonnet-integration-gateway-20260706"
+        and record["fixture_id"] == "integration_gateway"
+    ]
+    payload = {
+        "scorer_version": SCORER_VERSION,
+        "old_scorer_version": SCORER_V1_VERSION,
+        "suite_path": str(suite_path),
+        "semantic_eval_root": str(semantic_eval_root),
+        "artifact_dir": str(out_dir),
+        "methodology": {
+            "model_calls": False,
+            "graph_glob": "**/corpus/graphify-out/graph.json",
+            "snapshot_subdirectories_excluded": True,
+            "old_scorer": "compatibility implementation of scorer-v1 exact concept and relation-matched edge semantics",
+            "new_scorer": "current graphify.semantic_eval.score_graph",
+        },
+        "summary": {
+            "processed_graphs": len(records),
+            "processed_runs": len(groups),
+            "skipped_artifacts": len(skipped),
+            "sonnet_integration_gateway_new_edge_coverage": sonnet_spot_checks[0]["new_score"][
+                "scores"
+            ].get("expected_edge_coverage")
+            if sonnet_spot_checks
+            else None,
+        },
+        "runs": groups,
+        "fixtures": records,
+        "skipped_artifacts": sorted(skipped, key=lambda item: (item["path"], item["reason"])),
+    }
+    _write_json(out_dir / "rebaseline.json", payload)
+    (out_dir / "rebaseline.md").write_text(_rebaseline_markdown(payload), encoding="utf-8")
+    return payload
+
+
+def _rebaseline_markdown(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Scorer v2 Re-baseline",
+        "",
+        "No model calls were made. Graphs were scored from saved `corpus/graphify-out/graph.json` artifacts only; dated snapshot subdirectories under `graphify-out/` were not globbed.",
+        "",
+        f"- Processed graphs: {payload['summary']['processed_graphs']}",
+        f"- Processed runs: {payload['summary']['processed_runs']}",
+        f"- Skipped artifacts: {payload['summary']['skipped_artifacts']}",
+        f"- Sonnet integration-gateway v2 edge coverage spot check: {payload['summary']['sonnet_integration_gateway_new_edge_coverage']}",
+        "",
+        "## Run Aggregates",
+        "",
+        "| Run | Fixtures | Old Overall | New Overall | New Concept Recall | New Edge Coverage | New Relation Agreement | Gate v2 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    for run in payload["runs"]:
+        new_scores = run["new_scores"]
+        old_scores = run["old_scores"]
+        gate = "pass" if run["quality_gate_v2"]["passed"] else "fail"
+        lines.append(
+            f"| `{run['run_id']}` | {run['fixture_count']} | {old_scores.get('overall')} | "
+            f"{new_scores.get('overall')} | {new_scores.get('concept_recall')} | "
+            f"{new_scores.get('expected_edge_coverage')} | "
+            f"{new_scores.get('expected_edge_relation_agreement')} | {gate} |"
+        )
+    lines += [
+        "",
+        "## Per-fixture Scores",
+        "",
+        "| Run | Fixture | Old Overall | New Overall | Old Edge Coverage | New Edge Coverage | New Relation Agreement | New Concept Recall |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for record in payload["fixtures"]:
+        old_scores = record["old_score"]["scores"]
+        new_scores = record["new_score"]["scores"]
+        lines.append(
+            f"| `{record['run_id']}` | `{record['fixture_id']}` | {old_scores.get('overall')} | "
+            f"{new_scores.get('overall')} | {old_scores.get('expected_edge_coverage')} | "
+            f"{new_scores.get('expected_edge_coverage')} | "
+            f"{new_scores.get('expected_edge_relation_agreement')} | "
+            f"{new_scores.get('concept_recall')} |"
+        )
+    if payload.get("skipped_artifacts"):
+        lines += ["", "## Skipped Artifacts", ""]
+        for item in payload["skipped_artifacts"]:
+            lines.append(f"- `{item['path']}` — {item['reason']}")
+    return "\n".join(lines) + "\n"
 
 
 def _comparison_markdown(comparison: dict[str, Any]) -> str:
@@ -1206,6 +1749,11 @@ def _comparison_markdown(comparison: dict[str, Any]) -> str:
         f"- Overall delta: {comparison['score_deltas'].get('overall')}",
         f"- Baseline gate: {'pass' if baseline.get('gate_passed') else 'fail'}",
         f"- Candidate gate: {'pass' if candidate.get('gate_passed') else 'fail'}",
+    ]
+    if comparison.get("warnings"):
+        lines += ["", "## Warnings", ""]
+        lines.extend(f"- {warning}" for warning in comparison["warnings"])
+    lines += [
         "",
         "## Aggregate Deltas",
         "",
@@ -1277,7 +1825,10 @@ def _parse_llm_json_response(raw: str) -> dict[str, Any]:
         start, end = cleaned.find("{"), cleaned.rfind("}")
         if start != -1 and end > start:
             cleaned = cleaned[start : end + 1]
-    data = json.loads(cleaned)
+    try:
+        data = json.loads(cleaned)
+    except json.JSONDecodeError as exc:
+        raise ValueError("judge returned invalid JSON") from exc
     if not isinstance(data, dict):
         raise ValueError("judge returned non-object JSON")
     return data
@@ -1592,9 +2143,8 @@ def _call_claude_cli_judge_model(
         )
     if proc.returncode != 0:
         raise RuntimeError(f"claude judge exited {proc.returncode}: {proc.stderr.strip()[:500]}")
-    try:
-        envelope = json.loads(proc.stdout)
-    except json.JSONDecodeError:
+    envelope = _json_loads_or_none(proc.stdout)
+    if envelope is None:
         return _parse_llm_json_response(proc.stdout or "{}")
     raw = envelope.get("result") if isinstance(envelope, dict) else None
     if not isinstance(raw, str):
@@ -2374,6 +2924,19 @@ def main(argv: list[str] | None = None) -> int:
     compare_p.add_argument("--candidate", required=True, type=Path)
     compare_p.add_argument("--out", type=Path)
 
+    rebaseline_p = sub.add_parser(
+        "rebaseline-saved", help="offline re-score saved .semantic-evals graph artifacts"
+    )
+    rebaseline_p.add_argument("--root", type=Path, default=Path(".semantic-evals"))
+    rebaseline_p.add_argument(
+        "--suite", type=Path, default=Path("tests/fixtures/semantic_eval/suite.json")
+    )
+    rebaseline_p.add_argument(
+        "--out-dir",
+        type=Path,
+        default=Path(".semantic-evals/comparisons/scorer-v2-rebaseline"),
+    )
+
     judge_suite_p = sub.add_parser("judge-suite", help="LLM-judge one suite-run.json artifact")
     judge_suite_p.add_argument("--suite-run", required=True, type=Path)
     judge_suite_p.add_argument("--out-dir", required=True, type=Path)
@@ -2458,6 +3021,21 @@ def main(argv: list[str] | None = None) -> int:
                 _comparison_markdown(comparison), encoding="utf-8"
             )
         print(text)
+        return 0
+
+    if args.cmd == "rebaseline-saved":
+        payload = rebaseline_saved_artifacts(args.root, args.suite, args.out_dir)
+        print(
+            json.dumps(
+                {
+                    "processed_graphs": payload["summary"]["processed_graphs"],
+                    "processed_runs": payload["summary"]["processed_runs"],
+                    "skipped_artifacts": payload["summary"]["skipped_artifacts"],
+                    "artifact_dir": str(args.out_dir),
+                },
+                indent=2,
+            )
+        )
         return 0
 
     if args.cmd == "judge-suite":

@@ -11,7 +11,7 @@
       "source_coverage"
     ],
     "minimum_overall": 0.7,
-    "minimum_critical_dimension": 0.8
+    "minimum_critical_dimension": 0.45
   },
   "fixtures": [
     {

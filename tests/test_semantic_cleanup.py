@@ -369,13 +369,26 @@ def test_sanitize_keeps_members_keyed_hyperedge(capsys):
     assert "members" not in he
 
 
+def test_validate_and_sanitize_accept_free_form_relation_verbs():
+    fragment = {
+        "nodes": [
+            {"id": "writer", "label": "Writer", "file_type": "code"},
+            {"id": "artifact", "label": "Artifact", "file_type": "document"},
+        ],
+        "edges": [{"source": "writer", "target": "artifact", "relation": "indexes"}],
+        "hyperedges": [],
+    }
+
+    assert sc.validate_semantic_fragment(fragment) == []
+    out = sc.sanitize_semantic_fragment(fragment)
+    assert out["edges"] == [{"source": "writer", "target": "artifact", "relation": "indexes"}]
+
+
 def test_validate_accepts_node_ids_keyed_hyperedge():
     """#1561: an alias-keyed hyperedge must not be rejected for a missing
     `nodes` list — validate normalizes first."""
     fragment = _valid_fragment()
     fragment["nodes"].append({"id": "second", "label": "Second", "file_type": "code"})
-    fragment["hyperedges"] = [
-        {"id": "grp", "label": "G", "node_ids": ["module_func", "second"]}
-    ]
+    fragment["hyperedges"] = [{"id": "grp", "label": "G", "node_ids": ["module_func", "second"]}]
     errors = sc.validate_semantic_fragment(fragment)
     assert errors == []
