@@ -157,7 +157,9 @@ BACKENDS: dict[str, dict] = {
         # GEMINI_BASE_URL points the backend at any OpenAI-compatible server for
         # Gemini models (LiteLLM, self-hosted proxy, ...). Falls back to Google's
         # official OpenAI-compatible endpoint.
-        "base_url": os.environ.get("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"),
+        "base_url": os.environ.get(
+            "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
+        ),
         "default_model": "gemini-3-flash-preview",
         "env_keys": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
         "model_env_key": "GRAPHIFY_GEMINI_MODEL",
@@ -539,6 +541,58 @@ def _resolve_max_retries(default: int = 6) -> int:
     return default
 
 
+_OLLAMA_REASONING_EFFORTS = {"high", "medium", "low", "max", "none"}
+
+
+def _resolve_ollama_reasoning_effort(model: str) -> str | None:
+    """Return the Ollama reasoning effort for thinking-capable models.
+
+    DeepSeek V4 models default to thinking mode in several Ollama/front-end
+    paths. For Graphify extraction, non-thinking mode is the safer default:
+    faster, cheaper, and less likely to wrap JSON in reasoning text. Operators
+    can opt back into thinking with GRAPHIFY_OLLAMA_REASONING_EFFORT.
+    """
+    raw = os.environ.get("GRAPHIFY_OLLAMA_REASONING_EFFORT", "").strip().lower()
+    if raw:
+        if raw in _OLLAMA_REASONING_EFFORTS:
+            return raw
+        print(
+            f"[graphify] GRAPHIFY_OLLAMA_REASONING_EFFORT={raw!r} is not one of "
+            f"{', '.join(sorted(_OLLAMA_REASONING_EFFORTS))}; omitting reasoning_effort.",
+            file=sys.stderr,
+        )
+        return None
+    model_base = model.split(":", 1)[0].lower()
+    if model_base in {"deepseek-v4-flash", "deepseek-v4-pro"}:
+        return "none"
+    return None
+
+
+def _exception_summary(exc: BaseException) -> str:
+    """Return low-risk provider error detail for trace logs."""
+    parts = [type(exc).__name__]
+    status_code = getattr(exc, "status_code", None)
+    if status_code is not None:
+        parts.append(f"status={status_code}")
+    response = getattr(exc, "response", None)
+    body = ""
+    if response is not None:
+        try:
+            body = json.dumps(response.json(), ensure_ascii=False)
+        except (TypeError, ValueError, AttributeError):
+            body = str(getattr(response, "text", "") or "")
+    message = str(exc)
+    if body:
+        parts.append(body)
+    elif message:
+        parts.append(message)
+    cause = getattr(exc, "__cause__", None)
+    if cause is not None and not body:
+        parts.append(f"cause={type(cause).__name__}: {cause}")
+    summary = " | ".join(parts)
+    return summary[:1000]
+
+
 def _thinking_disabled_via_env() -> bool:
     """Opt-in (GRAPHIFY_DISABLE_THINKING) to send ``{"thinking": {"type": "disabled"}}``
     to reasoning-capable OpenAI-compatible models such as ``deepseek-v4-flash``.
@@ -552,7 +606,13 @@ def _thinking_disabled_via_env() -> bool:
     run-to-run stability over extraction quality, not a forced default. The moonshot
     (kimi) branch keeps disabling thinking unconditionally because that model returns
     empty content otherwise."""
-    return os.environ.get("GRAPHIFY_DISABLE_THINKING", "").strip().lower() in ("1", "true", "yes", "on")
+    return os.environ.get("GRAPHIFY_DISABLE_THINKING", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
 
 _EXTRACTION_SYSTEM = """\
 You are a graphify semantic extraction agent. Extract a knowledge graph fragment from the files provided.
@@ -916,7 +976,10 @@ def _build_image_refs(image_files: list[Path], root: Path, *, read_bytes: bool =
     for p in image_files:
         abs_path = _resolve_under_root(p, root)
         if abs_path is None:
-            print(f"[graphify] skipping image {p}: symlink target outside corpus root", file=sys.stderr)
+            print(
+                f"[graphify] skipping image {p}: symlink target outside corpus root",
+                file=sys.stderr,
+            )
             continue
         try:
             rel = str(p.relative_to(root))
@@ -1260,8 +1323,8 @@ def _call_openai_compat(
     _retries = _resolve_max_retries()
     if backend == "ollama" and not os.environ.get("GRAPHIFY_MAX_RETRIES", "").strip():
         _retries = 0
-    client = OpenAI(api_key=api_key, base_url=base_url, timeout=_resolve_api_timeout(),
-                    max_retries=_retries)
+    timeout_s = _resolve_api_timeout()
+    client = OpenAI(api_key=api_key, base_url=base_url, timeout=timeout_s, max_retries=_retries)
     kwargs: dict = {
         "model": model,
         "messages": [
@@ -1956,7 +2019,9 @@ def _estimate_file_tokens(unit: "Path | FileSlice") -> int:
             content = read_slice_text(unit)[:_FILE_CHAR_CAP]
         except OSError:
             return 0
-        return len(_TOKENIZER.encode(content, disallowed_special=())) + (_PER_FILE_OVERHEAD_CHARS // _CHARS_PER_TOKEN)
+        return len(_TOKENIZER.encode(content, disallowed_special=())) + (
+            _PER_FILE_OVERHEAD_CHARS // _CHARS_PER_TOKEN
+        )
 
     path = unit
     # Raster images are not read as text; a vision model bills them at a roughly
@@ -1975,7 +2040,9 @@ def _estimate_file_tokens(unit: "Path | FileSlice") -> int:
         content = path.read_text(encoding="utf-8", errors="replace")[:_FILE_CHAR_CAP]
     except OSError:
         return 0
-    return len(_TOKENIZER.encode(content, disallowed_special=())) + (_PER_FILE_OVERHEAD_CHARS // _CHARS_PER_TOKEN)
+    return len(_TOKENIZER.encode(content, disallowed_special=())) + (
+        _PER_FILE_OVERHEAD_CHARS // _CHARS_PER_TOKEN
+    )
 
 
 def _pack_chunks_by_tokens(
@@ -2747,7 +2814,12 @@ def _call_llm(
             import anthropic  # pyright: ignore[reportMissingImports]
         except ImportError as exc:
             raise ImportError(_backend_pkg_hint("anthropic", "anthropic")) from exc
-        client = anthropic.Anthropic(api_key=key, base_url=cfg["base_url"], timeout=_resolve_api_timeout(), max_retries=_resolve_max_retries())
+        client = anthropic.Anthropic(
+            api_key=key,
+            base_url=cfg["base_url"],
+            timeout=_resolve_api_timeout(),
+            max_retries=_resolve_max_retries(),
+        )
         resp = client.messages.create(
             model=mdl,
             max_tokens=max_tokens,
@@ -2847,7 +2919,12 @@ def _call_llm(
         from openai import OpenAI  # pyright: ignore[reportMissingImports]
     except ImportError as exc:
         raise ImportError(_backend_pkg_hint("openai", "openai")) from exc
-    client = OpenAI(api_key=key, base_url=cfg["base_url"], timeout=_resolve_api_timeout(), max_retries=_resolve_max_retries())
+    client = OpenAI(
+        api_key=key,
+        base_url=cfg["base_url"],
+        timeout=_resolve_api_timeout(),
+        max_retries=_resolve_max_retries(),
+    )
     kwargs: dict = {
         "model": mdl,
         "messages": [{"role": "user", "content": prompt}],
@@ -3028,7 +3105,7 @@ def _parse_label_response(text: str, labeled_cids: list[int]) -> dict[int, str]:
     if not cleaned.startswith("{"):
         start, end = cleaned.find("{"), cleaned.rfind("}")
         if start != -1 and end > start:
-            cleaned = cleaned[start:end + 1]
+            cleaned = cleaned[start : end + 1]
     data: dict | None = None
     try:
         parsed = json.loads(cleaned)
@@ -3120,13 +3197,21 @@ def _label_batch_with_retry(
             raise
         mid = len(batch_cids) // 2
         left = _label_batch_with_retry(
-            batch_cids[:mid], batch_lines[:mid],
-            backend=backend, model=model, depth=depth + 1, max_depth=max_depth,
+            batch_cids[:mid],
+            batch_lines[:mid],
+            backend=backend,
+            model=model,
+            depth=depth + 1,
+            max_depth=max_depth,
             usage_out=usage_out,
         )
         right = _label_batch_with_retry(
-            batch_cids[mid:], batch_lines[mid:],
-            backend=backend, model=model, depth=depth + 1, max_depth=max_depth,
+            batch_cids[mid:],
+            batch_lines[mid:],
+            backend=backend,
+            model=model,
+            depth=depth + 1,
+            max_depth=max_depth,
             usage_out=usage_out,
         )
         return left | right
@@ -3179,7 +3264,10 @@ def label_communities(
     # via the same env switches.
     if backend == "ollama" and os.environ.get("GRAPHIFY_OLLAMA_PARALLEL", "").strip() != "1":
         max_concurrency = 1
-    if backend == "claude-cli" and os.environ.get("GRAPHIFY_CLAUDE_CLI_PARALLEL", "").strip() != "1":
+    if (
+        backend == "claude-cli"
+        and os.environ.get("GRAPHIFY_CLAUDE_CLI_PARALLEL", "").strip() != "1"
+    ):
         max_concurrency = 1
     workers = max(1, min(max_concurrency, n_batches))
 
@@ -3189,13 +3277,30 @@ def label_communities(
         # Accumulate token usage into a per-batch dict so concurrent workers
         # never race on the shared accumulator; it is merged on the main thread
         # in _merge (#1694).
-        batch_usage: dict = {} if usage_out is not None else None
-        batch_kwargs = {"usage_out": batch_usage} if usage_out is not None else {}
+        batch_usage: dict | None = {} if usage_out is not None else None
         try:
-            parsed = _label_batch_with_retry(
-                labeled_cids[start:end], lines[start:end], backend=backend, model=model,
-                **batch_kwargs,
-            )
+            supports_usage_out = False
+            if batch_usage is not None:
+                import inspect as _inspect
+
+                supports_usage_out = (
+                    "usage_out" in _inspect.signature(_label_batch_with_retry).parameters
+                )
+            if supports_usage_out:
+                parsed = _label_batch_with_retry(
+                    labeled_cids[start:end],
+                    lines[start:end],
+                    backend=backend,
+                    model=model,
+                    usage_out=batch_usage,
+                )
+            else:
+                parsed = _label_batch_with_retry(
+                    labeled_cids[start:end],
+                    lines[start:end],
+                    backend=backend,
+                    model=model,
+                )
             return batch_idx, parsed, None, batch_usage
         except Exception as exc:  # noqa: BLE001 - reported per-batch; surfaced below
             return batch_idx, None, exc, batch_usage
@@ -3272,8 +3377,13 @@ def generate_community_labels(
         return _placeholder_community_labels(communities), "placeholder"
     try:
         labels = label_communities(
-            G, communities, backend=backend, model=model, gods=gods,
-            max_concurrency=max_concurrency, batch_size=batch_size,
+            G,
+            communities,
+            backend=backend,
+            model=model,
+            gods=gods,
+            max_concurrency=max_concurrency,
+            batch_size=batch_size,
             usage_out=usage_out,
         )
         return labels, "llm"

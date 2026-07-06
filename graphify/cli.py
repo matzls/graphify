@@ -1861,15 +1861,17 @@ def dispatch_command(cmd: str) -> None:
         check_update(Path(sys.argv[2]).resolve())
         sys.exit(0)
     elif cmd == "codex-session-start":
-        if len(sys.argv) < 3:
-            print("Usage: graphify codex-session-start <path>", file=sys.stderr)
-            sys.exit(1)
         from graphify.watch import codex_session_start_notice
 
+        watch_path = Path(sys.argv[2]).resolve() if len(sys.argv) >= 3 else Path(".").resolve()
+        try:
+            additional_context = codex_session_start_notice(watch_path)
+        except Exception as exc:
+            additional_context = f"Graphify startup check skipped: {exc}"
         payload = {
             "hookSpecificOutput": {
                 "hookEventName": "SessionStart",
-                "additionalContext": codex_session_start_notice(Path(sys.argv[2]).resolve()),
+                "additionalContext": additional_context,
             }
         }
         print(json.dumps(payload))
