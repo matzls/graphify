@@ -269,6 +269,7 @@ def test_corpus_parallel_oversized_markdown_does_not_crash_on_fileslice(tmp_path
     # FileSlice units must not crash extract_files_direct's Path() coercion
     # (#1386). The earlier str-path tests used tiny files, so slicing never ran.
     from graphify.llm import _FILE_CHAR_CAP
+
     _clear_backend_env(monkeypatch)
     monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
     big = tmp_path / "big.md"
@@ -293,9 +294,11 @@ def test_str_path_entry_points_handle_edge_cases(tmp_path, monkeypatch):
         # empty list: no chunks, nothing to extract, no crash
         empty = llm.extract_corpus_parallel([], backend="gemini", root=tmp_path)
         assert empty["nodes"] == [] and empty["failed_chunks"] == 0
+
         # a Path subclass is still a Path and must pass through unchanged
         class _SubPath(type(Path())):  # concrete OS-specific Path subclass
             pass
+
         sub = _SubPath(tmp_path / "c.md")
         sub.write_text("# C\n\nNode.\n")
         assert llm.extract_files_direct([sub], backend="gemini", root=tmp_path) is result
@@ -820,8 +823,13 @@ def test_openai_compat_forces_non_streaming_response(monkeypatch):
     captured = _install_capturing_openai(monkeypatch)
 
     llm._call_openai_compat(
-        "https://gateway.example/v1", "sk-test", "gpt-4.1-mini",
-        "u", temperature=0, max_completion_tokens=8192, backend="openai",
+        "https://gateway.example/v1",
+        "sk-test",
+        "gpt-4.1-mini",
+        "u",
+        temperature=0,
+        max_completion_tokens=8192,
+        backend="openai",
     )
 
     assert captured["stream"] is False
@@ -883,8 +891,13 @@ def test_deepseek_thinking_on_by_default(monkeypatch):
     captured = _install_capturing_openai(monkeypatch)
 
     llm._call_openai_compat(
-        "https://api.deepseek.com", "sk", "deepseek-v4-flash",
-        "u", temperature=0, max_completion_tokens=8192, backend="deepseek",
+        "https://api.deepseek.com",
+        "sk",
+        "deepseek-v4-flash",
+        "u",
+        temperature=0,
+        max_completion_tokens=8192,
+        backend="deepseek",
     )
 
     eb = captured.get("extra_body")
@@ -896,8 +909,13 @@ def test_deepseek_thinking_disabled_via_env(monkeypatch):
     captured = _install_capturing_openai(monkeypatch)
 
     llm._call_openai_compat(
-        "https://api.deepseek.com", "sk", "deepseek-v4-flash",
-        "u", temperature=0, max_completion_tokens=8192, backend="deepseek",
+        "https://api.deepseek.com",
+        "sk",
+        "deepseek-v4-flash",
+        "u",
+        temperature=0,
+        max_completion_tokens=8192,
+        backend="deepseek",
     )
 
     assert captured["extra_body"] == {"thinking": {"type": "disabled"}}
@@ -910,8 +928,13 @@ def test_explicit_extra_body_wins_over_thinking_env(monkeypatch):
     captured = _install_capturing_openai(monkeypatch)
 
     llm._call_openai_compat(
-        "https://api.deepseek.com", "sk", "deepseek-v4-flash",
-        "u", temperature=0, max_completion_tokens=8192, backend="deepseek",
+        "https://api.deepseek.com",
+        "sk",
+        "deepseek-v4-flash",
+        "u",
+        temperature=0,
+        max_completion_tokens=8192,
+        backend="deepseek",
         extra_body={"thinking": {"type": "enabled"}},
     )
 
@@ -1262,6 +1285,7 @@ def test_openai_compat_env_var_temperature_applied(tmp_path, monkeypatch):
 
     assert captured.get("temperature") == 0.3
 
+
 def test_native_extraction_prompt_requests_hyperedges():
     """The native-backend prompt must request hyperedges, like the skill's
     extraction-spec does — otherwise `graphify extract --backend X` silently
@@ -1274,7 +1298,9 @@ def test_native_extraction_prompt_requests_hyperedges():
         assert "3 or more nodes" in prompt, f"deep={deep}: prompt lacks the hyperedge guidance"
         # The schema example must show a populated hyperedge, not an empty array.
         assert '"hyperedges":[]' not in prompt, f"deep={deep}: schema still shows empty hyperedges"
-        assert '"nodes":["node_id1"' in prompt, f"deep={deep}: schema lacks a populated hyperedge example"
+        assert '"nodes":["node_id1"' in prompt, (
+            f"deep={deep}: schema lacks a populated hyperedge example"
+        )
 
 
 def test_native_extraction_prompt_matches_skill_spec_on_hyperedges():
@@ -1284,11 +1310,18 @@ def test_native_extraction_prompt_matches_skill_spec_on_hyperedges():
     """
     spec = (
         Path(__file__).resolve().parents[1]
-        / "tools" / "skillgen" / "fragments" / "references" / "shared" / "extraction-spec.md"
+        / "tools"
+        / "skillgen"
+        / "fragments"
+        / "references"
+        / "shared"
+        / "extraction-spec.md"
     ).read_text(encoding="utf-8")
     shared = "3 or more nodes clearly participate together"
     assert shared in spec, "skill extraction-spec changed its hyperedge wording"
-    assert shared in llm._EXTRACTION_SYSTEM, "native prompt drifted from the skill hyperedge wording"
+    assert shared in llm._EXTRACTION_SYSTEM, (
+        "native prompt drifted from the skill hyperedge wording"
+    )
 
 
 # --- *_BASE_URL env overrides for kimi / gemini / deepseek (#1458) -------------
@@ -1300,9 +1333,15 @@ import sys as _sys
 
 def _backend_base_url(backend: str, env_extra: dict) -> str:
     out = subprocess.run(
-        [_sys.executable, "-c",
-         f"import graphify.llm as l; print(l.BACKENDS[{backend!r}]['base_url'])"],
-        env={**os.environ, **env_extra}, capture_output=True, text=True, check=True,
+        [
+            _sys.executable,
+            "-c",
+            f"import graphify.llm as l; print(l.BACKENDS[{backend!r}]['base_url'])",
+        ],
+        env={**os.environ, **env_extra},
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return out.stdout.strip()
 
@@ -1310,29 +1349,41 @@ def _backend_base_url(backend: str, env_extra: dict) -> str:
 import os  # noqa: E402
 
 
-@pytest.mark.parametrize("backend,env_var,override", [
-    ("kimi", "KIMI_BASE_URL", "https://proxy.example/kimi/v1"),
-    ("gemini", "GEMINI_BASE_URL", "https://proxy.example/gemini"),
-    ("deepseek", "DEEPSEEK_BASE_URL", "https://proxy.example/deepseek"),
-])
+@pytest.mark.parametrize(
+    "backend,env_var,override",
+    [
+        ("kimi", "KIMI_BASE_URL", "https://proxy.example/kimi/v1"),
+        ("gemini", "GEMINI_BASE_URL", "https://proxy.example/gemini"),
+        ("deepseek", "DEEPSEEK_BASE_URL", "https://proxy.example/deepseek"),
+    ],
+)
 def test_base_url_env_overrides(backend, env_var, override):
     assert _backend_base_url(backend, {env_var: override}) == override
 
 
-@pytest.mark.parametrize("backend,default", [
-    ("kimi", "https://api.moonshot.ai/v1"),
-    ("gemini", "https://generativelanguage.googleapis.com/v1beta/openai/"),
-    ("deepseek", "https://api.deepseek.com"),
-])
+@pytest.mark.parametrize(
+    "backend,default",
+    [
+        ("kimi", "https://api.moonshot.ai/v1"),
+        ("gemini", "https://generativelanguage.googleapis.com/v1beta/openai/"),
+        ("deepseek", "https://api.deepseek.com"),
+    ],
+)
 def test_base_url_defaults_without_env(backend, default):
     # Ensure the override env vars are unset so the hardcoded default is used.
     cleared = {k: "" for k in ("KIMI_BASE_URL", "GEMINI_BASE_URL", "DEEPSEEK_BASE_URL")}
     # empty string would be falsy-but-set; delete instead by reconstructing env without them
     env = {k: v for k, v in os.environ.items() if k not in cleared}
     out = subprocess.run(
-        [_sys.executable, "-c",
-         f"import graphify.llm as l; print(l.BACKENDS[{backend!r}]['base_url'])"],
-        env=env, capture_output=True, text=True, check=True,
+        [
+            _sys.executable,
+            "-c",
+            f"import graphify.llm as l; print(l.BACKENDS[{backend!r}]['base_url'])",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     assert out.stdout.strip() == default
 
@@ -1363,13 +1414,16 @@ def test_call_claude_cli_passes_errors_replace_to_subprocess():
     mock_proc.stdout = valid_envelope
     mock_proc.stderr = ""
 
-    with patch("platform.system", return_value="Linux"), \
-         patch("shutil.which", return_value="/usr/bin/claude"), \
-         patch("subprocess.run", return_value=mock_proc) as mock_run:
+    with (
+        patch("platform.system", return_value="Linux"),
+        patch("shutil.which", return_value="/usr/bin/claude"),
+        patch("subprocess.run", return_value=mock_proc) as mock_run,
+    ):
         llm._call_claude_cli("test prompt")
 
-    assert mock_run.call_args.kwargs.get("errors") == "replace", \
+    assert mock_run.call_args.kwargs.get("errors") == "replace", (
         "subprocess.run missing errors='replace' — non-UTF-8 bytes will crash the reader thread"
+    )
 
 
 def test_call_claude_cli_tolerates_non_utf8_in_stderr():
@@ -1382,9 +1436,11 @@ def test_call_claude_cli_tolerates_non_utf8_in_stderr():
     mock_proc.stdout = ""
     mock_proc.stderr = "GBK error: ��"  # replacement chars after decode
 
-    with patch("platform.system", return_value="Linux"), \
-         patch("shutil.which", return_value="/usr/bin/claude"), \
-         patch("subprocess.run", return_value=mock_proc):
+    with (
+        patch("platform.system", return_value="Linux"),
+        patch("shutil.which", return_value="/usr/bin/claude"),
+        patch("subprocess.run", return_value=mock_proc),
+    ):
         with pytest.raises(RuntimeError, match="claude -p exited 1"):
             llm._call_claude_cli("test prompt")
 
@@ -1396,9 +1452,9 @@ def test_resolve_max_retries_default_and_env(monkeypatch):
     monkeypatch.setenv("GRAPHIFY_MAX_RETRIES", "10")
     assert llm._resolve_max_retries() == 10
     monkeypatch.setenv("GRAPHIFY_MAX_RETRIES", "0")
-    assert llm._resolve_max_retries() == 0          # disable is allowed
+    assert llm._resolve_max_retries() == 0  # disable is allowed
     monkeypatch.setenv("GRAPHIFY_MAX_RETRIES", "bogus")
-    assert llm._resolve_max_retries() >= 5          # invalid -> default
+    assert llm._resolve_max_retries() >= 5  # invalid -> default
 
 
 def test_openai_compat_client_built_with_retries(monkeypatch):
@@ -1418,7 +1474,8 @@ def test_openai_compat_client_built_with_retries(monkeypatch):
 
         def create(self, **_):
             return _fake_openai_response(
-                '{"nodes":[],"edges":[],"hyperedges":[]}', finish_reason="stop",
+                '{"nodes":[],"edges":[],"hyperedges":[]}',
+                finish_reason="stop",
                 completion_tokens=10,
             )
 
@@ -1428,8 +1485,13 @@ def test_openai_compat_client_built_with_retries(monkeypatch):
     monkeypatch.delenv("GRAPHIFY_MAX_RETRIES", raising=False)
 
     llm._call_openai_compat(
-        "https://api.moonshot.ai/v1", "fake-key", "kimi-k2",
-        "user msg", temperature=0, max_completion_tokens=4096, backend="kimi",
+        "https://api.moonshot.ai/v1",
+        "fake-key",
+        "kimi-k2",
+        "user msg",
+        temperature=0,
+        max_completion_tokens=4096,
+        backend="kimi",
     )
     assert ctor_kwargs.get("max_retries", 0) >= 5, ctor_kwargs
 

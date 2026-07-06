@@ -636,13 +636,18 @@ Format: {stem}_{entity} where stem = full repo-relative path with the extension 
 
 Edge direction rule — source is always the ACTOR, target is the ACTED-UPON:
 - calls: source = the function/method that CONTAINS the call site; target = the function/method BEING CALLED. Never reverse this.
-- imports/references: source = the file/entity that imports or references; target = the thing imported or referenced.
+- imports/references/cites: source = the file/entity that imports, references, or cites; target = the thing imported, referenced, or cited.
 - implements/inherits: source = the subclass/implementor; target = the base class/interface.
+- domain verbs: source = the actor or upstream concept; target = the acted-upon or downstream concept.
+
+Relation vocabulary: keep structural code relations such as calls, implements, imports, references, and cites. For semantic/document relationships, prefer a specific lowercase verb grounded in the source text, such as writes, stores, routes, validates, gates, feeds, emits, records, converts, governs, precedes, produces, or requires. Another specific source-stated verb is allowed. Use references or conceptually_related_to only when the source states no more specific relationship.
+
+Canonical concept naming: name document-level concepts with the document's own noun phrase from headings, definitions, or explicit terms, using singular form where natural. Do not replace a documented concept name with a code identifier; keep the code entity as its own node and link it to the document concept.
 
 Hyperedges: if 3 or more nodes clearly participate together in a shared concept, flow, or pattern that is not captured by pairwise edges alone, add a hyperedge to the top-level `hyperedges` array (e.g. all classes implementing one protocol, all functions in one auth flow even if they don't all call each other, all concepts from a paper section forming one coherent idea). Use sparingly — only when the group relationship adds information beyond the pairwise edges. Maximum 3 hyperedges per chunk.
 
 Output exactly this schema:
-{"nodes":[{"id":"stem_entity","label":"Human Readable Name","file_type":"code|document|paper|image|rationale|concept","source_file":"relative/path","source_location":null,"source_url":null,"captured_at":null,"author":null,"contributor":null}],"edges":[{"source":"node_id","target":"node_id","relation":"calls|implements|references|cites|conceptually_related_to|shares_data_with|semantically_similar_to","confidence":"EXTRACTED|INFERRED|AMBIGUOUS","confidence_score":1.0,"source_file":"relative/path","source_location":null,"weight":1.0}],"hyperedges":[{"id":"snake_case_id","label":"Human Readable Label","nodes":["node_id1","node_id2","node_id3"],"relation":"participate_in|implement|form","confidence":"EXTRACTED|INFERRED","confidence_score":0.75,"source_file":"relative/path"}],"input_tokens":0,"output_tokens":0}
+{"nodes":[{"id":"stem_entity","label":"Human Readable Name","file_type":"code|document|paper|image|rationale|concept","source_file":"relative/path","source_location":null,"source_url":null,"captured_at":null,"author":null,"contributor":null}],"edges":[{"source":"node_id","target":"node_id","relation":"calls|implements|imports|references|cites|writes|stores|routes|validates|gates|feeds|emits|records|converts|governs|precedes|produces|requires|conceptually_related_to|another_specific_source_stated_verb","confidence":"EXTRACTED|INFERRED|AMBIGUOUS","confidence_score":1.0,"source_file":"relative/path","source_location":null,"weight":1.0}],"hyperedges":[{"id":"snake_case_id","label":"Human Readable Label","nodes":["node_id1","node_id2","node_id3"],"relation":"participate_in|implement|form","confidence":"EXTRACTED|INFERRED","confidence_score":0.75,"source_file":"relative/path"}],"input_tokens":0,"output_tokens":0}
 """
 
 _DEEP_EXTRACTION_SUFFIX = """\
