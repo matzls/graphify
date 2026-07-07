@@ -274,13 +274,27 @@ _CONSOLIDATION_ALLOWLIST: dict[str, frozenset[str]] = {
             "### After completing all steps",
         }
     ),
-    # Pi intentionally no longer preserves the v8 host-agent extraction section.
-    # Its platform-specific core routes full builds through the CLI backend path
-    # (`graphify extract` + `graphify cluster-only`) so Pi, direct terminal use,
-    # and repo propagation share the same backend/model policy. The old AST /
-    # semantic-subagent / manual merge / label/export/manifest-cost headings are
-    # replaced by the new CLI-first Step 3/4/5/6/9 headings in
-    # tools/skillgen/fragments/core/pi.md.
+    # Pi and Codex intentionally no longer preserve the v8 host-agent extraction
+    # section. Their CLI-backed core routes full builds through the CLI backend
+    # path (`graphify extract` + `graphify cluster-only`) so installed skills,
+    # direct terminal use, and repo propagation share the same backend/model
+    # policy. The old AST / semantic-subagent / manual merge /
+    # label/export/manifest-cost headings are replaced by the CLI-first
+    # Step 3/4/5/6/9 headings in tools/skillgen/fragments/core/cli.md.
+    "codex": frozenset(
+        {
+            "### Step 1 - Ensure graphify is installed",
+            "## For --update (incremental re-extraction)",
+            "### Step 3 - Extract entities and relationships",
+            "#### Part A - Structural extraction for code files",
+            "#### Part B - Semantic extraction (parallel subagents)",
+            "#### Part C - Merge AST + semantic into final extraction",
+            "### Step 4 - Build graph, cluster, analyze, generate outputs",
+            "### Step 5 - Label communities",
+            "### Step 6 - Generate Obsidian vault (opt-in) + HTML",
+            "### Step 9 - Save manifest, update cost tracker, clean up, and report",
+        }
+    ),
     "pi": frozenset(
         {
             "### Step 1 - Ensure graphify is installed",
