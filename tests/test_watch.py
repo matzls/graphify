@@ -87,6 +87,7 @@ def test_check_update_with_flag_returns_true_and_prints(tmp_path, capsys):
     assert "native CLI `graphify update .`" in out
     assert "graphify extract . --backend ollama" in out
     assert "graphify cluster-only . --backend ollama" in out
+    assert "--model deepseek-v4-pro:cloud" not in out
     assert "--model kimi-k2.7-code:cloud" not in out
     assert "model: --model > OLLAMA_MODEL > built-in default" in out
     assert "refresh the wiki" in out

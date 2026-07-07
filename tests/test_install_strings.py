@@ -133,7 +133,7 @@ def test_agents_section_does_not_skip_dirty_graph_output():
     assert "Codex uses the Graphify skill for `/graphify`" in _AGENTS_MD_SECTION
     assert "Mase explicitly authorizes use of the configured Ollama backend" in _AGENTS_MD_SECTION
     assert (
-        "Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then Graphify's built-in Kimi default."
+        "Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then Graphify's built-in DeepSeek V4 Pro default."
         in _AGENTS_MD_SECTION
     )
     assert "does not authorize unrelated third-party uploads" in _AGENTS_MD_SECTION

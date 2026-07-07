@@ -21,11 +21,12 @@ tags:
 
 ## Summary
 
-Status as of 2026-07-06: Checkpoints A and B are reached. Scorer v2 is
-implemented and re-baselined offline; the extraction prompt contract is updated
-and downstream relation rendering paths are covered by tests. One bounded
-`integration_gateway` live smoke passed with the new prompt, but the full Task 7
-live A/B and Task 8 closeout remain operator-gated and not done.
+Status as of 2026-07-07: Checkpoints A and B are reached, and Task 7 live A/B
+evidence exists. Scorer v2 is implemented and re-baselined offline; the
+extraction prompt contract is updated and downstream relation rendering paths are
+covered by tests. The prompt-v2 A/B selected `deepseek-v4-pro:cloud` as the
+cleanest full-suite candidate and default/reference model for this cycle. Task 8
+closeout remains operator-gated and not fully done.
 
 The fork-local semantic quality harness previously could not distinguish capable
 models from weak ones, because two of its gate dimensions were structurally
@@ -405,13 +406,22 @@ Verify:
 - `suite-run.json` gate state per arm; `compare` JSON/Markdown outputs saved
   under `.semantic-evals/comparisons/prompt-v2-ab/`
 
-### Task 8: Closeout — docs, baselines, CLI reinstall
+Task 7 result as of 2026-07-07: completed. `deepseek-v4-pro:cloud` passed the
+full suite and is the cleanest prompt-v2 default/reference candidate;
+`glm-5.2:cloud` passed aggregate but has a stable `router_privacy` forbidden
+concept regression; `deepseek-v4-flash:cloud` is available but failed the gate on
+edge coverage. Relation sprawl is a follow-up, not a scorer/gate change.
+
+### Task 8: Closeout — docs, baselines, default, CLI reinstall
 
 - Update `docs/semantic-model-quality-harness.md` baselines table with the
   new-arm artifacts (model, backend, artifact path, overall, gate state).
 - Record a dated decision note (comparison summary + which models look
   capable under the calibrated harness) per the harness doc's comparison
   protocol.
+- Set the fork's built-in Ollama default to the selected model
+  (`deepseek-v4-pro:cloud`) and update generated guidance/tests that describe
+  model resolution.
 - Note the cache consequence in the harness doc and fork operating model
   doc: the semantic cache is content-keyed, so existing project graphs keep
   old-vocabulary edges until files change or the operator forces a semantic
@@ -445,8 +455,9 @@ Task 7 A/B remains unrun. Parent closeout:
 
 ### Checkpoint C: Evidence in hand (after Tasks 7–8)
 
-A/B artifacts saved and compared; gate recalibrated; docs and baselines
-updated; CLI reinstalled. Model-selection decisions are now evidence-based.
+Task 7 A/B artifacts are saved and compared; `deepseek-v4-pro:cloud` is selected
+as the prompt-v2 default/reference candidate. Remaining Task 8 closeout work is
+docs/baseline finalization, active-CLI reinstall, and any approved propagation.
 
 ## Risks And Mitigations
 

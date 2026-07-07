@@ -741,10 +741,11 @@ def test_codex_agents_install_writes_agents_md(tmp_path):
     assert "graphify update ." in content
     assert "graphify extract . --backend ollama`" in content
     assert "graphify cluster-only . --backend ollama`" in content
-    assert "--model kimi-k2.7-code:cloud" not in content
+    assert "--model deepseek-v4-pro:cloud" not in content
+    assert "kimi-k2.7-code:cloud" not in content
     assert (
         content.find(
-            "Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then Graphify's built-in Kimi default."
+            "Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then Graphify's built-in DeepSeek V4 Pro default."
         )
         != -1
     )

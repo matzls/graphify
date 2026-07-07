@@ -514,7 +514,7 @@ These are needed for **headless / CI extraction** (`graphify extract`) and CLI-f
 | `DEEPSEEK_API_KEY` | DeepSeek backend | `--backend deepseek` |
 | `MOONSHOT_API_KEY` | Kimi Code backend | `--backend kimi` |
 | `OLLAMA_BASE_URL` | Ollama local inference URL | `--backend ollama` (default: `http://localhost:11434`) |
-| `OLLAMA_MODEL` | Ollama model name | `--backend ollama` (default in Mase's fork: `kimi-k2.7-code:cloud`) |
+| `OLLAMA_MODEL` | Ollama model name | `--backend ollama` (default in Mase's fork: `deepseek-v4-pro:cloud`) |
 | `GRAPHIFY_OLLAMA_NUM_CTX` | Override Ollama KV-cache window size | optional — auto-sized by default |
 | `GRAPHIFY_OLLAMA_KEEP_ALIVE` | Minutes to keep Ollama model loaded | optional — set `0` to unload after each chunk |
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI Service backend | `--backend azure` |
@@ -554,6 +554,7 @@ These are needed for **headless / CI extraction** (`graphify extract`) and CLI-f
 
 **`graphify: command not found` after installing**
 The CLI is installed but its bin directory isn't on your shell's `PATH`. Pick the fix for how you installed:
+
 - **uv** (`uv tool install graphifyy`): the command lands in uv's tool bin dir (`~/.local/bin`), which a fresh macOS/zsh setup often doesn't have on `PATH`. Run `uv tool update-shell`, then open a new terminal. (Find the dir with `uv tool dir --bin`.)
 - **pipx** (`pipx install graphifyy`): run `pipx ensurepath`, then open a new terminal.
 - **pip** (`pip install graphifyy`): pip installs scripts to a user bin dir that may not be on `PATH` — add `~/Library/Python/3.x/bin` (macOS) or `~/.local/bin` (Linux) to your `PATH` in `~/.zshrc`/`~/.bashrc`, or just run `python -m graphify`.
@@ -625,6 +626,7 @@ graphify install  # overwrites the skill file
 
 **Claude Code prompt cache invalidated after every `graphify extract`**
 Graphify writes output files (`graph.json`, `graphify-out/`) into the workspace. If those paths aren't ignored, every write invalidates Claude Code's prompt cache, forcing a full re-upload at cache-write rates on the next turn. Add them to `.claudeignore`:
+
 ```text
 # .claudeignore
 graph.json
@@ -726,7 +728,7 @@ graphify antigravity uninstall
 graphify extract ./docs                        # headless LLM extraction for CI (no IDE needed)
 graphify extract ./docs --backend gemini       # explicit backend: gemini, kimi, claude, openai, deepseek, ollama, bedrock, or claude-cli
 graphify extract ./docs --backend gemini --model gemini-3.1-pro-preview
-graphify extract ./docs --backend ollama       # local/default Ollama; model is --model > OLLAMA_MODEL > built-in Kimi
+graphify extract ./docs --backend ollama       # local/default Ollama; model is --model > OLLAMA_MODEL > built-in DeepSeek V4 Pro
 OPENAI_BASE_URL=http://localhost:8080/v1 OPENAI_MODEL=my-model graphify extract ./docs --backend openai   # any OpenAI-compatible server (llama.cpp, vLLM, LM Studio)
 ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_MODEL=my-model graphify extract ./docs --backend claude   # any Anthropic-compatible endpoint (LiteLLM proxy, gateways)
 GRAPHIFY_OLLAMA_NUM_CTX=32768 graphify extract ./docs --backend ollama   # override KV-cache window (auto-sized by default)

@@ -787,6 +787,7 @@ def test_codex_session_start_outputs_pending_context(tmp_path):
     assert "native CLI `graphify update .` first" in context
     assert "graphify extract . --backend ollama" in context
     assert "graphify cluster-only . --backend ollama" in context
+    assert "--model deepseek-v4-pro:cloud" not in context
     assert "--model kimi-k2.7-code:cloud" not in context
     assert "model: --model > OLLAMA_MODEL > built-in default" in context
     assert "refresh the wiki" in context

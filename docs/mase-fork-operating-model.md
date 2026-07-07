@@ -336,8 +336,8 @@ the backend semantic pipeline runs. Use native CLI `graphify update .` for
 cheap code-only refreshes, then run `graphify extract . --backend ollama` and
 `graphify cluster-only . --backend ollama` when docs/media/image relationships
 matter. Model resolution is explicit `--model`, then `OLLAMA_MODEL`, then
-Graphify's built-in Kimi default. `cluster-only` relabels communities and
-refreshes `graphify-out/wiki/` by default.
+Graphify's built-in DeepSeek V4 Pro default. `cluster-only` relabels
+communities and refreshes `graphify-out/wiki/` by default.
 
 ## Adoption Audit And Propagation
 
@@ -438,15 +438,14 @@ single semantic concurrency, smaller per-chunk token budget, longer request
 timeout, safe trace output, bounded model output tokens, and a conservative
 `.graphifyignore` starter before semantic extraction.
 
-Current model decision: keep `kimi-k2.7-code:cloud` as Graphify's built-in
-Ollama default because the 2026-06-14 semantic harness favored it over
-`minimax-m3:cloud` on concept recall and relation specificity. Routine commands
-should omit `--model` so explicit user flags and `OLLAMA_MODEL` can override the
-default. Keep the possible hybrid ensemble — Kimi as primary concept extractor
-plus Minimax as secondary edge augmenter — documented but inactive. Do not
-implement or run that hybrid workflow unless later benchmark evidence shows it
-is needed; if Qwen or another candidate clearly beats Kimi on the prioritized
-dimensions, prefer the stronger single model instead.
+Current model decision: use `deepseek-v4-pro:cloud` as Graphify's built-in
+Ollama default. The 2026-07-07 prompt-v2 A/B showed DeepSeek V4 Pro as the
+cleanest full-suite candidate under the calibrated semantic harness: it passed
+the gate, improved edge coverage and relation quality, and had no forbidden or
+source-grounding regression. Routine commands should omit `--model` so explicit
+user flags and `OLLAMA_MODEL` can override the default. Treat `glm-5.2:cloud` as
+a cost-conscious fallback candidate and `deepseek-v4-flash:cloud` as available
+but lower-quality for this harness cycle.
 
 ## Codex Guidance Rules
 

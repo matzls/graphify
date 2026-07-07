@@ -2,7 +2,7 @@
 
 The direct semantic backend path supports Ollama, Gemini, Kimi, Claude, OpenAI,
 DeepSeek, Azure, Bedrock, and claude-cli. The local fork standardizes automatic
-semantic extraction on the Ollama backend with kimi-k2.7-code:cloud as the default
+semantic extraction on the Ollama backend with deepseek-v4-pro:cloud as the default
 model.
 
 Graphify validates backend dependencies before semantic extraction. Trace mode
