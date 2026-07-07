@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from graphify.file_slice import (
@@ -539,6 +540,22 @@ def _resolve_max_retries(default: int = 6) -> int:
         except ValueError:
             pass
     return default
+
+
+def _safe_int(value: object, default: int = 0) -> int:
+    """Best-effort integer coercion for provider usage metadata."""
+    try:
+        return int(cast(Any, value or 0))
+    except (TypeError, ValueError):
+        return default
+
+
+def _community_id(cid: object) -> int:
+    """Coerce a community id to int while preserving fail-fast semantics."""
+    try:
+        return int(cast(Any, cid))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"community id {cid!r} is not an integer") from exc
 
 
 _OLLAMA_REASONING_EFFORTS = {"high", "medium", "low", "max", "none"}
@@ -1748,11 +1765,11 @@ def _call_claude_cli(user_message: str, max_tokens: int = 8192, *, deep_mode: bo
     result = _parse_llm_json(raw_content or "{}")
     usage = envelope.get("usage") or {}
     result["input_tokens"] = (
-        int(usage.get("input_tokens", 0) or 0)
-        + int(usage.get("cache_read_input_tokens", 0) or 0)
-        + int(usage.get("cache_creation_input_tokens", 0) or 0)
+        _safe_int(usage.get("input_tokens"))
+        + _safe_int(usage.get("cache_read_input_tokens"))
+        + _safe_int(usage.get("cache_creation_input_tokens"))
     )
-    result["output_tokens"] = int(usage.get("output_tokens", 0) or 0)
+    result["output_tokens"] = _safe_int(usage.get("output_tokens"))
     model_usage = envelope.get("modelUsage") or {}
     result["model"] = next(iter(model_usage), "claude-code-plan")
     stop_reason = envelope.get("stop_reason", "")
@@ -2610,7 +2627,8 @@ def extract_corpus_parallel(
                 print(f"[graphify] chunk {idx + 1}/{total} failed: {exc}", file=sys.stderr)
                 merged["failed_chunks"] += 1
                 continue
-            assert result is not None
+            if result is None:
+                raise RuntimeError("chunk worker returned no result without an exception")
             _merge_into(merged, result)
             _checkpoint_chunk(result, chunk)
             if callable(on_chunk_done):
@@ -2635,7 +2653,8 @@ def extract_corpus_parallel(
                     )
                     merged["failed_chunks"] += 1
                     continue
-                assert result is not None
+                if result is None:
+                    raise RuntimeError("chunk worker returned no result without an exception")
                 results_by_idx[idx] = result
                 _checkpoint_chunk(result, chunks[idx])
                 if callable(on_chunk_done):
@@ -2811,8 +2830,8 @@ def _call_llm(
 
     def _rec(inp, out) -> None:
         if usage_out is not None:
-            usage_out["input"] = usage_out.get("input", 0) + int(inp or 0)
-            usage_out["output"] = usage_out.get("output", 0) + int(out or 0)
+            usage_out["input"] = usage_out.get("input", 0) + _safe_int(inp)
+            usage_out["output"] = usage_out.get("output", 0) + _safe_int(out)
 
     if backend == "claude":
         try:
@@ -3073,7 +3092,7 @@ _LABEL_BATCH_SIZE = 100        # communities per LLM call; sized for ~16k contex
 
 
 def _placeholder_community_labels(communities) -> dict[int, str]:
-    return {int(cid): f"Community {cid}" for cid in communities}
+    return {_community_id(cid): f"Community {cid}" for cid in communities}
 
 
 def _community_label_lines(G, communities, gods, max_communities, top_k):
@@ -3099,7 +3118,7 @@ def _community_label_lines(G, communities, gods, max_communities, top_k):
                 break
         if names:
             lines.append(f"Community {cid}: {', '.join(names)}")
-            labeled_cids.append(int(cid))
+            labeled_cids.append(_community_id(cid))
     return lines, labeled_cids
 
 
