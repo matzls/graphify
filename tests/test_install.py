@@ -61,7 +61,12 @@ def _assert_codex_skill_install(skill_dir: Path):
     assert (skill_dir / ".graphify_version").read_text(encoding="utf-8") == __version__
     refs = skill_dir / "references"
     assert refs.is_dir()
-    assert (refs / "extraction-spec.md").exists()
+    if (refs / "extraction-spec.md").exists():
+        raise AssertionError("Codex CLI skill should not install legacy extraction-spec.md")
+    required_refs = ["github-and-merge.md", "transcribe.md", "update.md"]
+    missing_refs = [name for name in required_refs if not (refs / name).exists()]
+    if missing_refs:
+        raise AssertionError(f"Codex skill missing references: {missing_refs}")
 
 
 def test_install_codex_installs_user_skill_only(tmp_path):
@@ -144,7 +149,12 @@ def _assert_pi_skill_install(skill_dir: Path):
     assert (skill_dir / ".graphify_version").read_text(encoding="utf-8") == __version__
     refs = skill_dir / "references"
     assert refs.is_dir()
-    assert (refs / "extraction-spec.md").exists()
+    if (refs / "extraction-spec.md").exists():
+        raise AssertionError("Pi CLI skill should not install legacy extraction-spec.md")
+    required_refs = ["github-and-merge.md", "transcribe.md", "update.md"]
+    missing_refs = [name for name in required_refs if not (refs / name).exists()]
+    if missing_refs:
+        raise AssertionError(f"Pi skill missing references: {missing_refs}")
     update_ref = (refs / "update.md").read_text(encoding="utf-8")
     assert update_ref.find("graphify update INPUT_PATH") != -1
     assert update_ref.find("graphify cluster-only INPUT_PATH --backend ollama") != -1

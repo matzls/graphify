@@ -44,9 +44,10 @@ print(f'Transcribed {len(transcript_paths)} file(s)', file=sys.stderr)
 ```
 
 After transcription:
-- Read the transcript paths from `graphify-out/.graphify_transcripts.json`
-- Add them to the docs list before dispatching semantic subagents in Step 3B
-- Print how many transcripts were created: `Transcribed N video file(s) -> treating as docs`
-- If transcription fails for a file, print a warning and continue with the rest
+
+- Read the transcript paths from `graphify-out/.graphify_transcripts.json`.
+- Treat transcript files as document inputs for the subsequent extraction path.
+- Print how many transcripts were created: `Transcribed N video file(s) -> treating as docs`.
+- If transcription fails for a file, print a warning and continue with the rest.
 
 **Whisper model:** Default is `base`. If the user passed `--whisper-model <name>`, `export GRAPHIFY_WHISPER_MODEL=<name>` (it must be exported, not just assigned) before running the command above.

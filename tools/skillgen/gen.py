@@ -336,6 +336,7 @@ class Platform:
     claude_md: bool = False
     hooks_variant: str = "claude-md"
     reference_overrides: dict[str, str] = field(default_factory=dict)
+    reference_excludes: tuple[str, ...] = ()
     extra_sections: tuple[str, ...] = ()
     # monolith-only inputs
     monolith: str | None = None
@@ -348,6 +349,8 @@ class Platform:
         refs["query"] = _QUERY_REFERENCE
         refs["hooks"] = _HOOKS_SOURCE[self.hooks_variant]
         refs.update(self.reference_overrides)
+        for name in self.reference_excludes:
+            refs.pop(name, None)
         return refs
 
     @property
@@ -376,6 +379,7 @@ def load_platforms() -> dict[str, Platform]:
             claude_md=bool(cfg.get("claude_md", False)),
             hooks_variant=cfg.get("hooks_variant", "claude-md"),
             reference_overrides=dict(cfg.get("reference_overrides", {})),
+            reference_excludes=tuple(cfg.get("reference_excludes", [])),
             extra_sections=tuple(cfg.get("extra_sections", [])),
             monolith=cfg.get("monolith"),
             roundtrip_ref=cfg.get("roundtrip_ref"),

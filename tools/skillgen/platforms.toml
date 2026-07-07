@@ -27,6 +27,8 @@
 #                 CLAUDE.md, `graphify claude install`). agents-md is for hosts that
 #                 read AGENTS.md and wire always-on via `graphify <host> install`
 #                 with the no-PreToolUse-hook caveat (trae, trae-cn).
+#   reference_excludes optional rendered reference names to omit from a platform
+#                 bundle, e.g. CLI-backed hosts can omit legacy extraction-spec.
 #   extra_sections ordered list of extra tail fragments (under fragments/extra/),
 #                 inserted before Honesty Rules.
 #   monolith      core fragment basename for a monolith (monolith only).
@@ -53,6 +55,7 @@ dispatch = "codex-agenttask"
 extraction = "compact"
 shell = "posix"
 reference_overrides = { update = "references/cli/update.md" }
+reference_excludes = ["extraction-spec"]
 
 [platform.windows]
 bucket = "split"
@@ -179,6 +182,7 @@ description = "Use for any question about a codebase, its architecture, file rel
 dispatch = "agent-tool-disk"
 extraction = "compact"
 reference_overrides = { update = "references/cli/update.md" }
+reference_excludes = ["extraction-spec"]
 
 [platform.vscode]
 bucket = "split"

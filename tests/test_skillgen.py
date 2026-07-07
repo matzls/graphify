@@ -133,8 +133,7 @@ def test_extraction_states_no_api_key_required_for_every_host():
     """
     platforms = gen.load_platforms()
     arts = gen.render_all(platforms)
-    bodies = [a for a in arts
-              if "### Step 3 - Extract entities and relationships" in a.content]
+    bodies = [a for a in arts if "### Step 3 - Extract entities and relationships" in a.content]
     assert bodies, "no rendered skill body contains the Step 3 extraction section"
     for a in bodies:
         assert "graphify needs no API key" in a.content, a.path
@@ -146,8 +145,9 @@ def test_extraction_states_no_api_key_required_for_every_host():
         # tip — they are the model themselves — so the check only applies if present)
         tip = "Tip: set `GEMINI_API_KEY`"
         if tip in a.content:
-            assert a.content.index("graphify needs no API key") < a.content.index(tip), \
+            assert a.content.index("graphify needs no API key") < a.content.index(tip), (
                 f"{a.path}: no-key clarity is not hoisted above the GEMINI tip"
+            )
 
 
 def test_references_contain_no_core_pipeline_content():
@@ -362,24 +362,23 @@ def test_codex_uses_cli_backend_not_agenttask_dispatch():
     assert "graphify extract INPUT_PATH --backend ollama" in refs["update.md"]
 
 
-def test_codex_and_windows_unify_enum_to_six_values():
-    """codex (was 4-value) and windows (was 5-value) now carry the superset."""
-    for key in ("codex", "windows"):
+def test_windows_extraction_spec_unifies_enum_to_six_values():
+    """windows (was 5-value) now carries the six-value superset."""
+    _, refs = _platform_artifacts("windows")
+    spec = refs["extraction-spec.md"]
+    assert "`code`, `document`, `paper`, `image`, `rationale`, `concept`" in spec
+    assert '"file_type":"code|document|paper|image|rationale|concept"' in spec
+    for body in refs.values():
+        assert '"file_type":"code|document|paper|image"' not in body
+
+
+def test_cli_backed_hosts_omit_legacy_extraction_spec():
+    """Codex/Pi use the CLI backend path and do not ship subagent specs."""
+    for key in ("codex", "pi"):
         _, refs = _platform_artifacts(key)
-        spec = refs["extraction-spec.md"]
-        assert "`code`, `document`, `paper`, `image`, `rationale`, `concept`" in spec
-        assert '"file_type":"code|document|paper|image|rationale|concept"' in spec
-        # No legacy 4-value enum survives anywhere in the rendered bundle.
-        for body in refs.values():
-            assert '"file_type":"code|document|paper|image"' not in body
+        assert "extraction-spec.md" not in refs
 
 
-def test_codex_uses_compact_extraction_windows_uses_verbose():
-    """The extraction variant differs: codex compact, windows verbose."""
-    _, codex_refs = _platform_artifacts("codex")
-    _, windows_refs = _platform_artifacts("windows")
-    assert "(compact)" in codex_refs["extraction-spec.md"]
-    assert "(compact)" not in windows_refs["extraction-spec.md"]
 
 
 def test_every_platform_query_has_expansion_and_fallback():
@@ -488,8 +487,8 @@ def test_dispatch_variants_are_host_specific():
 
 
 def test_compact_extraction_hosts_use_the_compact_spec():
-    """kiro, pi, claw use the compact extraction body; the rest use verbose."""
-    for key in ("kiro", "pi", "claw"):
+    """kiro and claw use compact extraction; other subagent hosts use verbose."""
+    for key in ("kiro", "claw"):
         _, refs = _platform_artifacts(key)
         assert "(compact)" in refs["extraction-spec.md"], f"[{key}] not compact"
     for key in ("opencode", "kilo", "copilot", "droid", "amp", "trae", "vscode"):
@@ -497,10 +496,10 @@ def test_compact_extraction_hosts_use_the_compact_spec():
         assert "(compact)" not in refs["extraction-spec.md"], f"[{key}] should be verbose"
 
 
-def test_every_split_host_renders_eight_references():
-    """All twelve split hosts render exactly the eight on-demand references."""
+def test_every_split_host_renders_expected_references():
+    """CLI-backed hosts omit the legacy subagent extraction spec sidecar."""
     platforms = gen.load_platforms()
-    expected = [
+    default_expected = [
         "add-watch.md",
         "exports.md",
         "extraction-spec.md",
@@ -510,10 +509,12 @@ def test_every_split_host_renders_eight_references():
         "transcribe.md",
         "update.md",
     ]
+    cli_expected = [name for name in default_expected if name != "extraction-spec.md"]
     for key, p in platforms.items():
         if p.bucket != "split":
             continue
         _, refs = _platform_artifacts(key)
+        expected = cli_expected if key in {"codex", "pi"} else default_expected
         assert sorted(refs) == expected, f"[{key}] reference set drift: {sorted(refs)}"
 
 
@@ -698,9 +699,7 @@ def test_always_on_roundtrip_is_byte_faithful():
     assert problems == []
 
     rendered_agents = next(
-        a.content
-        for a in gen.render_always_on()
-        if a.path == "graphify/always_on/agents-md.md"
+        a.content for a in gen.render_always_on() if a.path == "graphify/always_on/agents-md.md"
     )
     old_instruction = (
         "When the user types `/graphify`, invoke the `skill` tool with "
@@ -1048,7 +1047,10 @@ def test_agents_body_matches_amp_modulo_hooks_wording():
 def test_agents_audit_baseline_is_amps_v8_body():
     """`agents` is a post-v8 platform, so its audit baseline is amp's v8 body."""
     platforms = gen.load_platforms()
-    assert gen._v8_baseline_ref("agents") == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill-amp.md"
+    assert (
+        gen._v8_baseline_ref("agents")
+        == "47042beb05d1f6dd2186c0c499ae2840ce604ead:graphify/skill-amp.md"
+    )
     problems = gen.audit_coverage(platforms["agents"])
     assert problems == [], "\n".join(problems)
 
