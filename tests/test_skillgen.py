@@ -269,6 +269,17 @@ def test_cli_skills_use_local_fork_install_and_cli_update_reference():
         assert "Step 3A" not in update
 
 
+def test_cli_skills_keep_cross_repo_guidance_on_ollama_default():
+    """Multi-subfolder direct CLI guidance must not drift to API-key routing."""
+    for key in ("pi", "codex"):
+        _core, refs = _platform_artifacts(key)
+        github = refs["github-and-merge.md"]
+        assert "graphify extract ./core/ --backend ollama" in github
+        assert "default deepseek-v4-pro:cloud" in github
+        assert "depending on which API key you have set" not in github
+        assert "--backend gemini|kimi|openai|deepseek|claude-cli" not in github
+
+
 def test_check_passes_for_codex_and_windows():
     """The committed codex/windows artifacts match a fresh render and expected/."""
     platforms = gen.load_platforms()
