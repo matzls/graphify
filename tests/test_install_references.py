@@ -246,7 +246,7 @@ def test_unbuilt_bundle_host_falls_back_to_monolith(tmp_path):
     valid as later waves ship more bundles.
     """
     host, monolith = _first_unbuilt_progressive_host()
-    if host is None:
+    if host is None or monolith is None:
         pytest.skip("every progressive host bundle has shipped; nothing to fall back")
     assert not (PKG_DIR / "skills" / mainmod._PLATFORM_CONFIG[host]["skill_refs"]).exists()
     _install(tmp_path, host)
@@ -353,7 +353,7 @@ def test_pyproject_declares_references_globs():
 
 
 # The full progressive-disclosure payload the wheel must ship: 15 skill bodies,
-# 104 references (13 split hosts x 8 each), and 6 always-on injection blocks.
+# 102 references (11 split hosts x 8, plus Codex/Pi x 7), and 6 always-on blocks.
 _EXPECTED_SKILL_BODIES = (
     "skill.md",
     "skill-codex.md",
@@ -379,6 +379,12 @@ _REFERENCE_NAMES = (
     "add-watch.md", "exports.md", "extraction-spec.md", "github-and-merge.md",
     "hooks.md", "query.md", "transcribe.md", "update.md",
 )
+
+
+def _reference_names_for_host(host: str) -> tuple[str, ...]:
+    if host in {"codex", "pi"}:
+        return tuple(name for name in _REFERENCE_NAMES if name != "extraction-spec.md")
+    return _REFERENCE_NAMES
 _ALWAYS_ON_NAMES = (
     "agents-md.md", "antigravity-rules.md", "claude-md.md",
     "gemini-md.md", "kiro-steering.md", "vscode-instructions.md",
@@ -405,6 +411,10 @@ def _build_wheel_names(repo_root):
             "installed; it is a declared dev dependency (run `uv sync --all-extras`)"
         )
 
+    # setuptools can reuse stale files under build/lib from previous local builds;
+    # clean it so removed package-data files are tested against source, not sediment.
+    shutil.rmtree(repo_root / "build", ignore_errors=True)
+
     with tempfile.TemporaryDirectory() as outdir:
         result = subprocess.run(
             [sys.executable, "-m", "build", "--wheel", "--no-isolation", "--outdir", outdir, str(repo_root)],
@@ -429,7 +439,7 @@ def test_built_wheel_ships_the_full_skill_payload():
     (e.g. the stale skills/*/SKILL.md glob that matched nothing), the wheel ships a
     SKILL.md with no references/ sidecar and an install silently loses every
     on-demand fragment. The test asserts the whole shipped layout: 15 skill
-    bodies, 96 references, and 6 always-on injection blocks. It FAILS (not skips)
+    bodies, 102 references, and 6 always-on injection blocks. It FAILS (not skips)
     when the build backend is missing, because build is a declared dev dependency.
     """
     repo_root = PKG_DIR.parent
@@ -447,14 +457,16 @@ def test_built_wheel_ships_the_full_skill_payload():
     assert not missing_bodies, f"wheel is missing skill bodies: {missing_bodies}"
     assert len(_EXPECTED_SKILL_BODIES) == 15
 
-    missing_refs = [
+    expected_refs = [
         f"graphify/skills/{host}/references/{ref}"
         for host in _SPLIT_HOSTS
-        for ref in _REFERENCE_NAMES
-        if f"graphify/skills/{host}/references/{ref}" not in names
+        for ref in _reference_names_for_host(host)
     ]
+    missing_refs = [ref for ref in expected_refs if ref not in names]
     assert not missing_refs, f"wheel is missing references: {missing_refs}"
-    assert len(_SPLIT_HOSTS) * len(_REFERENCE_NAMES) == 104
+    assert len(expected_refs) == 102
+    assert "graphify/skills/codex/references/extraction-spec.md" not in names
+    assert "graphify/skills/pi/references/extraction-spec.md" not in names
 
     missing_always_on = [
         f"graphify/always_on/{name}"

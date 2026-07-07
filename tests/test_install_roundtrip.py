@@ -21,7 +21,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
+import pytest  # type: ignore[reportMissingImports]
 
 import graphify
 import graphify.__main__ as mainmod
@@ -41,6 +41,16 @@ def _has_real_bundle(platform: str) -> bool:
     if not bundle:
         return False
     return (PKG_DIR / "skills" / bundle / "references").is_dir()
+
+
+def _expected_references(platform: str) -> list[str]:
+    bundle = mainmod._PLATFORM_CONFIG[platform].get("skill_refs")
+    if not bundle:
+        return []
+    refs_dir = PKG_DIR / "skills" / bundle / "references"
+    if not refs_dir.is_dir():
+        return []
+    return sorted(p.name for p in refs_dir.glob("*.md"))
 
 
 @pytest.mark.parametrize("platform", ALL_CONFIG_PLATFORMS)
@@ -79,7 +89,7 @@ def test_skill_roundtrip_at_real_destination(platform, project, tmp_path, monkey
         refs = dst.parent / "references"
         if _has_real_bundle(platform):
             assert refs.is_dir(), f"{platform} ships a bundle but no references/ installed"
-            assert (refs / "extraction-spec.md").exists()
+            assert sorted(p.name for p in refs.glob("*.md")) == _expected_references(platform)
         else:
             assert not refs.exists(), f"{platform} is monolith but references/ appeared"
         # No staging dir is ever left behind.
