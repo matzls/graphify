@@ -160,24 +160,38 @@ Load `references/transcribe.md` only when the user explicitly asks for standalon
 
 ### Step 3 - Extract entities and relationships (CLI backend path)
 
-The default Pi `/graphify` full build uses Graphify's headless CLI backend path, not host-agent semantic subagents. This keeps semantic model behavior consistent with repo propagation and direct terminal use.
+The default Pi `/graphify` full build uses Graphify's headless CLI backend path,
+not host-agent semantic subagents. This keeps semantic model behavior consistent
+with repo propagation and direct terminal use.
 
-> **graphify needs no API key. Never ask the user for one, and never block on one.** Pi should use the terminal-only CLI backend path even when it cannot dispatch subagents. If the selected backend is unavailable, stop and report the `graphify extract` error instead of prompting for credentials.
+> **graphify needs no API key. Never ask the user for one, and never block on
+> one.** Pi should use the terminal-only CLI backend path even when it cannot
+> dispatch subagents. If the selected backend is unavailable, stop and report the
+> `graphify extract` error instead of prompting for credentials.
 
 Default backend/model policy:
 
 1. Pass `--model MODEL` only when the user explicitly supplied one.
 2. Otherwise, let `OLLAMA_MODEL` override the model globally.
-3. Otherwise, Graphify's built-in Ollama default is `kimi-k2.7-code:cloud`.
+3. Otherwise, Graphify's built-in Ollama default is `deepseek-v4-pro:cloud`.
 
-Do not silently switch to Gemini or host-agent extraction because API keys are present. If the backend is unavailable, stop and report the `graphify extract` error. Agent/subagent semantic extraction is legacy fallback only when the user explicitly asks for an agent-native fallback.
+Do not silently switch to Gemini or host-agent extraction because API keys are
+present. If the backend is unavailable, stop and report the `graphify extract`
+error. Agent/subagent semantic extraction is legacy fallback only when the user
+explicitly asks for an agent-native fallback.
 
 Build the command from the original invocation:
 
-- Always include `--backend ollama` unless the user explicitly supplied another backend flag.
-- Include `--model <value>` only when the user supplied `--model <value>`; do not hardcode Kimi.
-- Pass through `--mode deep`, `--directed`, `--whisper-model <value>`, and `--no-cluster` when present.
-- If image files were detected and the backend is Ollama without `GRAPHIFY_OLLAMA_VISION=1`, expect the CLI to warn that image files are represented from filenames/paths only. Surface that warning; do not imply pixel-level image understanding happened.
+- Always include `--backend ollama` unless the user explicitly supplied another
+  backend flag.
+- Include `--model <value>` only when the user supplied `--model <value>`; do
+  not hardcode DeepSeek V4 Pro.
+- Pass through `--mode deep`, `--directed`, `--whisper-model <value>`, and
+  `--no-cluster` when present.
+- If image files were detected and the backend is Ollama without
+  `GRAPHIFY_OLLAMA_VISION=1`, expect the CLI to warn that image files are
+  represented from filenames/paths only. Surface that warning; do not imply
+  pixel-level image understanding happened.
 
 Run:
 

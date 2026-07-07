@@ -96,7 +96,7 @@ not spend LLM tokens or export corpus content.
 
 `graphify extract . --backend ollama` sends uncached semantic files to the
 configured Ollama OpenAI-compatible endpoint. Model resolution is explicit
-`--model`, then `OLLAMA_MODEL`, then Graphify's built-in Kimi default. With the
+`--model`, then `OLLAMA_MODEL`, then Graphify's built-in DeepSeek V4 Pro default. With the
 local fork default, `OLLAMA_BASE_URL` defaults to `http://localhost:11434/v1`,
 and the model can still be an Ollama Cloud model routed through the local
 Ollama service.

@@ -32,8 +32,8 @@ prose, email content, customer data, operator notes, secrets, or exact
 project-specific plans into committed fixtures.
 
 Live `run` and `run-suite` calls send fixture text and images to the selected
-backend. With Ollama Cloud models such as `kimi-k2.7-code:cloud` or
-`minimax-m3:cloud`, that means the fixture corpus leaves the machine through
+backend. With Ollama Cloud models such as `deepseek-v4-pro:cloud` or
+`glm-5.2:cloud`, that means the fixture corpus leaves the machine through
 the local Ollama endpoint. Keep CI and normal tests offline by scoring
 handcrafted graph fixtures instead of calling live models.
 
@@ -64,9 +64,9 @@ Example with Ollama Cloud:
 OLLAMA_API_KEY=ollama uv run python -m graphify.semantic_eval run \
   --corpus tests/fixtures/semantic_eval/payment_retry \
   --expected tests/fixtures/semantic_eval/payment_retry/expected.json \
-  --out-dir .semantic-evals/kimi-k2.7-code-cloud-payment-retry \
+  --out-dir .semantic-evals/deepseek-v4-pro-cloud-payment-retry \
   --backend ollama \
-  --model kimi-k2.7-code:cloud \
+  --model deepseek-v4-pro:cloud \
   --timeout 300 \
   --token-budget 1200
 ```
@@ -82,9 +82,9 @@ The harness writes:
 ```bash
 OLLAMA_API_KEY=ollama uv run python -m graphify.semantic_eval run-suite \
   --suite tests/fixtures/semantic_eval/suite.json \
-  --out-dir .semantic-evals/kimi-k2.7-code-cloud-suite-$(date +%Y%m%d-%H%M%S) \
+  --out-dir .semantic-evals/deepseek-v4-pro-cloud-suite-$(date +%Y%m%d-%H%M%S) \
   --backend ollama \
-  --model kimi-k2.7-code:cloud \
+  --model deepseek-v4-pro:cloud \
   --timeout 300 \
   --token-budget 1200
 ```
@@ -94,9 +94,9 @@ To compare a candidate:
 ```bash
 OLLAMA_API_KEY=ollama uv run python -m graphify.semantic_eval run-suite \
   --suite tests/fixtures/semantic_eval/suite.json \
-  --out-dir .semantic-evals/kimi-k2.7-code-cloud-suite-$(date +%Y%m%d-%H%M%S) \
+  --out-dir .semantic-evals/glm-5.2-cloud-suite-$(date +%Y%m%d-%H%M%S) \
   --backend ollama \
-  --model kimi-k2.7-code:cloud \
+  --model glm-5.2:cloud \
   --timeout 300 \
   --token-budget 1200
 ```
@@ -169,6 +169,41 @@ runs cluster at 0.451-0.497 while concept recall and safety/source dimensions
 are higher. This avoids the old aspirational 0.80 critical floor that no saved
 candidate could reach after the scorer contract changed.
 
+## Prompt V2 Default Decision
+
+The 2026-07-07 prompt-v2 A/B artifacts are at:
+
+```text
+.semantic-evals/comparisons/prompt-v2-ab/TASK_7_SUMMARY.md
+.semantic-evals/comparisons/prompt-v2-ab/task-7-summary.json
+```
+
+Decision: use `deepseek-v4-pro:cloud` as Mase's built-in Ollama default for
+Graphify semantic extraction for this cycle. It is the cleanest full-suite
+prompt-v2 candidate: the run completed without extraction failures, passed the
+calibrated gate, improved endpoint edge coverage and relation quality, and did
+not regress forbidden-concept, forbidden-edge, or source-coverage dimensions.
+
+| Model | Artifact | Overall | Edge coverage | Relation agreement | Gate | Decision |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| `deepseek-v4-pro:cloud` | `.semantic-evals/prompt-v2-ab-deepseek-v4-pro-cloud-suite-20260707-100708/suite-run.json` | 0.771 | 0.539 | 0.603 | pass | default/reference |
+| `glm-5.2:cloud` | `.semantic-evals/prompt-v2-ab-glm-5.2-cloud-suite-20260707-100946/suite-run.json` | 0.753 | 0.537 | 0.337 | pass | fallback; privacy caution |
+| `deepseek-v4-flash:cloud` | `.semantic-evals/prompt-v2-ab-deepseek-v4-flash-cloud-suite-20260707-121043/suite-run.json` | 0.738 | 0.402 | 0.900 | fail | available; not default |
+| `claude-cli` Sonnet `integration_gateway` | `.semantic-evals/prompt-v2-ab-claude-cli-sonnet-integration-gateway-20260707-101715/run.json` | 0.898 | 0.800 | 1.000 | pass | strong-reference smoke |
+
+Cautions and follow-ups:
+
+- `deepseek-v4-pro:cloud` is an Ollama extra-high usage model; it is selected
+  here for quality despite cost. Use explicit `--model` or `OLLAMA_MODEL` to
+  choose cheaper candidates for bounded experiments.
+- `glm-5.2:cloud` is close on aggregate quality but repeatedly extracted the
+  forbidden `Raw Mailbox Exports` concept in `router_privacy`, so it is not the
+  clean default for privacy-sensitive corpora.
+- `deepseek-v4-flash:cloud` is available and completed the suite, but failed the
+  calibrated gate on `expected_edge_coverage`.
+- Relation vocabulary remains somewhat sprawly; record this as a follow-up
+  rather than changing scorer logic or gate floors in this cycle.
+
 ## Current Candidate Baselines
 
 These are scorer-v1 historical baselines and are superseded for model-gate
@@ -179,7 +214,7 @@ artifacts before making a durable policy change.
 
 | Model | Backend | Local artifact | Overall | Gate | Notes |
 |---|---|---|---:|---|---|
-| `kimi-k2.7-code:cloud` | Ollama Cloud | `.semantic-evals/model-quality-comparison-20260614-191220/kimi-k2.7-code_cloud/suite-run.json` | 0.632 | fail | Incumbent comparison point, not a passing baseline. |
+| `kimi-k2.7-code:cloud` | Ollama Cloud | `.semantic-evals/model-quality-comparison-20260614-191220/kimi-k2.7-code_cloud/suite-run.json` | 0.632 | fail | Former comparison point, not a passing baseline. |
 | `qwen3.5:397b-cloud` | Ollama Cloud | `.semantic-evals/model-quality-comparison-20260614-191220/qwen3.5_397b-cloud/suite-run.json` | 0.648 | fail | Slightly higher than Kimi in the saved run, still below gate. |
 | `minimax-m3:cloud` | Ollama Cloud | `.semantic-evals/minimax-m3-cloud-suite-20260614-112409/suite-run.json` | 0.630 | fail | Retained because it was the previous comparison baseline. |
 | `glm-5.2:cloud` | Ollama Cloud | `.semantic-evals/glm-5.2-cloud-suite-amended-20260629-151816/suite-run.json` | 0.679 | fail | Best saved overall after amendment, but still has critical regressions. |
@@ -187,19 +222,19 @@ artifacts before making a durable policy change.
 | `deepseek-v4-pro:cloud` | Ollama Cloud | `.semantic-evals/deepseek-v4-pro-cloud-suite-20260701-compare/suite-run.json` | 0.655 | fail | Completed the full suite through Ollama; above Kimi/Qwen/MiniMax overall, below GLM, and still fails on concept recall and expected-edge coverage. |
 | DeepSeek direct API candidate | DeepSeek API | not run | none | not evaluated | Recommended next diagnostic path if `DEEPSEEK_API_KEY` is available, to separate model quality from Ollama Cloud proxy behavior. |
 
-As of 2026-07-01, every scored saved candidate fails the suite quality gate.
-Do not promote any of these models as the clean default from aggregate score
-alone. DeepSeek Flash is still worth testing because Ollama lists
-`deepseek-v4-flash` as a cloud model with tool and thinking support, but the
-Graphify suite must first complete without extraction or transport failures.
-The DeepSeek row above is normalized with current fail-closed gate semantics;
-the original ignored local artifact was generated before fixture failures were
-counted as gate failures and may still show `gate_passed: true` in its JSON.
+As of 2026-07-01, every scored saved candidate in this historical table failed
+the suite quality gate. Do not promote any of these scorer-v1-era artifacts as
+the clean default from aggregate score alone; use the prompt-v2 decision section
+above for the current default. The DeepSeek row above is normalized with current
+fail-closed gate semantics; the original ignored local artifact was generated
+before fixture failures were counted as gate failures and may still show
+`gate_passed: true` in its JSON.
 Follow-up probes on 2026-07-01 showed `deepseek-v4-flash:cloud` returning
 Ollama Cloud HTTP 503 overloads through both `/v1/chat/completions` and native
 `/api/chat`, while `deepseek-v4-pro:cloud` returned a simple response through
-both routes. That makes Ollama a viable DeepSeek transport, but Flash
-availability is currently the blocker.
+both routes. That established Ollama as a viable DeepSeek transport. A later
+2026-07-07 prompt-v2 Flash run completed, but failed the calibrated gate on
+`expected_edge_coverage`; see the prompt-v2 decision section above.
 
 The 2026-07-01 V4 Pro suite confirms the DeepSeek Ollama path is operational
 for the recurring harness: all fixtures completed in 132.02s with 6,428 input /
@@ -213,7 +248,7 @@ Ollama models to `reasoning_effort=none` for semantic extraction so the model
 does not wrap JSON in thinking text; set `GRAPHIFY_OLLAMA_REASONING_EFFORT` to
 `low`, `medium`, `high`, or `max` only for an explicit quality experiment.
 
-DeepSeek Flash rerun command:
+Historical DeepSeek Flash diagnostic command:
 
 ```bash
 OLLAMA_API_KEY=ollama GRAPHIFY_LLM_TRACE=1 GRAPHIFY_OLLAMA_REASONING_EFFORT=none uv run python -m graphify.semantic_eval run-suite \
@@ -225,9 +260,9 @@ OLLAMA_API_KEY=ollama GRAPHIFY_LLM_TRACE=1 GRAPHIFY_OLLAMA_REASONING_EFFORT=none
   --token-budget 60000
 ```
 
-If Flash keeps returning 503 overloads, run a single-fixture Pro smoke through
-the same Ollama path before changing the default model. Pro working while Flash
-fails means the issue is Ollama Cloud model availability, not Graphify's Ollama
+If Flash returns transport errors again, run a single-fixture Pro smoke through
+the same Ollama path before judging the backend. Pro working while Flash fails
+means the issue is Ollama Cloud model availability, not Graphify's Ollama
 transport.
 
 ```bash
@@ -273,9 +308,9 @@ calling any model:
 
 ```bash
 uv run python -m graphify.semantic_eval compare \
-  --baseline .semantic-evals/minimax-m3-cloud-suite-YYYYMMDD-HHMMSS/suite-run.json \
-  --candidate .semantic-evals/kimi-k2.7-code-cloud-suite-YYYYMMDD-HHMMSS/suite-run.json \
-  --out .semantic-evals/comparisons/minimax-vs-kimi-k2.7-code.json
+  --baseline .semantic-evals/deepseek-v4-pro-cloud-suite-YYYYMMDD-HHMMSS/suite-run.json \
+  --candidate .semantic-evals/glm-5.2-cloud-suite-YYYYMMDD-HHMMSS/suite-run.json \
+  --out .semantic-evals/comparisons/deepseek-v4-pro-vs-glm-5.2.json
 ```
 
 This writes JSON plus a sibling Markdown comparison with aggregate deltas,
@@ -323,9 +358,9 @@ Pairwise judge for baseline versus candidate:
 
 ```bash
 uv run python -m graphify.semantic_eval judge-compare \
-  --baseline .semantic-evals/minimax-m3-cloud-suite-YYYYMMDD-HHMMSS/suite-run.json \
-  --candidate .semantic-evals/kimi-k2.7-code-cloud-suite-YYYYMMDD-HHMMSS/suite-run.json \
-  --out-dir .semantic-evals/comparisons/minimax-vs-kimi-k2.7-code-judges \
+  --baseline .semantic-evals/deepseek-v4-pro-cloud-suite-YYYYMMDD-HHMMSS/suite-run.json \
+  --candidate .semantic-evals/glm-5.2-cloud-suite-YYYYMMDD-HHMMSS/suite-run.json \
+  --out-dir .semantic-evals/comparisons/deepseek-v4-pro-vs-glm-5.2-judges \
   --judge pi:openai-codex/gpt-5.5:high \
   --judge claude-cli:opus \
   --allow-external-judge
@@ -338,7 +373,7 @@ explicitly approved.
 
 Judge specs use `backend:model`. The first `:` separates backend from model, so
 Ollama-style and Pi-style model names with colons still work after the backend
-prefix, e.g. `ollama:kimi-k2.7-code:cloud` or
+prefix, e.g. `ollama:deepseek-v4-pro:cloud` or
 `pi:openai-codex/gpt-5.5:high`.
 
 Images are not attached to judge requests by default. Add `--include-images`
@@ -475,18 +510,18 @@ When adding a fixture:
 
 ## Model Comparison Protocol
 
-Current interim standard: treat `kimi-k2.7-code:cloud` as the incumbent
-comparison point, not as a passing quality baseline. The 2026-06-14 suite showed
-Kimi slightly ahead of `minimax-m3:cloud` on prioritized concept recall and
-relation specificity, but all saved scored candidates failed the gate. DeepSeek
-Flash should be compared against Kimi only after the suite produces scored
-fixtures instead of transport failures.
+Current standard: treat `deepseek-v4-pro:cloud` as the quality/reference
+candidate and built-in Ollama default. Use the prompt-v2 A/B artifacts above as
+the current default-change evidence. `glm-5.2:cloud` is the practical fallback
+candidate for cost-sensitive experiments, but its observed privacy regression
+means it should not replace the default without additional safeguards or review.
+`deepseek-v4-flash:cloud` is available but did not pass the calibrated gate.
 
-Keep the proposed hybrid workflow on hold: Kimi primary extraction plus Minimax
-secondary edge augmentation should not be implemented unless benchmark evidence
-shows that a single available model cannot meet the prioritized quality target.
-If Qwen or another model clearly outperforms Kimi, prefer that single model
-instead of adding ensemble complexity.
+Keep ensemble extraction on hold. Do not add a hybrid workflow unless benchmark
+evidence shows that a single available model cannot meet the prioritized quality
+target. If a cheaper or faster single model clearly outperforms DeepSeek V4 Pro
+on the calibrated suite without privacy/source regressions, prefer that single
+model instead of adding ensemble complexity.
 
 For a serious candidate comparison:
 
@@ -510,7 +545,7 @@ A candidate should not replace the default unless it:
 
 - completes the suite without extraction, parse, cluster, or wiki failures
 - passes the suite quality gate
-- beats the active standard model (`kimi-k2.7-code:cloud` as of 2026-06-14) on
+- beats the active standard model (`deepseek-v4-pro:cloud` as of 2026-07-07) on
   prioritized quality dimensions or is clearly non-inferior while materially
   improving operational concerns
 - has no severe regression in critical dimensions: concept recall, expected-edge
