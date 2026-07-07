@@ -3,7 +3,7 @@
 Load this only when the user passed `--update` or `--cluster-only`. A first-time
 full build never reads this file.
 
-The Pi skill uses Graphify's CLI backend path. Do not reconstruct the older
+CLI-backed skills use Graphify's CLI backend path. Do not reconstruct the older
 manual AST/semantic/subagent pipeline from this reference; the CLI owns
 incremental rebuilds, semantic refreshes, clustering, reports, and wiki output.
 
@@ -60,8 +60,9 @@ Build the commands from the original invocation:
 - Always include `--backend ollama` unless the user explicitly supplied another
   backend flag.
 - Include `--model <value>` only when the user supplied `--model <value>`; do
-  not hardcode Kimi. Model resolution is explicit `--model`, then
-  `OLLAMA_MODEL`, then Graphify's built-in default.
+  not hardcode the default model. Model resolution is explicit `--model`, then
+  `OLLAMA_MODEL`, then Graphify's built-in default
+  `deepseek-v4-pro:cloud`.
 - Pass through `--mode deep`, `--directed`, `--whisper-model <value>`, and
   `--no-cluster` to `extract` when present.
 - Pass `--no-viz` to `cluster-only` when present.

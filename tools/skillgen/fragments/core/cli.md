@@ -61,7 +61,7 @@ Only when the path is one or more `https://github.com/...` URLs, or several loca
 
 ### Step 1 - Ensure graphify is installed from Mase's fork
 
-The Pi setup for Mase must use the local Graphify fork, not PyPI. Never repair a
+The Mase CLI-backed setup must use the local Graphify fork, not PyPI. Never repair a
 missing or wrong install with `uv tool install --upgrade graphifyy` or `pip
 install graphifyy`; that can replace the fork with the public package and drop
 local behavior.
@@ -154,20 +154,21 @@ Then act on it:
 
 ### Step 2.5 - Video and audio (handled by `graphify extract`)
 
-Do not manually transcribe video or audio during the default Pi `/graphify` build. The CLI extraction path transcribes detected video/audio files into `graphify-out/transcripts/` before semantic extraction. If the user supplied `--whisper-model <value>`, pass that flag through in Step 3.
+Do not manually transcribe video or audio during the default `/graphify` build. The CLI extraction path transcribes detected video/audio files into `graphify-out/transcripts/` before semantic extraction. If the user supplied `--whisper-model <value>`, pass that flag through in Step 3.
 
 Load `references/transcribe.md` only when the user explicitly asks for standalone transcription behavior outside the default `/graphify` extraction pipeline.
 
 ### Step 3 - Extract entities and relationships (CLI backend path)
 
-The default Pi `/graphify` full build uses Graphify's headless CLI backend path,
+The default `/graphify` full build uses Graphify's headless CLI backend path,
 not host-agent semantic subagents. This keeps semantic model behavior consistent
 with repo propagation and direct terminal use.
 
-> **graphify needs no API key. Never ask the user for one, and never block on
-> one.** Pi should use the terminal-only CLI backend path even when it cannot
-> dispatch subagents. If the selected backend is unavailable, stop and report the
-> `graphify extract` error instead of prompting for credentials.
+> **graphify needs no API key.**
+> Never ask the user for one, and never block on one. The skill should use the
+> terminal-only CLI backend path even when it cannot dispatch subagents. If the
+> selected backend is unavailable, stop and report the `graphify extract` error
+> instead of prompting for credentials.
 
 Default backend/model policy:
 
@@ -252,7 +253,7 @@ If `--no-cluster` was not passed, also check that `graphify-out/GRAPH_REPORT.md`
 
 ### Step 6 - Generate optional exports
 
-`cluster-only` already generated the default HTML graph unless `--no-viz` was passed. Do not run `graphify export html` again during the default Pi CLI path.
+`cluster-only` already generated the default HTML graph unless `--no-viz` was passed. Do not run `graphify export html` again during the default CLI path.
 
 Run Obsidian export only if `--obsidian` was explicitly given:
 
@@ -269,11 +270,11 @@ These run only when their flag is present (`--wiki`, `--neo4j`/`--neo4j-push`, `
 
 ---
 
-### Step 9 - Clean up Pi temp file and report
+### Step 9 - Clean up temporary files and report
 
 Do not update `graphify-out/cost.json` here; `graphify extract` already wrote the cost tracker for this run. Do not read legacy extraction temp files.
 
-Remove only the Pi-created detection temp file and stale legacy chunk temps:
+Remove only the detection temp file and stale legacy chunk temps:
 
 ```bash
 rm -f graphify-out/.graphify_detect.json

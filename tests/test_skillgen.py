@@ -240,30 +240,33 @@ def _platform_artifacts(key):
     return core.content, refs
 
 
-def test_pi_cli_backend_runbook_has_no_legacy_temp_or_duplicate_transcribe_flow():
-    """Pi default builds use CLI extraction, not legacy subagent/temp-file steps."""
-    core, _refs = _platform_artifacts("pi")
-    assert ".graphify_extract.json" not in core
-    assert "Do not manually transcribe video or audio" in core
-    assert "treat the transcripts as doc files in Step 3" not in core
-    assert "Do not update `graphify-out/cost.json` here" in core
-    assert "A no-cluster run intentionally writes raw extraction output only" in core
-    assert "do not require `GRAPH_REPORT.md`, `graph.html`" in core
-    assert "If `GRAPH_REPORT.md` exists" in core
-    assert "If `--no-cluster` was passed and no report exists, skip report pasteback" in core
+def test_cli_backend_runbook_has_no_legacy_temp_or_duplicate_transcribe_flow():
+    """Pi/Codex default builds use CLI extraction, not legacy subagents."""
+    for key in ("pi", "codex"):
+        core, _refs = _platform_artifacts(key)
+        assert ".graphify_extract.json" not in core
+        assert "Do not manually transcribe video or audio" in core
+        assert "treat the transcripts as doc files in Step 3" not in core
+        assert "Do not update `graphify-out/cost.json` here" in core
+        assert "A no-cluster run intentionally writes raw extraction output only" in core
+        assert "do not require `GRAPH_REPORT.md`, `graph.html`" in core
+        assert "If `GRAPH_REPORT.md` exists" in core
+        assert "If `--no-cluster` was passed and no report exists" in core
 
 
-def test_pi_skill_uses_local_fork_install_and_cli_update_reference():
-    """Mase's Pi skill must stay on the local fork and use CLI update commands."""
-    core, refs = _platform_artifacts("pi")
-    assert 'EXPECTED_GRAPHIFY_SOURCE="/Users/mase/Codebase/Personal-Projects/graphify"' in core
-    assert "graphify doctor" in core
-    assert '--require-source "$EXPECTED_GRAPHIFY_SOURCE"' in core
-    assert "uv tool install --upgrade graphifyy -q" not in core
-    update = refs["update.md"]
-    assert "graphify update INPUT_PATH" in update
-    assert "graphify cluster-only INPUT_PATH --backend ollama" in update
-    assert "Step 3A" not in update
+def test_cli_skills_use_local_fork_install_and_cli_update_reference():
+    """Mase's Pi/Codex skills must use the fork and CLI update commands."""
+    for key in ("pi", "codex"):
+        core, refs = _platform_artifacts(key)
+        assert 'EXPECTED_GRAPHIFY_SOURCE="/Users/mase/Codebase/Personal-Projects/graphify"' in core
+        assert "graphify doctor" in core
+        assert '--require-source "$EXPECTED_GRAPHIFY_SOURCE"' in core
+        assert "uv tool install --upgrade graphifyy -q" not in core
+        update = refs["update.md"]
+        assert "graphify update INPUT_PATH" in update
+        assert "graphify cluster-only INPUT_PATH --backend ollama" in update
+        assert "deepseek-v4-pro:cloud" in update
+        assert "Step 3A" not in update
 
 
 def test_check_passes_for_codex_and_windows():
@@ -335,20 +338,17 @@ def test_windows_frontmatter_name_and_shell_and_extra():
     assert core.index("## Troubleshooting") < core.index("## Honesty Rules")
 
 
-def test_codex_dispatch_is_agenttask_and_collects_in_memory():
-    """codex: spawn/wait/close_agent dispatch needing multi_agent = true."""
-    core, _ = _platform_artifacts("codex")
-    assert "spawn_agent" in core
-    assert "wait_agent" in core
-    assert "close_agent" in core
-    assert "multi_agent = true" in core
-    assert "Codex collects in memory" in core
-    # The B2 dispatch slot itself (Codex heading -> Step B3) must not carry the
-    # claude Agent-tool example. The shared Step B3 prose mentions the agent type
-    # in a re-run hint, so scope the check to the dispatch block only.
-    b2 = core[core.index("**Step B2") : core.index("**Step B3")]
-    assert "Concrete example for 3 chunks" not in b2
-    assert "Agent tool call 1" not in b2
+def test_codex_uses_cli_backend_not_agenttask_dispatch():
+    """Codex follows the same CLI backend/model policy as local repo guidance."""
+    core, refs = _platform_artifacts("codex")
+    assert "graphify extract INPUT_PATH --backend ollama" in core
+    assert "Graphify's built-in Ollama default is `deepseek-v4-pro:cloud`" in core
+    assert "Do not silently switch to Gemini or host-agent extraction" in core
+    assert "spawn_agent" not in core
+    assert "wait_agent" not in core
+    assert "multi_agent = true" not in core
+    assert "Step B2" not in core
+    assert "graphify extract INPUT_PATH --backend ollama" in refs["update.md"]
 
 
 def test_codex_and_windows_unify_enum_to_six_values():
@@ -848,16 +848,16 @@ def test_audit_allowlist_documents_only_consolidations():
 
     A genuine drop (trae's native AGENTS.md integration) must never be in the
     allowlist, or the guard would rubber-stamp the regression it exists to catch.
-    Pi is listed because it intentionally replaces the v8 host-agent extraction
-    body with the CLI backend runbook in its platform-specific core.
+    Pi and Codex are listed because they intentionally replace the v8 host-agent
+    extraction body with the CLI backend runbook in their shared CLI core.
     """
     all_allowlisted = set(gen.SHARED_INTRO_ALLOWLIST)
     for hs in gen._CONSOLIDATION_ALLOWLIST.values():
         all_allowlisted |= set(hs)
     assert "## For native AGENTS.md integration (Trae)" not in all_allowlisted
-    # Only the two minimal-body hosts plus Pi's explicit CLI-backend replacement
+    # Only the two minimal-body hosts plus the explicit CLI-backend replacements
     # carry per-host allowlists.
-    assert set(gen._CONSOLIDATION_ALLOWLIST) == {"kilo", "vscode", "pi"}
+    assert set(gen._CONSOLIDATION_ALLOWLIST) == {"codex", "kilo", "vscode", "pi"}
 
 
 # --- the trae / trae-cn native AGENTS.md integration fix -----------------------

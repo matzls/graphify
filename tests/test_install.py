@@ -346,7 +346,10 @@ def test_codex_skill_file_ships_in_package():
 
     skill = Path(graphify.__file__).parent / "skill-codex.md"
     assert skill.exists()
-    assert "spawn_agent" in skill.read_text(encoding="utf-8")
+    content = skill.read_text(encoding="utf-8")
+    assert "graphify extract INPUT_PATH --backend ollama" in content
+    assert "Graphify's built-in Ollama default is `deepseek-v4-pro:cloud`" in content
+    assert "spawn_agent" not in content
 
 
 def test_codex_agents_guidance_uses_graphify_with_dirty_graph_output(tmp_path):
