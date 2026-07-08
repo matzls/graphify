@@ -379,8 +379,6 @@ def test_cli_backed_hosts_omit_legacy_extraction_spec():
         assert "extraction-spec.md" not in refs
 
 
-
-
 def test_every_platform_query_has_expansion_and_fallback():
     """#1325: the unified query reference ships BOTH the vocab-expansion step and
     the inline NetworkX fallback to every platform (previously split so no host
