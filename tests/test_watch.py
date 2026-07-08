@@ -412,20 +412,26 @@ def test_rebuild_code_evicts_nodes_from_deleted_files(tmp_path):
 
 def _add_unrelated_semantic_pair(graph_path):
     data = json.loads(graph_path.read_text(encoding="utf-8"))
-    data["nodes"].extend([
-        {"id": "docs_topic", "label": "DocsTopic", "file_type": "concept"},
-        {"id": "shared_concept", "label": "SharedConcept", "file_type": "concept"},
-    ])
-    data["links"].append({
-        "source": "docs_topic",
-        "target": "shared_concept",
-        "relation": "related_to",
-    })
-    data["hyperedges"] = [{
-        "id": "semantic_context",
-        "label": "Semantic context",
-        "nodes": ["docs_topic", "shared_concept"],
-    }]
+    data["nodes"].extend(
+        [
+            {"id": "docs_topic", "label": "DocsTopic", "file_type": "concept"},
+            {"id": "shared_concept", "label": "SharedConcept", "file_type": "concept"},
+        ]
+    )
+    data["links"].append(
+        {
+            "source": "docs_topic",
+            "target": "shared_concept",
+            "relation": "related_to",
+        }
+    )
+    data["hyperedges"] = [
+        {
+            "id": "semantic_context",
+            "label": "Semantic context",
+            "nodes": ["docs_topic", "shared_concept"],
+        }
+    ]
     graph_path.write_text(json.dumps(data), encoding="utf-8")
 
 
@@ -565,27 +571,34 @@ def test_rebuild_code_prunes_final_deleted_file(tmp_path, changed_paths):
     _add_unrelated_semantic_pair(graph_path)
     before = json.loads(graph_path.read_text(encoding="utf-8"))
     code_node_id = next(n["id"] for n in before["nodes"] if n.get("source_file") == "only.py")
-    before["hyperedges"].append({
-        "id": "code_context",
-        "label": "Code context",
-        "nodes": [code_node_id],
-        "source_file": "only.py",
-    })
-    before["nodes"].append({
-        "id": "sourceless_ast_stub",
-        "label": "ExternalType",
-        "file_type": "class",
-        "_origin": "ast",
-    })
+    before["hyperedges"].append(
+        {
+            "id": "code_context",
+            "label": "Code context",
+            "nodes": [code_node_id],
+            "source_file": "only.py",
+        }
+    )
+    before["nodes"].append(
+        {
+            "id": "sourceless_ast_stub",
+            "label": "ExternalType",
+            "file_type": "class",
+            "_origin": "ast",
+        }
+    )
     graph_path.write_text(json.dumps(before), encoding="utf-8")
 
     only.unlink()
-    assert _rebuild_code(
-        corpus,
-        changed_paths=changed_paths,
-        no_cluster=True,
-        acquire_lock=False,
-    ) is True
+    assert (
+        _rebuild_code(
+            corpus,
+            changed_paths=changed_paths,
+            no_cluster=True,
+            acquire_lock=False,
+        )
+        is True
+    )
 
     after = json.loads(graph_path.read_text(encoding="utf-8"))
     assert not any(n.get("source_file") == "only.py" for n in after["nodes"])
@@ -613,12 +626,15 @@ def test_rebuild_code_prunes_renamed_source_not_listed_by_hook(tmp_path):
 
     renamed = corpus / "renamed.py"
     old.rename(renamed)
-    assert _rebuild_code(
-        corpus,
-        changed_paths=[Path("renamed.py")],
-        no_cluster=True,
-        acquire_lock=False,
-    ) is True
+    assert (
+        _rebuild_code(
+            corpus,
+            changed_paths=[Path("renamed.py")],
+            no_cluster=True,
+            acquire_lock=False,
+        )
+        is True
+    )
 
     after = json.loads(graph_path.read_text(encoding="utf-8"))
     sources = {n.get("source_file") for n in after["nodes"]}
@@ -651,12 +667,15 @@ def test_rebuild_code_normalizes_preserved_source_paths(tmp_path):
     graph_path.write_text(json.dumps(data), encoding="utf-8")
 
     bar.write_text("def updated_bar_fn():\n    return 2\n", encoding="utf-8")
-    assert _rebuild_code(
-        corpus,
-        changed_paths=[Path("bar.py")],
-        no_cluster=True,
-        acquire_lock=False,
-    ) is True
+    assert (
+        _rebuild_code(
+            corpus,
+            changed_paths=[Path("bar.py")],
+            no_cluster=True,
+            acquire_lock=False,
+        )
+        is True
+    )
 
     after = json.loads(graph_path.read_text(encoding="utf-8"))
     assert "foo_fn()" in {n.get("label") for n in after["nodes"]}
@@ -675,12 +694,15 @@ def test_rebuild_code_prunes_renamed_ast_backed_document(tmp_path):
     graph_path = corpus / "graphify-out" / "graph.json"
     renamed = corpus / "renamed.md"
     old.rename(renamed)
-    assert _rebuild_code(
-        corpus,
-        changed_paths=[Path("renamed.md")],
-        no_cluster=True,
-        acquire_lock=False,
-    ) is True
+    assert (
+        _rebuild_code(
+            corpus,
+            changed_paths=[Path("renamed.md")],
+            no_cluster=True,
+            acquire_lock=False,
+        )
+        is True
+    )
 
     after = json.loads(graph_path.read_text(encoding="utf-8"))
     sources = {n.get("source_file") for n in after["nodes"]}
@@ -1044,15 +1066,21 @@ def test_check_shrink_allows_no_existing_data():
 def test_check_shrink_allows_shrink_within_rebuilt_sources(capsys):
     """#1116: a symbol removed from a re-extracted file is a legitimate shrink —
     every lost node belongs to a rebuilt source, so the write proceeds (no --force)."""
-    existing = {"nodes": [
-        {"id": "a", "source_file": "m.py"},
-        {"id": "b", "source_file": "m.py"},
-        {"id": "c", "source_file": "other.py"},
-    ], "links": []}
-    new = {"nodes": [
-        {"id": "a", "source_file": "m.py"},
-        {"id": "c", "source_file": "other.py"},
-    ], "links": []}
+    existing = {
+        "nodes": [
+            {"id": "a", "source_file": "m.py"},
+            {"id": "b", "source_file": "m.py"},
+            {"id": "c", "source_file": "other.py"},
+        ],
+        "links": [],
+    }
+    new = {
+        "nodes": [
+            {"id": "a", "source_file": "m.py"},
+            {"id": "c", "source_file": "other.py"},
+        ],
+        "links": [],
+    }
     ok = _check_shrink(False, existing, new, rebuilt_sources={"m.py"})
     assert ok is True
     assert "Refusing to overwrite" not in capsys.readouterr().err
@@ -1061,10 +1089,13 @@ def test_check_shrink_allows_shrink_within_rebuilt_sources(capsys):
 def test_check_shrink_blocks_shrink_outside_rebuilt_sources(capsys):
     """The guard's real job is intact: a node lost from a file we did NOT re-extract
     (the failed-chunk signal) is still refused even with rebuilt_sources set."""
-    existing = {"nodes": [
-        {"id": "a", "source_file": "m.py"},
-        {"id": "z", "source_file": "untouched.py"},
-    ], "links": []}
+    existing = {
+        "nodes": [
+            {"id": "a", "source_file": "m.py"},
+            {"id": "z", "source_file": "untouched.py"},
+        ],
+        "links": [],
+    }
     new = {"nodes": [{"id": "a", "source_file": "m.py"}], "links": []}
     ok = _check_shrink(False, existing, new, rebuilt_sources={"m.py"})
     assert ok is False
@@ -1235,36 +1266,43 @@ def test_rebuild_code_subdir_preserves_outside_ast_nodes(tmp_path, changed_paths
         data = json.loads(graph_path.read_text(encoding="utf-8"))
         inside_id = next(n["id"] for n in data["nodes"] if n.get("label") == "inside_fn()")
         outside_source = "app.py"
-        data["nodes"].extend([
+        data["nodes"].extend(
+            [
+                {
+                    "id": "outside_ast",
+                    "label": "outside_fn()",
+                    "file_type": "function",
+                    "source_file": outside_source,
+                    "_origin": "ast",
+                },
+                {
+                    "id": "stale_inside_ast",
+                    "label": "stale_inside_fn()",
+                    "file_type": "function",
+                    "source_file": "src/deleted.py",
+                    "_origin": "ast",
+                },
+            ]
+        )
+        data["links"].append(
             {
-                "id": "outside_ast",
-                "label": "outside_fn()",
-                "file_type": "function",
+                "source": "outside_ast",
+                "target": inside_id,
+                "relation": "calls",
                 "source_file": outside_source,
-                "_origin": "ast",
-            },
-            {
-                "id": "stale_inside_ast",
-                "label": "stale_inside_fn()",
-                "file_type": "function",
-                "source_file": "src/deleted.py",
-                "_origin": "ast",
-            },
-        ])
-        data["links"].append({
-            "source": "outside_ast",
-            "target": inside_id,
-            "relation": "calls",
-            "source_file": outside_source,
-        })
+            }
+        )
         graph_path.write_text(json.dumps(data), encoding="utf-8")
 
-        assert _rebuild_code(
-            Path("src"),
-            changed_paths=changed_paths,
-            no_cluster=True,
-            acquire_lock=False,
-        ) is True
+        assert (
+            _rebuild_code(
+                Path("src"),
+                changed_paths=changed_paths,
+                no_cluster=True,
+                acquire_lock=False,
+            )
+            is True
+        )
         after = json.loads(graph_path.read_text(encoding="utf-8"))
         node_ids = {n["id"] for n in after["nodes"]}
         assert "outside_ast" in node_ids
@@ -1296,12 +1334,14 @@ def test_rebuild_code_subdir_survives_absolute_to_relative_invocation(tmp_path):
         assert _rebuild_code(src, no_cluster=True, acquire_lock=False) is True
         graph_path = src / "graphify-out" / "graph.json"
         data = json.loads(graph_path.read_text(encoding="utf-8"))
-        data["nodes"].append({
-            "id": "local_semantic",
-            "label": "LocalSemantic",
-            "file_type": "concept",
-            "source_file": "old.py",
-        })
+        data["nodes"].append(
+            {
+                "id": "local_semantic",
+                "label": "LocalSemantic",
+                "file_type": "concept",
+                "source_file": "old.py",
+            }
+        )
         graph_path.write_text(json.dumps(data), encoding="utf-8")
 
         assert _rebuild_code(Path("src"), no_cluster=True, acquire_lock=False) is True
@@ -1342,12 +1382,15 @@ def test_rebuild_code_prunes_legacy_watch_relative_subdir_source(tmp_path):
         graph_path.write_text(json.dumps(data), encoding="utf-8")
 
         old.rename(src / "renamed.py")
-        assert _rebuild_code(
-            Path("src"),
-            changed_paths=[Path("src/renamed.py")],
-            no_cluster=True,
-            acquire_lock=False,
-        ) is True
+        assert (
+            _rebuild_code(
+                Path("src"),
+                changed_paths=[Path("src/renamed.py")],
+                no_cluster=True,
+                acquire_lock=False,
+            )
+            is True
+        )
 
         after = json.loads(graph_path.read_text(encoding="utf-8"))
         sources = {n.get("source_file") for n in after["nodes"]}
@@ -1375,9 +1418,7 @@ def test_rebuild_code_does_not_update_root_marker_when_write_is_refused(tmp_path
 
         app.write_text("def after():\n    return 2\n", encoding="utf-8")
         monkeypatch.setattr(watch_mod, "_check_shrink", lambda *args, **kwargs: False)
-        assert watch_mod._rebuild_code(
-            Path("src"), no_cluster=True, acquire_lock=False
-        ) is False
+        assert watch_mod._rebuild_code(Path("src"), no_cluster=True, acquire_lock=False) is False
         assert marker.read_text(encoding="utf-8") == str(src)
     finally:
         os.chdir(cwd)
@@ -1397,33 +1438,42 @@ def test_rebuild_code_incremental_rename_preserves_symlink_source_path(tmp_path)
     old.write_text("def linked_fn():\n    return 1\n", encoding="utf-8")
     (corpus / "linked").symlink_to(real, target_is_directory=True)
 
-    assert _rebuild_code(
-        corpus,
-        follow_symlinks=True,
-        no_cluster=True,
-        acquire_lock=False,
-    ) is True
+    assert (
+        _rebuild_code(
+            corpus,
+            follow_symlinks=True,
+            no_cluster=True,
+            acquire_lock=False,
+        )
+        is True
+    )
     graph_path = corpus / "graphify-out" / "graph.json"
 
     first = real / "first.py"
     old.rename(first)
-    assert _rebuild_code(
-        corpus,
-        changed_paths=[Path("linked/first.py")],
-        follow_symlinks=True,
-        no_cluster=True,
-        acquire_lock=False,
-    ) is True
+    assert (
+        _rebuild_code(
+            corpus,
+            changed_paths=[Path("linked/first.py")],
+            follow_symlinks=True,
+            no_cluster=True,
+            acquire_lock=False,
+        )
+        is True
+    )
 
     second = real / "second.py"
     first.rename(second)
-    assert _rebuild_code(
-        corpus,
-        changed_paths=[Path("linked/second.py")],
-        follow_symlinks=True,
-        no_cluster=True,
-        acquire_lock=False,
-    ) is True
+    assert (
+        _rebuild_code(
+            corpus,
+            changed_paths=[Path("linked/second.py")],
+            follow_symlinks=True,
+            no_cluster=True,
+            acquire_lock=False,
+        )
+        is True
+    )
 
     after = json.loads(graph_path.read_text(encoding="utf-8"))
     sources = {n.get("source_file") for n in after["nodes"]}
