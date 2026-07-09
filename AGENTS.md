@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD013 -->
+
 # Graphify Fork Operating Notes
 
 This repository is Mase's fork of upstream Graphify.
@@ -21,8 +23,10 @@ For any non-trivial Graphify work, first read:
 - `origin`: `https://github.com/matzls/graphify.git`
 - `upstream`: `https://github.com/safishamsi/graphify.git`
 
-Keep upstream mirror branches such as `upstream-v8` clean. Put local customizations on
-`mase/local-fixes` unless a task explicitly creates a narrower PR branch.
+Keep local mirror branches such as `mirror/upstream-v8` clean; this mirrors
+upstream's `v8` branch and is not a release-version branch. Put local
+customizations on `mase/local-fixes` unless a task explicitly creates a narrower
+PR branch.
 
 Always inspect `git status --short --branch`, current branch, and relevant
 diffs before making claims about local-vs-upstream state. This fork may be ahead
@@ -138,10 +142,10 @@ history. Treat overlaps as explicit decisions:
 ```bash
 git fetch upstream
 git remote set-head upstream -a
-git checkout upstream-v8
+git checkout mirror/upstream-v8
 git merge --ff-only upstream/v8
 git checkout mase/local-fixes
-git rebase upstream-v8
+git rebase mirror/upstream-v8
 uv run --with pytest pytest tests/test_watch.py tests/test_transcribe.py tests/test_hooks.py
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
   --with openai \
