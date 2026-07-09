@@ -1,5 +1,7 @@
 @@FRONTMATTER@@
 
+<!-- markdownlint-disable-file MD013 MD040 -->
+
 # /graphify
 
 Turn any folder of files into a navigable knowledge graph with community detection, an honest audit trail, and three outputs: interactive HTML, GraphRAG-ready JSON, and a plain-language GRAPH_REPORT.md.

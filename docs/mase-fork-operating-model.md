@@ -28,6 +28,8 @@ retrieval_hints:
   - "graphify hook-check no-op"
 ---
 
+<!-- markdownlint-disable MD013 MD025 -->
+
 # Mase Graphify Fork Operating Model
 
 ## Purpose
@@ -87,7 +89,9 @@ Remotes:
 
 Branch rules:
 
-- Keep upstream mirror branches such as `upstream-v8` clean.
+- Keep local mirror branches such as `mirror/upstream-v8` clean. The name means
+  "local mirror of upstream's `v8` branch"; it is not tied to release tags such
+  as `v0.9.9`.
 - Keep Mase-local customizations on `mase/local-fixes` unless a narrower task
   branch is explicitly created.
 - Before modifying anything, inspect `git status --short --branch`, current

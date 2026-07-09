@@ -16,7 +16,7 @@
   },
   "branches": {
     "upstream_primary": "v8",
-    "mirror": "upstream-v8",
+    "mirror": "mirror/upstream-v8",
     "local_fixes": "mase/local-fixes",
     "task_prefix": "mase/task/"
   },
