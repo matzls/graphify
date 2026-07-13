@@ -411,6 +411,7 @@ def test_cluster_only_accepts_spaced_backend_flag(tmp_path, monkeypatch, capsys)
         quiet=False,
         max_concurrency=4,
         batch_size=100,
+        usage_out=None,
     ):
         seen["backend"] = backend
         seen["model"] = model
@@ -458,6 +459,7 @@ def test_cluster_only_relabels_existing_placeholder_labels(tmp_path, monkeypatch
         quiet=False,
         max_concurrency=4,
         batch_size=100,
+        usage_out=None,
     ):
         seen["backend"] = backend
         return {cid: f"Named {cid}" for cid in communities}, "llm"
@@ -501,6 +503,7 @@ def test_cluster_only_preserves_curated_labels_while_filling_placeholders(tmp_pa
         quiet=False,
         max_concurrency=4,
         batch_size=100,
+        usage_out=None,
     ):
         return {cid: f"Named {cid}" for cid in communities}, "llm"
 
@@ -530,8 +533,10 @@ def test_cluster_only_exports_wiki_by_default(tmp_path):
     assert (wiki / "index.md").exists()
 
 
-def test_cluster_only_skips_wiki_when_semantic_marker_is_partial(tmp_path):
+def test_cluster_only_refreshes_report_but_skips_wiki_when_semantic_marker_is_partial(tmp_path):
     out = _make_graph(tmp_path)
+    report = out / "GRAPH_REPORT.md"
+    report.write_text("stale report", encoding="utf-8")
     (out / ".graphify_semantic_marker").write_text(
         json.dumps({"status": "partial", "output_tokens": 10}),
         encoding="utf-8",
@@ -541,6 +546,7 @@ def test_cluster_only_skips_wiki_when_semantic_marker_is_partial(tmp_path):
 
     assert r.returncode == 0, r.stderr
     assert "semantic marker is partial" in r.stderr
+    assert report.read_text(encoding="utf-8") != "stale report"
     assert not (out / "wiki").exists()
 
 

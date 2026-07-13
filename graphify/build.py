@@ -1591,6 +1591,33 @@ def build_merge(
     return G
 
 
+def distinct_repo_tags(graph_paths: list[Path]) -> list[str]:
+    """Return stable, distinct source-repository tags for graph paths.
+
+    The normal tag is the repository directory above ``graphify-out``. When
+    multiple inputs share that basename, widen it by one ancestor at a time,
+    then add a numeric suffix only for identical paths.
+    """
+    paths = [Path(path) for path in graph_paths]
+    tags = [path.parent.parent.name for path in paths]
+    for depth in range(3, max((len(path.parents) for path in paths), default=0) + 1):
+        collisions = {tag for tag in tags if tags.count(tag) > 1}
+        if not collisions:
+            break
+        for index, path in enumerate(paths):
+            if tags[index] not in collisions or len(path.parents) < depth:
+                continue
+            parts = [parent.name for parent in path.parents[2:depth] if parent.name]
+            tags[index] = "-".join(reversed(parts))
+    counts: dict[str, int] = {}
+    unique_tags = []
+    for tag in tags:
+        counts[tag] = counts.get(tag, 0) + 1
+        suffix = counts[tag]
+        unique_tags.append(tag if suffix == 1 else f"{tag}-{suffix}")
+    return unique_tags
+
+
 def prefix_graph_for_global(G: nx.Graph, repo_tag: str) -> nx.Graph:
     """Return a copy of G with all node IDs prefixed with repo_tag::.
 

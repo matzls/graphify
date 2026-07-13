@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 import pytest
 
+from graphify.file_slice import unit_path
+
 
 @pytest.fixture(autouse=False)
 def no_tokenizer():
@@ -31,7 +33,7 @@ def test_pack_chunks_packs_small_files_together(tmp_path):
 
     chunks = _pack_chunks_by_tokens(files, token_budget=10_000)
     assert len(chunks) == 1
-    assert sorted(chunks[0]) == sorted(files)
+    assert sorted(map(str, chunks[0])) == sorted(map(str, files))
 
 
 def test_pack_chunks_starts_new_chunk_when_budget_would_overflow(tmp_path, no_tokenizer):
@@ -75,8 +77,8 @@ def test_pack_chunks_groups_by_directory(tmp_path):
     chunks = _pack_chunks_by_tokens([a1, b1, a2, b2], token_budget=1_000_000)
     assert len(chunks) == 1
     chunk = chunks[0]
-    a_indices = [i for i, p in enumerate(chunk) if p.parent == dir_a]
-    b_indices = [i for i, p in enumerate(chunk) if p.parent == dir_b]
+    a_indices = [i for i, p in enumerate(chunk) if unit_path(p).parent == dir_a]
+    b_indices = [i for i, p in enumerate(chunk) if unit_path(p).parent == dir_b]
     assert a_indices == sorted(a_indices)
     assert b_indices == sorted(b_indices)
     # all of one directory comes before all of the other
@@ -318,6 +320,7 @@ def test_checkpoint_scopes_cache_writes_to_chunk_files(tmp_path):
 
     # B.py's cache is unchanged: the stray node was rejected, not merged in.
     after = load_cached(b, tmp_path, kind="semantic")
+    assert after is not None
     assert [n["id"] for n in after["nodes"]] == ["b_real"], (
         f"B.py cache was clobbered by an out-of-chunk node: {after}"
     )
@@ -862,3 +865,35 @@ def test_pack_chunks_with_special_token_doc_does_not_crash(tmp_path):
     code = tmp_path / "code.py"; code.write_text("def f():\n    return 1\n")
     chunks = _pack_chunks_by_tokens([doc, code], token_budget=60_000)
     assert chunks  # produced at least one chunk, no exception
+
+def test_corpus_checkpoint_cache_remains_enabled_by_default(tmp_path, monkeypatch):
+    from graphify import cache, llm
+
+    source = tmp_path / "doc.md"
+    source.write_text("Checkpoint this successful result.\n", encoding="utf-8")
+    monkeypatch.setattr(
+        llm,
+        "extract_files_direct",
+        lambda *_, **__: {
+            "nodes": [
+                {
+                    "id": "cached_doc",
+                    "label": "Cached Doc",
+                    "file_type": "document",
+                    "source_file": str(source),
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "finish_reason": "stop",
+        },
+    )
+
+    llm.extract_corpus_parallel([source], backend="ollama", root=tmp_path, max_concurrency=1)
+
+    *_, uncached = cache.check_semantic_cache(
+        [str(source)], root=tmp_path, prompt=llm._extraction_system()
+    )
+    assert uncached == []

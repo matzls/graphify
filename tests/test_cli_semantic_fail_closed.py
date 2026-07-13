@@ -50,7 +50,7 @@ def _patch_extract_dependencies(
     monkeypatch.setattr(
         graphify.cache,
         "check_semantic_cache",
-        lambda paths, root: ([], [], [], list(paths)),
+        lambda paths, root, **_: ([], [], [], list(paths)),
     )
     monkeypatch.setattr(
         graphify.cache,
@@ -86,7 +86,7 @@ def test_extract_single_file_target_writes_output_next_to_file(
     monkeypatch.setattr(
         graphify.cache,
         "check_semantic_cache",
-        lambda paths, root: ([], [], [], list(paths)),
+        lambda paths, root, **_: ([], [], [], list(paths)),
     )
     monkeypatch.setattr(graphify.cache, "save_semantic_cache", lambda *_, **__: None)
     monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
@@ -323,6 +323,82 @@ def test_allow_partial_degraded_semantic_output_is_not_cached(
     assert marker["partial_chunks"] == 1
 
 
+def test_retry_exhausted_semantic_output_is_not_checkpointed_across_output_roots(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    import graphify.cache
+    import graphify.detect
+    import graphify.llm
+
+    root = tmp_path / "corpus"
+    root.mkdir()
+    doc = root / "doc.md"
+    doc.write_text("Partial semantic input.\n", encoding="utf-8")
+    external_out = tmp_path / "external-output"
+    calls = 0
+
+    monkeypatch.setattr(
+        graphify.detect,
+        "detect",
+        lambda *_, **__: {
+            "files": {"document": [str(doc)]},
+            "total_files": 1,
+            "total_words": 3,
+        },
+    )
+    monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
+
+    def partial_provider(*_, **__):
+        nonlocal calls
+        calls += 1
+        return {
+            "nodes": [
+                {
+                    "id": "partial_doc",
+                    "label": "Partial Doc",
+                    "file_type": "document",
+                    "source_file": str(doc),
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "finish_reason": "length",
+        }
+
+    monkeypatch.setattr(graphify.llm, "extract_files_direct", partial_provider)
+
+    rc = _run_main(
+        monkeypatch,
+        [
+            "extract",
+            str(root),
+            "--backend",
+            "ollama",
+            "--no-cluster",
+            "--allow-partial",
+            "--out",
+            str(external_out),
+        ],
+    )
+
+    assert rc == 0
+    assert calls == 1
+    assert not list((root / "graphify-out" / "cache" / "semantic").glob("*.json"))
+    assert not list((external_out / "graphify-out" / "cache" / "semantic").glob("*.json"))
+
+    # A later default-root run must invoke the provider again and fail closed,
+    # rather than treating the degraded first result as a semantic cache hit.
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 1
+    assert calls == 2
+    *_, uncached = graphify.cache.check_semantic_cache([str(doc)], root=root)
+    assert uncached == [str(doc)]
+
+
 def test_allow_partial_marks_degraded_semantic_output(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -444,6 +520,47 @@ def test_code_only_extract_clears_stale_partial_semantic_marker(
     assert not (out / ".graphify_semantic_marker").exists()
 
 
+def test_fresh_semantic_extract_rewrites_stale_partial_marker_as_clean(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={
+            "nodes": [
+                {
+                    "id": "fresh_doc",
+                    "label": "Fresh Doc",
+                    "file_type": "document",
+                    "source_file": "doc.md",
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "failed_chunks": 0,
+            "partial_chunks": 0,
+            "total_chunks": 1,
+        },
+    )
+    out = root / "graphify-out"
+    out.mkdir()
+    (out / ".graphify_semantic_marker").write_text(
+        json.dumps({"status": "partial", "failed_chunks": 1}),
+        encoding="utf-8",
+    )
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 0
+    marker = json.loads((out / ".graphify_semantic_marker").read_text(encoding="utf-8"))
+    assert marker["status"] == "clean"
+    assert marker["failed_chunks"] == 0
+    assert marker["partial_chunks"] == 0
+
+
 def test_cache_only_semantic_extract_rewrites_stale_partial_marker_as_clean(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -474,7 +591,7 @@ def test_cache_only_semantic_extract_rewrites_stale_partial_marker_as_clean(
     monkeypatch.setattr(
         graphify.cache,
         "check_semantic_cache",
-        lambda paths, root: (
+        lambda paths, root, **_: (
             [
                 {
                     "id": "doc_concept",
@@ -557,6 +674,8 @@ def test_incremental_extract_prunes_existing_graphify_temp_sources(
     root.mkdir()
     doc = root / "doc.md"
     doc.write_text("# Doc\n\nSemantic input.\n", encoding="utf-8")
+    kept = root / "kept.md"
+    kept.write_text("# Kept\n", encoding="utf-8")
     out = root / "graphify-out"
     out.mkdir()
     (out / "manifest.json").write_text(json.dumps({"document": []}), encoding="utf-8")
@@ -591,15 +710,19 @@ def test_incremental_extract_prunes_existing_graphify_temp_sources(
         encoding="utf-8",
     )
     detection = {
-        "files": {"document": [str(doc)]},
+        "files": {"document": [str(doc), str(kept)]},
         "new_files": {"document": [str(doc)]},
-        "unchanged_files": {},
+        "unchanged_files": {"document": [str(kept)]},
         "deleted_files": [],
-        "total_files": 1,
+        "total_files": 2,
         "total_words": 3,
     }
     monkeypatch.setattr(graphify.detect, "detect_incremental", lambda *_, **__: detection)
-    monkeypatch.setattr(graphify.cache, "check_semantic_cache", lambda paths, root: ([], [], [], list(paths)))
+    monkeypatch.setattr(
+        graphify.cache,
+        "check_semantic_cache",
+        lambda paths, root, **_: ([], [], [], list(paths)),
+    )
     monkeypatch.setattr(graphify.cache, "save_semantic_cache", lambda *_, **__: None)
     monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
     monkeypatch.setattr(
@@ -635,6 +758,54 @@ def test_incremental_extract_prunes_existing_graphify_temp_sources(
     assert rc == 0
     assert ".graphify_detect.json" not in sources
     assert "kept.md" in sources
+
+
+def test_doctor_help_lists_backend_and_probe(monkeypatch: pytest.MonkeyPatch, capsys):
+    rc = _run_main(monkeypatch, ["doctor", "--help"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "--backend BACKEND" in out
+    assert "--probe" in out
+
+
+def test_doctor_backend_validation_failure_does_not_report_success(
+    monkeypatch: pytest.MonkeyPatch, capsys
+):
+    import graphify.llm
+
+    monkeypatch.setattr(
+        graphify.llm,
+        "validate_backend_dependencies",
+        lambda backend: (_ for _ in ()).throw(ImportError("missing backend dependency")),
+    )
+
+    rc = _run_main(monkeypatch, ["doctor", "--backend", "ollama", "--probe"])
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "missing backend dependency" in captured.err
+    assert "backend dependencies (ollama): ok" not in captured.out
+    assert "backend probe (ollama): ok" not in captured.out
+
+
+def test_doctor_probe_failure_does_not_report_success(monkeypatch: pytest.MonkeyPatch, capsys):
+    import graphify.llm
+
+    monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
+    monkeypatch.setattr(
+        graphify.llm,
+        "probe_backend",
+        lambda backend: (_ for _ in ()).throw(RuntimeError("probe unavailable")),
+    )
+
+    rc = _run_main(monkeypatch, ["doctor", "--backend", "ollama", "--probe"])
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "probe unavailable" in captured.err
+    assert "backend dependencies (ollama): ok" in captured.out
+    assert "backend probe (ollama): ok" not in captured.out
 
 
 def test_doctor_probe_requires_backend(monkeypatch: pytest.MonkeyPatch, capsys):
