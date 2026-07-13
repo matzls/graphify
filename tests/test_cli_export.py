@@ -3,6 +3,7 @@
 Each test builds a minimal graph in a temp dir, runs the CLI command as a subprocess,
 and asserts the expected output file exists and is non-empty / valid.
 """
+
 from __future__ import annotations
 import json
 import os
@@ -16,7 +17,9 @@ PYTHON = sys.executable
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
-def _run(args: list[str], cwd: Path, env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+def _run(
+    args: list[str], cwd: Path, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
     return subprocess.run(
         [PYTHON, "-m", "graphify"] + args,
         cwd=cwd,
@@ -53,13 +56,12 @@ def _make_graph(tmp_path: Path) -> Path:
         "surprises": surprises,
     }
     (out / ".graphify_analysis.json").write_text(json.dumps(analysis))
-    (out / ".graphify_labels.json").write_text(
-        json.dumps({str(k): v for k, v in labels.items()})
-    )
+    (out / ".graphify_labels.json").write_text(json.dumps({str(k): v for k, v in labels.items()}))
     return out
 
 
 # ── graphify export html ─────────────────────────────────────────────────────
+
 
 def test_export_html_creates_file(tmp_path):
     _make_graph(tmp_path)
@@ -85,6 +87,7 @@ def test_export_html_error_without_graph(tmp_path):
 
 # ── graphify export obsidian ─────────────────────────────────────────────────
 
+
 def test_export_obsidian_creates_vault(tmp_path):
     _make_graph(tmp_path)
     r = _run(["export", "obsidian"], tmp_path)
@@ -105,6 +108,7 @@ def test_export_obsidian_custom_dir(tmp_path):
 
 
 # ── graphify export wiki ─────────────────────────────────────────────────────
+
 
 def test_export_wiki_creates_articles(tmp_path):
     _make_graph(tmp_path)
@@ -151,6 +155,7 @@ def test_export_wiki_explicit_graph_uses_matching_analysis_sidecar(tmp_path):
 
 # ── graphify export graphml ──────────────────────────────────────────────────
 
+
 def test_export_graphml_creates_file(tmp_path):
     _make_graph(tmp_path)
     r = _run(["export", "graphml"], tmp_path)
@@ -163,6 +168,7 @@ def test_export_graphml_creates_file(tmp_path):
 
 
 # ── graphify export neo4j (cypher) ───────────────────────────────────────────
+
 
 def test_export_neo4j_creates_cypher(tmp_path):
     _make_graph(tmp_path)
@@ -177,6 +183,7 @@ def test_export_neo4j_creates_cypher(tmp_path):
 
 # ── graphify export falkordb (cypher) ────────────────────────────────────────
 
+
 def test_export_falkordb_creates_cypher(tmp_path):
     _make_graph(tmp_path)
     r = _run(["export", "falkordb"], tmp_path)
@@ -189,6 +196,7 @@ def test_export_falkordb_creates_cypher(tmp_path):
 
 
 # ── graphify query ───────────────────────────────────────────────────────────
+
 
 def test_query_returns_output(tmp_path):
     _make_graph(tmp_path)
@@ -241,13 +249,16 @@ def test_extract_writes_to_graphify_out_env(tmp_path):
     assert (tmp_path / "custom-out" / "graph.json").exists(), r.stdout
     assert (tmp_path / "custom-out" / "manifest.json").exists()
     # The default dir must NOT be created when the override is set.
-    assert not (tmp_path / "graphify-out").exists(), "extract ignored GRAPHIFY_OUT and wrote graphify-out/"
+    assert not (tmp_path / "graphify-out").exists(), (
+        "extract ignored GRAPHIFY_OUT and wrote graphify-out/"
+    )
     # Manifest keys are relative to the scan root (portable) — #1417.
     keys = list(json.loads((tmp_path / "custom-out" / "manifest.json").read_text()).keys())
     assert keys == ["m.py"], keys
 
 
 # ── graphify path ────────────────────────────────────────────────────────────
+
 
 def test_path_runs_without_error(tmp_path):
     _make_graph(tmp_path)
@@ -275,6 +286,7 @@ def test_path_uses_graphify_out_env(tmp_path):
 
 # ── graphify explain ─────────────────────────────────────────────────────────
 
+
 def test_explain_runs_without_error(tmp_path):
     _make_graph(tmp_path)
     r = _run(["explain", "test"], tmp_path)
@@ -300,6 +312,7 @@ def test_explain_uses_graphify_out_env(tmp_path):
 
 # ── graphify export unknown format ───────────────────────────────────────────
 
+
 def test_export_unknown_format_fails(tmp_path):
     r = _run(["export", "pdf"], tmp_path)
     assert r.returncode != 0
@@ -321,6 +334,7 @@ def test_update_no_cluster_writes_raw_graph(tmp_path):
 
 # Regression test for #934 - cluster-only crashes when graphify-out/ doesn't exist
 
+
 def test_cluster_only_creates_output_dir_when_missing(tmp_path):
     """cluster-only must not crash with FileNotFoundError when graphify-out/ is absent (#934)."""
     # Build graph.json somewhere other than the default graphify-out/ location
@@ -332,6 +346,7 @@ def test_cluster_only_creates_output_dir_when_missing(tmp_path):
     graph_json = out_dir / "graph.json"
     # Simulate user archiving the output dir before re-clustering
     import shutil
+
     shutil.copy(graph_json, graph_src)
     shutil.rmtree(out_dir)
 
@@ -357,8 +372,8 @@ def test_cluster_only_graph_in_graphify_out_writes_beside_it(tmp_path):
         cwd,
     )
     assert r.returncode == 0, r.stderr
-    assert (out_dir / "GRAPH_REPORT.md").exists()          # beside --graph
-    assert not (cwd / "graphify-out").exists()             # no CWD pollution
+    assert (out_dir / "GRAPH_REPORT.md").exists()  # beside --graph
+    assert not (cwd / "graphify-out").exists()  # no CWD pollution
 
 
 def test_extract_out_does_not_pollute_corpus(tmp_path):
@@ -374,8 +389,8 @@ def test_extract_out_does_not_pollute_corpus(tmp_path):
         tmp_path,
     )
     assert r.returncode == 0, r.stderr
-    assert (out / "graphify-out" / "graph.json").exists()   # graph in --out
-    assert not (corpus / "graphify-out").exists()           # corpus untouched
+    assert (out / "graphify-out" / "graph.json").exists()  # graph in --out
+    assert not (corpus / "graphify-out").exists()  # corpus untouched
 
 
 def test_cluster_only_accepts_spaced_backend_flag(tmp_path, monkeypatch, capsys):
@@ -405,7 +420,16 @@ def test_cluster_only_accepts_spaced_backend_flag(tmp_path, monkeypatch, capsys)
     monkeypatch.setattr(
         sys,
         "argv",
-        ["graphify", "cluster-only", ".", "--backend", "ollama", "--model", "phi4:latest", "--no-viz"],
+        [
+            "graphify",
+            "cluster-only",
+            ".",
+            "--backend",
+            "ollama",
+            "--model",
+            "phi4:latest",
+            "--no-viz",
+        ],
     )
     monkeypatch.setattr("graphify.llm.generate_community_labels", fake_generate_community_labels)
 
@@ -562,6 +586,7 @@ def test_export_wiki_allow_partial_uses_partial_semantic_marker(tmp_path):
 
 # Regression test for #1027 - cluster-only must remap labels via node overlap
 
+
 def test_cluster_only_persists_analysis_sidecar(tmp_path):
     """cluster-only must refresh .graphify_analysis.json alongside graph.json.
 
@@ -652,6 +677,7 @@ def test_cluster_only_remaps_labels_to_previous_cids(tmp_path):
 # silently bails or generates a degraded artifact whenever the sidecar is
 # missing, even though the data is right there.
 
+
 def test_export_html_falls_back_to_node_community_attribute(tmp_path):
     """When .graphify_analysis.json is absent, export html should reconstruct
     communities from the per-node attribute in graph.json rather than bailing
@@ -687,8 +713,7 @@ def test_export_html_fallback_recovers_multiple_communities(tmp_path):
     # And the count we'd reconstruct from graph.json's node attributes
     graph = json.loads((out / "graph.json").read_text(encoding="utf-8"))
     reconstructed_cids = {
-        n["community"] for n in graph.get("nodes", [])
-        if n.get("community") is not None
+        n["community"] for n in graph.get("nodes", []) if n.get("community") is not None
     }
     assert len(reconstructed_cids) == expected_count, (
         f"reconstruction would lose communities: sidecar={expected_count} vs "
@@ -729,6 +754,7 @@ def test_graph_json_node_ids_are_portable_across_checkout_paths(tmp_path):
     """#1789: the committed graph.json's node ids must be relative to the scan
     root — not embed the absolute path — so the same repo yields identical ids
     on any machine/checkout and leaks no local username/home."""
+
     def _build(root: Path):
         (root / "pkg").mkdir(parents=True)
         (root / "pkg" / "mod.py").write_text("def f(): return 1\n")
@@ -742,5 +768,6 @@ def test_graph_json_node_ids_are_portable_across_checkout_paths(tmp_path):
     b = _build(tmp_path / "bob_elsewhere" / "checkout" / "proj")
     assert a == b, f"node ids differ across checkout paths: {a} vs {b}"
     leak = {"alice_home", "bob_elsewhere", "checkout", "tmp", "private", "users", "home", "var"}
-    assert not any(part in leak for ident in a for part in ident.split("_")), \
+    assert not any(part in leak for ident in a for part in ident.split("_")), (
         f"node id embeds an absolute-path component: {a}"
+    )
