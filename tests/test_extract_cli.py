@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -237,14 +238,18 @@ def test_truncated_doc_semantic_hash_is_cleared_for_requeue(monkeypatch, tmp_pat
     corpus = _make_corpus(tmp_path)  # main.go + README.md
     out_dir = tmp_path / "out"
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-fake-key")
-    partial_run = {"on": False}
+    partial_run: dict[str, bool] = {"on": False}
 
     def _extract(paths, **kwargs):
         rels = sorted(os.path.relpath(str(p), str(corpus)) for p in paths)
         on_chunk = kwargs.get("on_chunk_done")
         if on_chunk:
             on_chunk(0, 1, {"nodes": [], "edges": [], "hyperedges": []})
-        node = {"id": "n-readme", "source_file": "README.md", "file_type": "document"}
+        node: dict[str, object] = {
+            "id": "n-readme",
+            "source_file": "README.md",
+            "file_type": "document",
+        }
         if partial_run["on"] and "README.md" in rels:
             node["_partial"] = True  # this run truncated README.md
         return {"nodes": [node] if "README.md" in rels else [],
@@ -949,7 +954,7 @@ def _node_sources(graph_path):
     return {n.get("source_file", "") for n in data.get("nodes", [])}
 
 
-def _run_extract(monkeypatch, argv):
+def _run_extract_prune(monkeypatch, argv):
     monkeypatch.setattr(mainmod.sys, "argv", argv)
     try:
         mainmod.main()
@@ -970,7 +975,7 @@ def test_incremental_extract_prunes_newly_excluded_file_not_in_manifest(
     _clear_backend_keys(monkeypatch)
     monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
 
-    _run_extract(
+    _run_extract_prune(
         monkeypatch,
         ["graphify", "extract", str(project), "--out", str(out_dir)],
     )
@@ -987,7 +992,7 @@ def test_incremental_extract_prunes_newly_excluded_file_not_in_manifest(
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     (project / ".graphifyignore").write_text("x.py\n")
-    _run_extract(
+    _run_extract_prune(
         monkeypatch,
         ["graphify", "extract", str(project), "--out", str(out_dir)],
     )
@@ -1018,7 +1023,7 @@ def test_incremental_extract_prunes_excluded_file_listed_in_manifest(
     _clear_backend_keys(monkeypatch)
     monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
 
-    _run_extract(
+    _run_extract_prune(
         monkeypatch,
         ["graphify", "extract", str(project), "--out", str(out_dir)],
     )
@@ -1027,7 +1032,7 @@ def test_incremental_extract_prunes_excluded_file_listed_in_manifest(
     assert any("x.py" in k for k in json.loads(manifest_path.read_text()))
 
     (project / ".graphifyignore").write_text("x.py\n")
-    _run_extract(
+    _run_extract_prune(
         monkeypatch,
         ["graphify", "extract", str(project), "--out", str(out_dir)],
     )
@@ -1041,7 +1046,7 @@ def test_incremental_extract_prunes_excluded_file_listed_in_manifest(
     )
 
     # Steady state: a third run neither resurrects x.py nor loses keep.py.
-    _run_extract(
+    _run_extract_prune(
         monkeypatch,
         ["graphify", "extract", str(project), "--out", str(out_dir)],
     )
@@ -1106,13 +1111,13 @@ def test_cache_check_prompt_file_scopes_hits_to_that_prompt(monkeypatch, tmp_pat
     monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
 
     base = ["graphify", "cache-check", str(files_from), "--root", str(tmp_path)]
-    _run_extract(monkeypatch, base + ["--prompt-file", str(spec)])
+    _run_extract_prune(monkeypatch, base + ["--prompt-file", str(spec)])
     assert "Cache: 1 hit, 0 miss" in capsys.readouterr().out
 
     # An upgrade rewrites the prompt: the entry must no longer satisfy the run.
     spec.write_text("PROMPT V2 — rewritten by an upgrade", encoding="utf-8")
     os.utime(spec, ns=(0, 0))
-    _run_extract(monkeypatch, base + ["--prompt-file", str(spec)])
+    _run_extract_prune(monkeypatch, base + ["--prompt-file", str(spec)])
     assert "Cache: 0 hit, 1 miss" in capsys.readouterr().out
 
 
@@ -1137,11 +1142,14 @@ def test_extract_directed_writes_directed_graph(monkeypatch, tmp_path):
 
 
 def test_extract_transcribes_video_before_semantic_extraction(monkeypatch, tmp_path):
-    media = tmp_path / "meeting.mp3"
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    media = corpus / "meeting.mp3"
     media.write_bytes(b"fake audio")
     out_dir = tmp_path / "out"
     transcript = out_dir / "graphify-out" / "transcripts" / "meeting.txt"
     seen: dict[str, object] = {}
+    extract_calls = 0
 
     def fake_transcribe(path, *, output_dir=None, initial_prompt=None):
         seen["video"] = str(path)
@@ -1152,6 +1160,8 @@ def test_extract_transcribes_video_before_semantic_extraction(monkeypatch, tmp_p
         return transcript
 
     def fake_extract(paths, **kwargs):
+        nonlocal extract_calls
+        extract_calls += 1
         seen["semantic_paths"] = [str(p) for p in paths]
         return {
             "nodes": [
@@ -1180,9 +1190,11 @@ def test_extract_transcribes_video_before_semantic_extraction(monkeypatch, tmp_p
         [
             "graphify",
             "extract",
-            str(tmp_path),
+            str(corpus),
             "--backend",
             "ollama",
+            "--mode",
+            "deep",
             "--out",
             str(out_dir),
             "--whisper-model",
@@ -1190,19 +1202,30 @@ def test_extract_transcribes_video_before_semantic_extraction(monkeypatch, tmp_p
         ],
     )
 
-    try:
-        mainmod.main()
-    except SystemExit as exc:
-        assert exc.code in (None, 0), f"unexpected exit code {exc.code}"
+    for _ in range(2):
+        try:
+            mainmod.main()
+        except SystemExit as exc:
+            assert exc.code in (None, 0), f"unexpected exit code {exc.code}"
 
     assert seen["video"] == str(media)
+    assert extract_calls == 1, "deep video cache should serve the second run"
     semantic_paths = seen.get("semantic_paths")
     assert isinstance(semantic_paths, list)
-    assert str(transcript) in semantic_paths
-    assert (out_dir / "graphify-out" / "graph.json").exists()
+    assert str(transcript) not in semantic_paths
+    assert all(Path(path).resolve().is_relative_to(corpus.resolve()) for path in semantic_paths)
+    graph_path = out_dir / "graphify-out" / "graph.json"
+    assert graph_path.exists()
+    graph = json.loads(graph_path.read_text())
+    assert any(
+        str(node.get("source_file", "")).endswith("meeting.mp3")
+        for node in graph["nodes"]
+    )
     cost = json.loads((out_dir / "graphify-out" / "cost.json").read_text())
-    assert cost["runs"][-1]["input_tokens"] == 12
-    assert cost["runs"][-1]["output_tokens"] == 6
+    assert cost["runs"][0]["input_tokens"] == 12
+    assert cost["runs"][0]["output_tokens"] == 6
+    assert cost["total_input_tokens"] == 12
+    assert cost["total_output_tokens"] == 6
 
 
 def test_extract_warns_when_image_backend_is_not_vision_configured(

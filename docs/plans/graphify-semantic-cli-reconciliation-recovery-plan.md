@@ -1,7 +1,7 @@
 ---
 title: "Graphify Semantic CLI Reconciliation Recovery Plan"
 kind: plan
-status: ready-for-approval
+status: complete
 audience: "agents-operators"
 canonicality: canonical
 created: 2026-07-13
@@ -136,7 +136,16 @@ Run, in order:
 ```bash
 uv run pytest tests/test_cli_semantic_fail_closed.py -q
 uv run pytest tests/test_extract_cli.py -q
-uv run pytest tests/test_detect.py tests/test_hooks.py tests/test_install.py tests/test_cli_export.py tests/test_llm_backends.py tests/test_watch.py tests/test_cli_semantic_fail_closed.py tests/test_extract_cli.py tests/test_semantic_eval.py -q
+uv run pytest \
+  tests/test_detect.py \
+  tests/test_hooks.py \
+  tests/test_install.py \
+  tests/test_cli_export.py \
+  tests/test_llm_backends.py \
+  tests/test_watch.py \
+  tests/test_cli_semantic_fail_closed.py \
+  tests/test_extract_cli.py \
+  tests/test_semantic_eval.py -q
 ```
 
 Then run the repository's configured type check:
@@ -207,3 +216,25 @@ This track is complete only with passing focused and combined regression
 commands, reviewed boundary-preserving code, accurate lifecycle/doc status, and
 an explicit decision on whether to reinstall the active CLI. A passing edit
 without the combined suite is not complete.
+
+## Completion Evidence
+
+- Baseline: 15 migration failures across the two focused semantic CLI suites.
+- Focused suites: `15 passed` for `test_cli_semantic_fail_closed.py`; `11
+  passed` for `test_extract_cli.py`.
+- Combined Track A regression selection: `551 passed, 2 skipped`.
+- Post-review focused regression selection: `94 passed, 1 skipped`.
+- Targeted Pyright and Python compilation passed. Full-repository Pyright still
+  has 350 pre-existing diagnostics outside the touched files.
+- Two fresh-context reviews approved the final diff, including the
+  cache-checkpoint integrity regression.
+- On 2026-07-13, Mase authorized a `uv tool install --force --reinstall` from
+  this checkout. `graphify doctor --require-source` verified active CLI version
+  `0.9.13` and install source
+  `/Users/mase/Codebase/Personal-Projects/graphify`.
+
+At evidence capture, the worktree was intentionally uncommitted; no rebase,
+fetch, push, source-repository self-analysis, or consumer-repository
+propagation ran. Track B remains separately gated on shared fork-manager
+ownership discovery and explicit implementation authority. Check live Git state
+rather than treating this evidence note as a current commit or push claim.

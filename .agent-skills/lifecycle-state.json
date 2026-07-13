@@ -6,16 +6,15 @@
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
       "status": "active",
       "currentLane": "planning-and-task-breakdown",
-      "currentPhase": "plans-ready-awaiting-execution-approval",
+      "currentPhase": "track-a-complete-track-b-owner-discovery-awaiting-authorization",
       "enteredLaneBecause": "The completed upstream rebase has unresolved targeted validation and the requested reusable process hardening crosses repository and shared fork-manager boundaries.",
       "exitCriteria": [
-        "Track A's workflow-plan peer review is fresh and has no material blockers, or Mase explicitly approves bypassing that gate.",
-        "Track A has a passing focused and combined regression baseline or all residual failures are explicitly escalated.",
+        "Track A is validation-clean, independently reviewed, and its active CLI is reinstalled and source-verified.",
         "Track B ownership is decided after inventorying the shared OSS fork-manager surface.",
-        "Mase explicitly authorizes the selected implementation envelope; planning alone does not authorize mutations."
+        "Mase explicitly authorizes any Track B implementation envelope; planning alone does not authorize mutations."
       ],
-      "nextAction": "Obtain explicit implementation authority for Track A; then re-verify branch/worktree state and run its two focused semantic CLI suites before editing.",
-      "nextRecommendedLane": "incremental-implementation",
+      "nextAction": "Track A is complete. Await separate authorization to inventory the canonical shared OSS fork-manager owner before any Track B automation design or implementation.",
+      "nextRecommendedLane": "planning-and-task-breakdown",
       "artifacts": [
         "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",
         "docs/plans/graphify-upstream-reconciliation-readiness-plan.md",

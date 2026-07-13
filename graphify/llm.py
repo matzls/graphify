@@ -2352,6 +2352,7 @@ def extract_corpus_parallel(
     max_retry_depth: int = 3,
     deep_mode: bool = False,
     cache_root: "Path | None" = None,
+    checkpoint_cache: bool = True,
 ) -> dict:
     """Extract a corpus in chunks, merging results.
 
@@ -2513,7 +2514,8 @@ def extract_corpus_parallel(
             if result is None:
                 raise RuntimeError("chunk worker returned no result without an exception")
             _merge_into(merged, result)
-            _checkpoint_chunk(result, chunk)
+            if checkpoint_cache:
+                _checkpoint_chunk(result, chunk)
             if callable(on_chunk_done):
                 on_chunk_done(idx, total, result)
     else:
@@ -2539,7 +2541,8 @@ def extract_corpus_parallel(
                 if result is None:
                     raise RuntimeError("chunk worker returned no result without an exception")
                 results_by_idx[idx] = result
-                _checkpoint_chunk(result, chunks[idx])
+                if checkpoint_cache:
+                    _checkpoint_chunk(result, chunks[idx])
                 if callable(on_chunk_done):
                     on_chunk_done(idx, total, result)
         for idx in sorted(results_by_idx):

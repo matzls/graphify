@@ -178,7 +178,11 @@ def _install_source() -> Path | str | None:
     return url
 
 
-def _doctor(require_source: str | None = None) -> int:
+def _doctor(
+    require_source: str | None = None,
+    backend: str | None = None,
+    probe: bool = False,
+) -> int:
     """Print install diagnostics and return a process exit code."""
     source = _install_source()
     module_path = Path(__file__).resolve()
@@ -200,13 +204,32 @@ def _doctor(require_source: str | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
+    if backend:
+        try:
+            from graphify.llm import probe_backend, validate_backend_dependencies
+
+            validate_backend_dependencies(backend)
+        except (ImportError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"backend dependencies ({backend}): ok")
+        if probe:
+            try:
+                result = probe_backend(backend)
+            except Exception as exc:
+                print(f"error: backend probe ({backend}) failed: {exc}", file=sys.stderr)
+                return 1
+            print(
+                f"backend probe ({backend}): ok — "
+                f"{result['nodes']} nodes, {result['edges']} edges, "
+                f"{result['hyperedges']} hyperedges, "
+                f"{result['input_tokens']} input tokens, "
+                f"{result['output_tokens']} output tokens"
+            )
+    elif probe:
+        print("error: --probe requires --backend BACKEND", file=sys.stderr)
+        return 2
     return 0
-
-
-
-
-
-
 
 
 def _check_skill_version(skill_dst: Path) -> None:
@@ -530,9 +553,10 @@ def main() -> None:
 
 def _run_cli() -> None:
     for _stream in (sys.stdout, sys.stderr):
-        if _stream is not None and hasattr(_stream, "reconfigure"):
+        reconfigure = getattr(_stream, "reconfigure", None)
+        if callable(reconfigure):
             try:
-                _stream.reconfigure(encoding="utf-8", errors="replace")
+                reconfigure(encoding="utf-8", errors="replace")
             except Exception:
                 pass
     # Check all known skill install locations for a stale version stamp.
@@ -655,6 +679,10 @@ def _run_cli() -> None:
         print("    --out DIR               output dir (default: <path>); writes <DIR>/graphify-out/")
         print("    --google-workspace      export .gdoc/.gsheet/.gslides shortcuts via gws before extraction")
         print("    --no-gitignore         ignore .gitignore and .git/info/exclude (prioritizes .graphifyignore)")
+        print("    --directed             preserve directed graph edges")
+        print("    --whisper-model M      override the local transcription model")
+        print("    --llm-trace            emit safe LLM request diagnostics to stderr")
+        print("    --allow-partial        permit degraded semantic output explicitly")
         print("    --no-cluster            skip clustering, write raw extraction only")
         print("    --code-only             index code (local AST, no API key) and skip doc/paper/image files")
         print("    --postgres DSN          extract schema from a live PostgreSQL database")
@@ -672,6 +700,8 @@ def _run_cli() -> None:
         print("  export callflow-html    emit Mermaid-based architecture/call-flow HTML")
         print("  doctor                  print install diagnostics")
         print("    --require-source DIR   fail unless package was installed from DIR")
+        print("    --backend BACKEND      verify backend dependencies")
+        print("    --probe                run a bounded backend probe (requires --backend)")
         print("  hook install            install post-commit/post-checkout git hooks (all platforms)")
         print("  hook uninstall          remove git hooks")
         print("  hook status             check if git hooks are installed")
@@ -749,7 +779,15 @@ def _run_cli() -> None:
     # (e.g. "cursor install --help" was silently installing into Cursor, #821).
     # Exempt: free-text commands (user string may contain these tokens), and
     # "install"/"uninstall" which have their own per-subcommand help handlers.
-    _FREE_TEXT_CMDS = {"query", "explain", "path", "save-result", "install", "uninstall"}
+    _FREE_TEXT_CMDS = {
+        "query",
+        "explain",
+        "path",
+        "save-result",
+        "install",
+        "uninstall",
+        "doctor",
+    }
     if cmd not in _FREE_TEXT_CMDS and any(a in {"-h", "--help", "-?"} for a in sys.argv[2:]):
         print(f"Run 'graphify --help' for full usage.")
         return
@@ -757,24 +795,43 @@ def _run_cli() -> None:
     if cmd == "doctor":
         args = sys.argv[2:]
         require_source = None
+        doctor_backend = None
+        doctor_probe = False
+        usage = "Usage: graphify doctor [--require-source DIR] [--backend BACKEND] [--probe]"
         if args in (["--help"], ["-h"], ["-?"]):
-            print("Usage: graphify doctor [--require-source DIR]")
+            print(usage)
             return
-        if "--require-source" in args:
-            idx = args.index("--require-source")
-            if idx + 1 >= len(args):
-                print("Usage: graphify doctor [--require-source DIR]", file=sys.stderr)
+        idx = 0
+        while idx < len(args):
+            arg = args[idx]
+            if arg == "--require-source":
+                if idx + 1 >= len(args):
+                    print(usage, file=sys.stderr)
+                    sys.exit(2)
+                require_source = args[idx + 1]
+                idx += 2
+            elif arg == "--backend":
+                if idx + 1 >= len(args):
+                    print(usage, file=sys.stderr)
+                    sys.exit(2)
+                doctor_backend = args[idx + 1]
+                idx += 2
+            elif arg.startswith("--backend="):
+                doctor_backend = arg.split("=", 1)[1]
+                idx += 1
+            elif arg == "--probe":
+                doctor_probe = True
+                idx += 1
+            else:
+                print(usage, file=sys.stderr)
                 sys.exit(2)
-            require_source = args[idx + 1]
-            allowed = {"--require-source", require_source}
-            extras = [a for a in args if a not in allowed]
-            if extras:
-                print("Usage: graphify doctor [--require-source DIR]", file=sys.stderr)
-                sys.exit(2)
-        elif args:
-            print("Usage: graphify doctor [--require-source DIR]", file=sys.stderr)
-            sys.exit(2)
-        sys.exit(_doctor(require_source=require_source))
+        sys.exit(
+            _doctor(
+                require_source=require_source,
+                backend=doctor_backend,
+                probe=doctor_probe,
+            )
+        )
 
     if dispatch_install_cli(cmd):
         return
