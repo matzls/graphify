@@ -1,0 +1,223 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-7fc2ab53ebc5",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",
+  "plan_sha256": "7a8742a8fd2298e1c398f9331ca10375aeb0c0481511dc418a3df4e6b0b972fd",
+  "mode": "workflow-plan-gate",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews",
+  "engine": "Claude",
+  "requested_engine": "opposite",
+  "origin_runtime": "codex",
+  "engine_policy": "opposite_preferred",
+  "resolved_primary_engine": "claude",
+  "preferred_engine": "claude",
+  "fallback_engine": null,
+  "final_engine": "claude",
+  "reviewer_match": "opposite",
+  "gate_quality": "preferred",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews/graphify-semantic-cli-reconciliation-recovery-plan-peer-review.json",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "attempt_chain": [
+    {
+      "engine": "claude",
+      "phase": "primary",
+      "attempt": 1,
+      "timeout_seconds": 300,
+      "result": "completed",
+      "elapsed_seconds": 121.981,
+      "returncode": 0
+    }
+  ],
+  "attempt_failures": [],
+  "primary_failure": null,
+  "fallback_failure": null,
+  "review_round": 3,
+  "max_rounds": 3,
+  "prior_review_id": "peer-review-1ea9e81ffc1d",
+  "caller_disposition_summary": "Addressed the remaining WARN by explicitly limiting pyright review to newly introduced or changed touched-file findings; existing repo-wide pyright noise is diagnostic baseline only. Updated plan status from peer-review-blocked to ready-for-approval because the external review has no BLOCK findings.",
+  "addressed_issues": [
+    "uv run pyright step lacks a stated pass/fail threshold given known baseline noise",
+    "Frontmatter status not refreshed after resolving prior-round WARNs"
+  ],
+  "deferred_issues": [],
+  "recheck_requests": [
+    "pyright scope clarification",
+    "ready-for-approval status"
+  ],
+  "model": "claude-sonnet-5",
+  "verdict": "Sound-with-issues",
+  "stance": null,
+  "issues_count": 1,
+  "ran_at": "2026-07-13T11:31:27.501629+00:00",
+  "raw_review_excerpt": "Round-3 freshness check confirms both carried WARNs are resolved in the current plan artifact: the pyright step now explicitly scopes review to new/changed findings in touched files (treating repo-wide baseline noise as diagnostic-only), and the frontmatter status correctly reads ready-for-approval with a matching updated date. One non-blocking handoff-sync issue found: .agent-skills/lifecycle-state.json still shows currentPhase \"track-a-peer-review-retry-required\" and nextAction \"Retry the failed external workflow-plan review,\" which contradicts the plan's now-resolved ready-for-approval status. This does not make the plan document itself unsafe to freeze, but should be synced before/at implementation kickoff to avoid a downstream agent re-triggering an unnecessary review retry.\n\nIssues:\n- 1. [WARN] lifecycle-state.json out of sync with plan frontmatter",
+  "error": null,
+  "closure_verification": "Both round-2 carried WARNs were checked directly against the current plan text rather than accepted from the caller's summary. Pyright scoping language is present and matches the repo's actual (repo-wide) pyright configuration in pyproject.toml, giving it a concrete, checkable threshold (no new/changed findings in touched files). Frontmatter status and updated date are both correct and current. One new, non-blocking synchronization gap was found between the plan frontmatter and .agent-skills/lifecycle-state.json, logged as a fresh WARN rather than a reopened prior issue.",
+  "prior_round_closure": [
+    {
+      "title": "uv run pyright step lacks a stated pass/fail threshold given known baseline noise",
+      "severity": "WARN",
+      "caller_claim": "Addressed by explicitly limiting pyright review to newly introduced or changed touched-file findings; existing repo-wide pyright noise is diagnostic baseline only.",
+      "verification_status": "resolved",
+      "verification_notes": "Confirmed by direct read of plan Slice 4: 'Treat existing repo-wide pyright findings as diagnostic baseline noise; investigate only new or changed findings attributable to this repair in touched files.' This matches pyproject.toml's repo-wide [tool.pyright] include scope, which is exactly the ambiguity the original WARN flagged."
+    },
+    {
+      "title": "Frontmatter status not refreshed after resolving prior-round WARNs",
+      "severity": "WARN",
+      "caller_claim": "Updated plan status from peer-review-blocked to ready-for-approval.",
+      "verification_status": "resolved",
+      "verification_notes": "Confirmed: frontmatter reads 'status: ready-for-approval' with 'updated: 2026-07-13', matching today's date. Note: the separate lifecycle-state.json sidecar was not updated in tandem (see new WARN issue), but that is a distinct artifact from the plan frontmatter itself."
+    }
+  ],
+  "rerun_recommendation": "stop",
+  "review": {
+    "mode": "workflow-plan-gate",
+    "summary": "Round-3 freshness check confirms both carried WARNs are resolved in the current plan artifact: the pyright step now explicitly scopes review to new/changed findings in touched files (treating repo-wide baseline noise as diagnostic-only), and the frontmatter status correctly reads ready-for-approval with a matching updated date. One non-blocking handoff-sync issue found: .agent-skills/lifecycle-state.json still shows currentPhase \"track-a-peer-review-retry-required\" and nextAction \"Retry the failed external workflow-plan review,\" which contradicts the plan's now-resolved ready-for-approval status. This does not make the plan document itself unsafe to freeze, but should be synced before/at implementation kickoff to avoid a downstream agent re-triggering an unnecessary review retry.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "pyright scope + frontmatter status",
+        "claim": "Pyright review is scoped to new/changed touched-file findings only (existing repo-wide findings are diagnostic baseline noise); frontmatter status is ready-for-approval.",
+        "evidence": "Plan body (Slice 4): 'Treat existing repo-wide pyright findings as diagnostic baseline noise; investigate only new or changed findings attributable to this repair in touched files.' Frontmatter: 'status: ready-for-approval', 'updated: 2026-07-13'. Cross-checked against pyproject.toml [tool.pyright] (include=['graphify','tests'], typeCheckingMode='basic'), which is repo-wide and explains why explicit touched-file scoping was necessary.",
+        "disposition": "Both claims verified present in the current artifact; no discrepancy found."
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "evidence coverage by source type",
+        "claim": "Artifact evidence directly supports both carried-issue resolutions; conversation evidence is limited to the prior-round packet; campaign coverage is a slice (this plan doc plus directly implicated repo files only).",
+        "evidence": "Direct reads: plan doc (full text supplied), pyproject.toml, .agent-skills/lifecycle-state.json, first lines of tests/test_cli_semantic_fail_closed.py and tests/test_extract_cli.py.",
+        "disposition": "See disposition_matrix field."
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "review coverage boundaries",
+        "claim": "This review covered the plan document plus its directly implicated sidecar/config files, not the full reconciliation campaign or the actual code repair.",
+        "evidence": "graphify/cli.py, graphify/install.py, graphify/llm.py, and the full test suite were not inspected; the companion readiness plan and Track B materials were not re-read this round.",
+        "disposition": "slice-only, scoped to the requested freshness check"
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "plan doc + pyproject.toml pyright config directly read and matched",
+          "lifecycle-state.json read but its staleness vs. frontmatter noted as WARN",
+          "code files (cli.py/install.py) not read this round"
+        ],
+        [
+          "none - no live conversation transcript supplied",
+          "prior-round packet (peer-review-1ea9e81ffc1d) treated as caller claims and verified against artifact",
+          "full multi-round conversation history not available to this review"
+        ],
+        [
+          "none",
+          "this-round scope (plan doc + directly implicated config/state files) inspected",
+          "broader Track A/Track B campaign and companion readiness plan not re-reviewed"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": true,
+      "sources": [
+        "prior-round packet (peer-review-1ea9e81ffc1d) supplied in caller disposition summary"
+      ],
+      "summary": "The prior-round packet's two claimed fixes (pyright threshold ambiguity, stale frontmatter status) were treated as hypotheses and checked directly against the current plan artifact rather than accepted at face value.",
+      "gaps": [
+        "No raw conversation transcript from rounds 1-2 was available, only the caller's summarized disposition."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md (full text)",
+        "pyproject.toml [tool.pyright] and [tool.pytest.ini_options] sections",
+        ".agent-skills/lifecycle-state.json",
+        "existence/opening lines of tests/test_cli_semantic_fail_closed.py and tests/test_extract_cli.py"
+      ],
+      "missing": [
+        "graphify/cli.py, graphify/install.py, graphify/llm.py (the actual repair targets)",
+        "full test suite contents",
+        "companion plan docs/plans/graphify-upstream-reconciliation-readiness-plan.md",
+        "actual uv run pyright / pytest execution output (this is a pre-implementation plan-gate review, not an execution audit)"
+      ],
+      "gaps": [
+        "This review validates the plan document's stated intentions and frontmatter/state consistency, not whether the eventual implementation will actually satisfy the pyright/test thresholds described."
+      ]
+    },
+    "issues": [
+      {
+        "title": "lifecycle-state.json out of sync with plan frontmatter",
+        "details": ".agent-skills/lifecycle-state.json still shows currentPhase 'track-a-peer-review-retry-required' and nextAction 'Retry the failed external workflow-plan review for Track A before requesting or starting implementation,' while the plan's own frontmatter now reads status: ready-for-approval. A downstream agent or operator consulting the sidecar state (the documented source for 'next action') would be told to retry a review that this artifact claims is already resolved.",
+        "suggested_fix": "Update lifecycle-state.json's currentPhase/nextAction to reflect the resolved peer-review status before or at the moment the plan is approved, consistent with the plan's own Slice 5 instruction to keep plan status and lifecycle-state.json synchronized.",
+        "severity": "WARN"
+      }
+    ],
+    "verification_gaps": [
+      "No execution evidence (actual uv run pyright or pytest output) exists yet to confirm the scoped-pyright approach works in practice; that is expected at this plan-gate stage, not a defect.",
+      "lifecycle-state.json sync timing (before approval vs. at approval) is not specified anywhere."
+    ],
+    "recommended_fixes": [
+      "Sync .agent-skills/lifecycle-state.json currentPhase/nextAction to match the plan's ready-for-approval status before treating Track A as unblocked for implementation."
+    ],
+    "evidence_sources": [
+      "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md (embedded document text)",
+      "/Users/mase/Codebase/Personal-Projects/graphify/.agent-skills/lifecycle-state.json",
+      "/Users/mase/Codebase/Personal-Projects/graphify/pyproject.toml",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_cli_semantic_fail_closed.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_extract_cli.py"
+    ],
+    "error": null,
+    "verdict": "Sound-with-issues",
+    "workflow_compliance": [
+      "Plan frontmatter includes required fields (title, kind, status, canonicality, created/updated, source_of_truth, related, tags) and correctly reflects the requested status transition to ready-for-approval.",
+      "Scope, out-of-scope, risks/stop-gates, acceptance criteria, and Definition of Done sections are all present and internally consistent with the pyright-scoping change.",
+      "Verify commands (pytest suites, combined regression command, uv run pyright) reference test files confirmed to exist in the repo and a pyright config confirmed present in pyproject.toml."
+    ],
+    "technical_reality": [
+      "pyproject.toml [tool.pyright] scopes include=['graphify','tests'] with typeCheckingMode='basic', i.e. `uv run pyright` runs repo-wide by default, which is exactly the condition the plan's new scoping sentence is designed to handle.",
+      "tests/test_cli_semantic_fail_closed.py and tests/test_extract_cli.py exist in the repo, so the two focused verify commands target real files.",
+      "lifecycle-state.json's currentPhase/nextAction were last updated 2026-07-13 but still describe a pre-fix state ('peer-review-retry-required'), indicating it was not touched in the same edit that updated the plan frontmatter."
+    ],
+    "assumptions_to_verify": [
+      "That 'investigate only new or changed findings attributable to this repair in touched files' will be operationally treated as a hard gate (must resolve or explicitly justify) rather than an optional advisory step during actual implementation.",
+      "That lifecycle-state.json will in fact be updated per the plan's own Slice 5 instruction once this round's findings are closed out."
+    ],
+    "verification_sufficiency": [
+      "Sufficient for the narrow freshness-check scope requested: both specific claims (pyright scope wording, frontmatter status) were directly read and confirmed present and accurate in the current artifact.",
+      "Not sufficient to certify the broader plan's feasibility beyond this round's two targeted claims, since code files and companion plan docs were not re-reviewed this round (consistent with prior rounds presumably already covering that ground)."
+    ],
+    "downstream_risks": [
+      "A future agent reading lifecycle-state.json instead of the plan frontmatter could re-trigger an unnecessary peer-review retry, wasting a review cycle.",
+      "The 'investigate' wording for new/changed pyright findings has no explicit escalation path if an investigation surfaces a real regression; low risk since Slice 3 already requires not weakening assertions to force a pass, but worth operator awareness during implementation."
+    ],
+    "freeze_recommendation": "Safe to freeze. Carry the remaining WARN/NOTE items as explicit follow-ups or implementation-time checks.",
+    "prior_round_closure": [
+      {
+        "title": "uv run pyright step lacks a stated pass/fail threshold given known baseline noise",
+        "severity": "WARN",
+        "caller_claim": "Addressed by explicitly limiting pyright review to newly introduced or changed touched-file findings; existing repo-wide pyright noise is diagnostic baseline only.",
+        "verification_status": "resolved",
+        "verification_notes": "Confirmed by direct read of plan Slice 4: 'Treat existing repo-wide pyright findings as diagnostic baseline noise; investigate only new or changed findings attributable to this repair in touched files.' This matches pyproject.toml's repo-wide [tool.pyright] include scope, which is exactly the ambiguity the original WARN flagged."
+      },
+      {
+        "title": "Frontmatter status not refreshed after resolving prior-round WARNs",
+        "severity": "WARN",
+        "caller_claim": "Updated plan status from peer-review-blocked to ready-for-approval.",
+        "verification_status": "resolved",
+        "verification_notes": "Confirmed: frontmatter reads 'status: ready-for-approval' with 'updated: 2026-07-13', matching today's date. Note: the separate lifecycle-state.json sidecar was not updated in tandem (see new WARN issue), but that is a distinct artifact from the plan frontmatter itself."
+      }
+    ],
+    "closure_verification": "Both round-2 carried WARNs were checked directly against the current plan text rather than accepted from the caller's summary. Pyright scoping language is present and matches the repo's actual (repo-wide) pyright configuration in pyproject.toml, giving it a concrete, checkable threshold (no new/changed findings in touched files). Frontmatter status and updated date are both correct and current. One new, non-blocking synchronization gap was found between the plan frontmatter and .agent-skills/lifecycle-state.json, logged as a fresh WARN rather than a reopened prior issue.",
+    "rerun_recommendation": "stop"
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-35c151383346",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/graphify-upstream-reconciliation-readiness-plan.md",
+  "plan_sha256": "ecd2da0f5823e16301ad0babdc0cfff78ccfa4a6d10c3a9feee07c304137331e",
+  "mode": "workflow-plan-gate",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews",
+  "engine": "Claude",
+  "requested_engine": "opposite",
+  "origin_runtime": "codex",
+  "engine_policy": "opposite_preferred",
+  "resolved_primary_engine": "claude",
+  "preferred_engine": "claude",
+  "fallback_engine": null,
+  "final_engine": "claude",
+  "reviewer_match": "opposite",
+  "gate_quality": "preferred",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews/graphify-upstream-reconciliation-readiness-plan-peer-review.json",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "attempt_chain": [
+    {
+      "engine": "claude",
+      "phase": "primary",
+      "attempt": 1,
+      "timeout_seconds": 300,
+      "result": "completed",
+      "elapsed_seconds": 83.193,
+      "returncode": 0
+    }
+  ],
+  "attempt_failures": [],
+  "primary_failure": null,
+  "fallback_failure": null,
+  "review_round": 2,
+  "max_rounds": 3,
+  "prior_review_id": "peer-review-018f9f89ec4b",
+  "caller_disposition_summary": "Addressed WARN: Phase 1 now explicitly captures git stash list. Addressed NOTE: Slice 1 now requires recording one of three explicit ownership outcomes, exact path, and test command before Slice 2. Deferred only the exact future validation commands because they depend on the verified owner.",
+  "addressed_issues": [
+    "Phase 1 evidence list does not explicitly require stash-list capture",
+    "Existence of a discoverable shared OSS fork-manager codebase is unverified"
+  ],
+  "deferred_issues": [
+    "Slice 4 validation command is intentionally underspecified at design stage"
+  ],
+  "recheck_requests": [
+    "stash-list capture",
+    "ownership-discovery outcome"
+  ],
+  "model": "claude-sonnet-5",
+  "verdict": "Sound-with-issues",
+  "stance": null,
+  "issues_count": 1,
+  "ran_at": "2026-07-13T10:41:46.547206+00:00",
+  "raw_review_excerpt": "Both re-checked fixes are verifiably present in the current plan text: Phase 1 now explicitly lists `git stash list` as required evidence, and Slice 1 now mandates recording one of three closed ownership-discovery outcomes (with exact path/test command when found) before any Slice 2 work. No BLOCK-level issue was found. The only remaining item is the intentionally deferred Slice 4 validation-command detail, which is a reasonable design-stage deferral (NOTE, not blocking). The plan is safe to freeze at design-gate.\n\nIssues:\n- 1. [NOTE] Slice 4 validation command remains underspecified",
+  "error": null,
+  "closure_verification": "Checked the current document text directly (not the caller's summary) for both items. (1) Phase 1 required-evidence bullet list now reads: \\\"branch, HEAD, remotes, dirty/staged/untracked state, `git stash list`, ahead/behind state, and existing rebase/merge/cherry-pick state\\\" \u2014 stash-list capture is explicit and mandatory. (2) Slice 1 step 2 now reads: \\\"Record the ownership-discovery result before any Slice 2 work: `found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, or `new shared component explicitly approved`. Record its exact path and test command when found.\\\" \u2014 this is an explicit, closed set of three outcomes with a recording requirement gating Slice 2, matching the caller's claim.",
+  "prior_round_closure": [
+    {
+      "title": "Phase 1 evidence list does not explicitly require stash-list capture",
+      "severity": "WARN",
+      "caller_claim": "Addressed: Phase 1 now explicitly captures git stash list.",
+      "verification_status": "resolved",
+      "verification_notes": "Confirmed in Phase 1 required-evidence bullet: \"...dirty/staged/untracked state, `git stash list`, ahead/behind state...\" is present verbatim in the current artifact."
+    },
+    {
+      "title": "Existence of a discoverable shared OSS fork-manager codebase is unverified",
+      "severity": "NOTE",
+      "caller_claim": "Addressed: Slice 1 now requires recording one of three explicit ownership outcomes, exact path, and test command before Slice 2.",
+      "verification_status": "resolved",
+      "verification_notes": "Confirmed in Slice 1 step 2: three closed outcomes (`found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, `new shared component explicitly approved`) with a requirement to record exact path and test command when found, gating Slice 2. The underlying real-world existence of such an owner remains genuinely unknown until executed, but the plan-level fix required was procedural recording, which is now present."
+    },
+    {
+      "title": "Slice 4 validation command is intentionally underspecified at design stage",
+      "severity": "NOTE",
+      "caller_claim": "Deferred because exact future validation commands depend on the verified owner.",
+      "verification_status": "still-open",
+      "verification_notes": "This is an accepted, reasonable deferral rather than an outstanding defect \u2014 the plan cannot name a concrete test command before Slice 1 identifies the owner. Left open by design; does not block freeze and does not require another review cycle by itself."
+    }
+  ],
+  "rerun_recommendation": "stop",
+  "review": {
+    "assumptions_to_verify": [
+      "That the confirmed shared OSS fork-manager owner (if one exists) will actually surface during Slice 1 execution and not require a fourth outcome category beyond the three listed",
+      "That Track A (semantic CLI recovery) reaches a validation-clean state before Slice 2 implementation begins, as the plan requires but does not itself enforce mechanically"
+    ],
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "Phase 1 required-evidence list (stash-list capture)",
+        "Slice 1 ownership-discovery-outcome recording requirement"
+      ],
+      "missing": [
+        "Full re-read of Phases 0/2/3 and Slices 2-4 for issues unrelated to the two flagged fixes",
+        "Any live conversation/thread beyond the supplied prior-round packet"
+      ],
+      "gaps": [
+        "This round was explicitly scoped to the two named re-check items plus a general no-blockers confirmation; a full plan audit was not performed"
+      ]
+    },
+    "closure_verification": "Checked the current document text directly (not the caller's summary) for both items. (1) Phase 1 required-evidence bullet list now reads: \\\"branch, HEAD, remotes, dirty/staged/untracked state, `git stash list`, ahead/behind state, and existing rebase/merge/cherry-pick state\\\" \u2014 stash-list capture is explicit and mandatory. (2) Slice 1 step 2 now reads: \\\"Record the ownership-discovery result before any Slice 2 work: `found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, or `new shared component explicitly approved`. Record its exact path and test command when found.\\\" \u2014 this is an explicit, closed set of three outcomes with a recording requirement gating Slice 2, matching the caller's claim.",
+    "conversation_evidence": {
+      "used": true,
+      "sources": [
+        "Prior-round packet peer-review-018f9f89ec4b (caller disposition summary supplied in this task's context)"
+      ],
+      "summary": "The only conversation-layer evidence available is the prior review round's packet, which is treated per protocol as caller claims to verify, not as ground truth. No live multi-turn thread was provided beyond this.",
+      "gaps": [
+        "No access to the actual round-1 review text (only the caller's paraphrased disposition summary) to confirm the original WARN/NOTE wording verbatim"
+      ]
+    },
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "stash-list evidence bullet; explicit 3-outcome ownership-discovery recording gate",
+          "Slice 4 validation command left underspecified (acknowledged design-time deferral)",
+          "none identified as missing at BLOCK level"
+        ],
+        [
+          "prior-round packet claims cross-checked against current text",
+          "none",
+          "original round-1 raw review text not available, only caller paraphrase"
+        ],
+        [
+          "none",
+          "two-fix re-check plus general no-blockers scan of full document",
+          "full multi-slice/phase re-audit beyond the two flagged fixes"
+        ]
+      ]
+    },
+    "downstream_risks": [
+      "If Slice 1 ownership discovery finds no shared owner and Graphify-only overlay is approved by default without genuine escalation to Mase, scope creep back into Graphify-owned Git mechanics could recur later",
+      "Deferred Slice 4 validation command could be under-specified enough at implementation time to cause rework if the discovered owner's test tooling is unconventional"
+    ],
+    "error": null,
+    "evidence_sources": [
+      "Embedded plan text: docs/plans/graphify-upstream-reconciliation-readiness-plan.md (Phase 1 required-evidence list, Slice 1 steps 1-2)"
+    ],
+    "freeze_recommendation": "Safe to freeze. Carry the remaining WARN/NOTE items as explicit follow-ups or implementation-time checks.",
+    "issues": [
+      {
+        "title": "Slice 4 validation command remains underspecified",
+        "details": "Slice 4 step 2 says to \"Run the full affected owner/Graphify CLI suite plus the project regression suite named in Track A\" without naming exact commands, because they depend on the shared-owner outcome discovered in Slice 1. This is a reasonable design-stage deferral, not a defect, since the owner is unknown until Slice 1 executes.",
+        "suggested_fix": "No action required now. When Slice 1 completes and the owner is recorded, amend Slice 4 (or the intake artifact template) with the concrete test command(s) tied to that owner before Slice 4 begins.",
+        "severity": "NOTE"
+      }
+    ],
+    "mode": "workflow-plan-gate",
+    "prior_round_closure": [
+      {
+        "title": "Phase 1 evidence list does not explicitly require stash-list capture",
+        "severity": "WARN",
+        "caller_claim": "Addressed: Phase 1 now explicitly captures git stash list.",
+        "verification_status": "resolved",
+        "verification_notes": "Confirmed in Phase 1 required-evidence bullet: \"...dirty/staged/untracked state, `git stash list`, ahead/behind state...\" is present verbatim in the current artifact."
+      },
+      {
+        "title": "Existence of a discoverable shared OSS fork-manager codebase is unverified",
+        "severity": "NOTE",
+        "caller_claim": "Addressed: Slice 1 now requires recording one of three explicit ownership outcomes, exact path, and test command before Slice 2.",
+        "verification_status": "resolved",
+        "verification_notes": "Confirmed in Slice 1 step 2: three closed outcomes (`found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, `new shared component explicitly approved`) with a requirement to record exact path and test command when found, gating Slice 2. The underlying real-world existence of such an owner remains genuinely unknown until executed, but the plan-level fix required was procedural recording, which is now present."
+      },
+      {
+        "title": "Slice 4 validation command is intentionally underspecified at design stage",
+        "severity": "NOTE",
+        "caller_claim": "Deferred because exact future validation commands depend on the verified owner.",
+        "verification_status": "still-open",
+        "verification_notes": "This is an accepted, reasonable deferral rather than an outstanding defect \u2014 the plan cannot name a concrete test command before Slice 1 identifies the owner. Left open by design; does not block freeze and does not require another review cycle by itself."
+      }
+    ],
+    "recommended_fixes": [],
+    "rerun_recommendation": "stop",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "Phase 1 required-evidence list; Slice 1 step 2",
+        "claim": "Both re-checked fixes (stash-list capture, ownership-discovery outcome recording) are present in the current plan text.",
+        "evidence": "Direct quotes from the embedded artifact: \"`git stash list`\" in Phase 1 evidence bullet; \"Record the ownership-discovery result before any Slice 2 work: `found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, or `new shared component explicitly approved`. Record its exact path and test command when found.\" in Slice 1.",
+        "disposition": "present"
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "3x3 grid across artifact/conversation/campaign",
+        "claim": "Artifact-level fixes are present; conversation evidence is limited to the supplied prior-round packet; campaign coverage this round was intentionally slice-only.",
+        "evidence": "See disposition_matrix field.",
+        "disposition": "present/partial mix, no missing at BLOCK level"
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "Task instruction: 'Recheck the two fixes only'",
+        "claim": "This review is a targeted slice-only re-check of two named items plus a general no-blockers scan, not a full re-audit of every phase and slice.",
+        "evidence": "Task framing explicitly scoped review to the two fixes; full document was read but not exhaustively re-litigated beyond confirming no new BLOCK-level issues.",
+        "disposition": "partial (by design)"
+      }
+    ],
+    "summary": "Both re-checked fixes are verifiably present in the current plan text: Phase 1 now explicitly lists `git stash list` as required evidence, and Slice 1 now mandates recording one of three closed ownership-discovery outcomes (with exact path/test command when found) before any Slice 2 work. No BLOCK-level issue was found. The only remaining item is the intentionally deferred Slice 4 validation-command detail, which is a reasonable design-stage deferral (NOTE, not blocking). The plan is safe to freeze at design-gate.",
+    "technical_reality": [
+      "Phase 1's required-evidence list explicitly names `git stash list` alongside branch/HEAD/remotes/dirty-state/ahead-behind/rebase-state.",
+      "Slice 1 step 2 defines a closed 3-way ownership-discovery outcome set and requires recording it, plus exact path and test command when a shared owner is found, gating all Slice 2 work.",
+      "Slice 4's exact validation command is deliberately left to be filled in once the Slice 1 owner is known \u2014 an internally consistent design-stage sequencing choice, not a gap in the current document."
+    ],
+    "verdict": "Sound-with-issues",
+    "verification_gaps": [
+      "Real-world existence of a shared OSS fork-manager owner is still unverified in fact (only the plan's procedure for recording the discovery outcome was the thing required to be fixed, and that is now in place)",
+      "No access to the verbatim round-1 review text, only the caller's paraphrase, to confirm the original WARN/NOTE wording matches exactly"
+    ],
+    "verification_sufficiency": [
+      "Sufficient for the narrow, explicitly requested re-check: both named fixes were located verbatim in the current artifact and matched against the caller's claims.",
+      "Not a full-document re-audit; scope was intentionally limited to the two flagged items plus a general no-blockers scan, per task instructions."
+    ],
+    "workflow_compliance": [
+      "Plan correctly frames itself as design-ready, not implementation approval, and gates Slice 2+ on Track A validation cleanliness and explicit ownership discovery.",
+      "Read-only intake (Phase 1) is clearly separated from acquisition (Phase 0) and mutation (Phase 2), consistent with the stated safety-gate objective.",
+      "Acceptance Criteria and Definition of Done sections are concrete and testable at a design level, appropriate for a design-gate artifact."
+    ]
+  }
+}
