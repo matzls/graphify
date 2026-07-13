@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "activeTaskId": "graphify-reconciliation-recovery-and-readiness-2026-07",
+  "tasks": {
+    "graphify-reconciliation-recovery-and-readiness-2026-07": {
+      "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
+      "status": "active",
+      "currentLane": "planning-and-task-breakdown",
+      "currentPhase": "plans-ready-awaiting-execution-approval",
+      "enteredLaneBecause": "The completed upstream rebase has unresolved targeted validation and the requested reusable process hardening crosses repository and shared fork-manager boundaries.",
+      "exitCriteria": [
+        "Track A's workflow-plan peer review is fresh and has no material blockers, or Mase explicitly approves bypassing that gate.",
+        "Track A has a passing focused and combined regression baseline or all residual failures are explicitly escalated.",
+        "Track B ownership is decided after inventorying the shared OSS fork-manager surface.",
+        "Mase explicitly authorizes the selected implementation envelope; planning alone does not authorize mutations."
+      ],
+      "nextAction": "Obtain explicit implementation authority for Track A; then re-verify branch/worktree state and run its two focused semantic CLI suites before editing.",
+      "nextRecommendedLane": "incremental-implementation",
+      "artifacts": [
+        "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",
+        "docs/plans/graphify-upstream-reconciliation-readiness-plan.md",
+        "docs/mase-fork-operating-model.md"
+      ],
+      "approvalGates": [
+        "Do not start another rebase, fetch, pull, reset, abort, push, active-CLI reinstall, or consumer-repo propagation without explicit authority.",
+        "Track A must be validation-clean before a fresh upstream reconciliation is considered.",
+        "Track B automation is conditional on confirming the canonical shared OSS fork-manager owner; do not assume a Graphify CLI command is the right shared solution.",
+        "Local commits require a separate explicit commit-capable workflow or request."
+      ],
+      "lastUpdated": "2026-07-13"
+    }
+  }
+}

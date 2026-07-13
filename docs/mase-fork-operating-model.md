@@ -8,8 +8,9 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-07-02
+updated: 2026-07-13
 last_verified: 2026-07-02
+reconciliation_status: "semantic CLI recovery pending targeted validation; no new intake authorized"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -109,13 +110,41 @@ git diff --name-status upstream/v8..HEAD
 git log --oneline --decorate --max-count=12
 ```
 
-## Upstream Release Review Gate
+## Upstream Release Review and Readiness Gate
 
-Before rebasing local fixes onto a newer upstream branch, follow the global OSS
-fork manager upstream-intake workflow, including its dry-run, release impact
-memo, feature adoption matrix, and operator briefing requirements. This document
-adds Graphify-specific surfaces and validation expectations; it does not replace
-the shared process for Mase-managed OSS forks.
+Before rebasing local fixes onto a newer upstream branch, use the global OSS
+fork-manager upstream-intake workflow. This document adds Graphify-specific
+surfaces and validation expectations; it does not replace the shared process or
+assume that a Graphify CLI command is its canonical implementation.
+
+The required sequence is:
+
+1. **Acquire deliberately.** `git fetch upstream` changes remote-tracking refs
+   and uses the network, so it is a separately reported action—not part of
+   default intake. Record the old/new target SHA and run `git remote set-head
+   upstream -a` only when fetch is authorized.
+2. **Run read-only intake.** Capture branch/HEAD, worktree and in-progress Git
+   state, selected immutable target SHA, merge base/range, baseline-test result,
+   release-tag range, local-patch inventory, and release-impact/adoption matrix.
+   Default intake must not checkout, rebase, stash, reset, install the active
+   CLI, run extraction, or propagate consumer repositories.
+3. **Record an explicit decision.** Missing release evidence, a dirty or
+   unclassified worktree, unresolved baseline failures, stale refs, or absent
+   patch/adoption decisions are `NO-GO` by default. An intake report is evidence,
+   not authorization to mutate.
+4. **Apply only explicitly.** A mutation path must recheck branch, worktree,
+   local HEAD, and target SHA immediately before acting, and require explicit
+   operator approval plus an apply flag or equivalently deliberate command.
+   It must never auto-stash, reset, push, reinstall, or propagate.
+5. **Validate and stage.** After the approved reconciliation, run targeted
+   regression checks, verify the active install only when authorized, audit,
+   canary, re-audit, and give the operator briefing below before broad
+   propagation.
+
+Until the shared OSS fork-manager owner is inventoried and an enforcement design
+is approved, the durable Graphify-specific plan is
+`docs/plans/graphify-upstream-reconciliation-readiness-plan.md`. Follow the
+manual gate above rather than inventing or claiming an unimplemented command.
 
 Inspect the GitHub release pages for every incoming tag between the current
 local mirror and the target upstream head:
@@ -129,29 +158,22 @@ For each relevant item, compare upstream's claim to:
 
 - current local patch goals in this document and `AGENTS.md`
 - accepted or pending plans in `docs/plans/`
-- git history for the touched files, especially `graphify/__main__.py`,
-  `graphify/watch.py`, `graphify/transcribe.py`, and their tests
+- git history for the touched files, especially `graphify/cli.py`,
+  `graphify/install.py`, `graphify/watch.py`, `graphify/transcribe.py`, and
+  their tests
 - recent operator history or session notes when they are available in the
   active task context
 
-Classify each overlap before rebasing or after the first conflict:
-
-- Keep: local behavior is still Mase-specific or intentionally stricter.
-- Drop: upstream now contains the same fix and the local commit is redundant.
-- Adapt: upstream fixed the general product issue, but Mase's Codex runtime or
-  installed-skill guidance still needs a local overlay.
-- Defer: upstream added a feature that is not needed for Mase's active workflow.
-
-Pay special attention to release bullets about Codex hooks, `AGENTS.md`,
-skill files, output paths, cache roots, graph freshness, and install commands.
-Those areas overlap with this fork's local operating model and are easy to
-misreport if the release page is not checked.
+Classify local overlap as `keep`, `drop`, `adapt`, `defer`, or `reject`; classify
+upstream feature adoption as `automatic`, `adapt`, `opt-in`, `defer`, or
+`reject`. If an incoming release only improves correctness or performance and
+requires no setting or workflow change, state that plainly.
 
 For Graphify, the release impact memo should explicitly inspect these surfaces
 when touched by the incoming release:
 
-- CLI flags/help and command routing in `graphify/__main__.py`, especially
-  `extract`, `update`, `cluster-only`, `codex`, `hook`, `install`, and `doctor`.
+- CLI flags/help and command routing in `graphify/cli.py`, especially `extract`,
+  `update`, `cluster-only`, `codex`, `hook`, `install`, and `doctor`.
 - Backend and semantic extraction behavior in `graphify/llm.py`, including
   provider routing, retry/degraded-output handling, trace output, and cache use.
 - Graph freshness behavior in `graphify/watch.py`, `graphify/hooks.py`, and
@@ -162,11 +184,6 @@ when touched by the incoming release:
   `graphify-out/`.
 - Optional dependency or install-extra changes that affect Mase's active
   `uv tool install --force --reinstall` command.
-
-Classify each relevant upstream feature or behavior change as `automatic`,
-`adapt`, `opt-in`, `defer`, or `reject`. If an incoming release only improves
-correctness or performance and requires no setting or workflow change, say that
-plainly and separate it from features that need deliberate opt-in.
 
 ## Upstream Reconciliation Briefing
 

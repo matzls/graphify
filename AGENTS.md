@@ -122,31 +122,43 @@ sending repo content itself.
 
 ## Upstream Sync
 
-To take upstream changes while preserving local fixes:
+To take upstream changes while preserving local fixes, use the mandatory
+sequence in `docs/mase-fork-operating-model.md` and the shared OSS fork-manager
+owner once identified. The default is **read-only intake**, not a rebase.
 
-Before rebasing, follow the global OSS fork manager upstream-intake workflow:
-run or inspect the dry-run/handoff, prepare a release impact memo, and classify
-feature adoption as automatic, adapted, opt-in, deferred, or rejected. Review the
-upstream GitHub release pages for every tag being pulled in. Match release-note
-bullets and linked issues against this repo's local patch goals,
-`docs/mase-fork-operating-model.md`, `docs/plans/`, and the relevant git
-history. Treat overlaps as explicit decisions:
+1. Treat `git fetch upstream` as a separately authorized network/ref mutation;
+   report old/new target SHAs and do not conflate it with intake.
+2. Before any checkout or rebase, capture a readiness packet: branch/HEAD,
+   worktree and active Git-operation state, immutable target SHA, baseline-test
+   evidence, release-tag/URL evidence, local-patch inventory, and release-impact
+   plus adoption decisions.
+3. Missing evidence, dirty/unclassified state, unresolved baseline failures,
+   stale refs, or missing patch decisions are `NO-GO` by default. The packet is
+   not authority to mutate.
+4. Only after explicit operator go/no-go and an immediate state recheck may an
+   apply command checkout, merge, or rebase. It must never auto-stash, reset,
+   abort a Git operation, push, reinstall, or propagate.
 
-- keep the local patch if it still adds Mase-specific behavior
-- drop it if upstream now contains the same fix
-- adapt it if upstream fixed the general case but Mase's Codex setup still
-  needs local guidance
-- defer or reject upstream features when they are not needed, conflict with
-  Mase's local workflow, or require an unapproved opt-in
+Review the upstream GitHub release pages for every incoming tag. Match
+release-note bullets and linked issues against this repo's patch goals,
+`docs/mase-fork-operating-model.md`, `docs/plans/`, and relevant Git history.
+Classify local overlap as `keep`, `drop`, `adapt`, `defer`, or `reject`; classify
+feature adoption as `automatic`, `adapt`, `opt-in`, `defer`, or `reject`.
+
+After approved intake, the current manual recovery sequence is:
 
 ```bash
-git fetch upstream
-git remote set-head upstream -a
-git checkout mirror/upstream-v8
+git checkout upstream-v8
 git merge --ff-only upstream/v8
 git checkout mase/local-fixes
-git rebase mirror/upstream-v8
+git rebase upstream-v8
 uv run --with pytest pytest tests/test_watch.py tests/test_transcribe.py tests/test_hooks.py
+```
+
+Do not run the active-CLI reinstall until the relevant reconciliation validation
+is clean and Mase explicitly authorizes that environment mutation:
+
+```bash
 uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graphify \
   --with openai \
   --with tiktoken \
@@ -154,6 +166,7 @@ uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graph
   --with yt-dlp \
   --with watchdog \
   --with tree-sitter-sql
+graphify doctor --require-source /Users/mase/Codebase/Personal-Projects/graphify
 ```
 
 After a reconciliation that changes graph IDs, cache/output formats, install
