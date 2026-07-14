@@ -6,14 +6,15 @@
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
       "status": "active",
       "currentLane": "planning-and-task-breakdown",
-      "currentPhase": "track-a-complete-track-b-owner-discovery-awaiting-authorization",
+      "currentPhase": "track-b-owner-confirmed-refinement-and-guardrail-blocked",
       "enteredLaneBecause": "The completed upstream rebase has unresolved targeted validation and the requested reusable process hardening crosses repository and shared fork-manager boundaries.",
       "exitCriteria": [
         "Track A is validation-clean, independently reviewed, and its active CLI is reinstalled and source-verified.",
-        "Track B ownership is decided after inventorying the shared OSS fork-manager surface.",
-        "Mase explicitly authorizes any Track B implementation envelope; planning alone does not authorize mutations."
+        "Track B shared-owner design is refined and peer-reviewed with Graphify-specific mirror and apply-policy conflicts resolved.",
+        "Deterministic fixture coverage validates read-only intake and guarded apply refusal before any real reconciliation.",
+        "Mase explicitly authorizes any Track B mutation/apply envelope; planning alone does not authorize mutations."
       ],
-      "nextAction": "Track A is complete. Await separate authorization to inventory the canonical shared OSS fork-manager owner before any Track B automation design or implementation.",
+      "nextAction": "Refine and re-review the shared my-oss-fork-manager intake/apply design: normalize Graphify mirror policy and remove Graphify-incompatible automatic abort/reset recovery before implementation.",
       "nextRecommendedLane": "planning-and-task-breakdown",
       "artifacts": [
         "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",

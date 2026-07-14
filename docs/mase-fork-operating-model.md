@@ -141,9 +141,9 @@ The required sequence is:
    canary, re-audit, and give the operator briefing below before broad
    propagation.
 
-Until the shared OSS fork-manager owner is inventoried and an enforcement design
-is approved, the durable Graphify-specific plan is
-`docs/plans/graphify-upstream-reconciliation-readiness-plan.md`. Follow the
+The shared OSS fork-manager owner is identified, but its Graphify-specific
+enforcement design remains refinement-required. The durable plan is
+`docs/plans/graphify-upstream-reconciliation-readiness-plan.md`; follow the
 manual gate above rather than inventing or claiming an unimplemented command.
 
 Inspect the GitHub release pages for every incoming tag between the current
