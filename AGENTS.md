@@ -47,9 +47,12 @@ uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graph
   --with yt-dlp \
   --with watchdog \
   --with tree-sitter-sql
+graphify pi install
 ```
 
-Verify the active tool still points to this checkout before bootstrapping
+`graphify pi install` refreshes Mase's global Pi Graphify skill and version
+stamp from this checkout. Verify the active tool still points to this checkout
+before bootstrapping
 Graphify in another repo:
 
 ```bash
@@ -166,6 +169,7 @@ uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graph
   --with yt-dlp \
   --with watchdog \
   --with tree-sitter-sql
+graphify pi install
 graphify doctor --require-source /Users/mase/Codebase/Personal-Projects/graphify
 ```
 

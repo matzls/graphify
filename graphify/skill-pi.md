@@ -80,6 +80,7 @@ if [ -z "$GRAPHIFY_BIN" ]; then
     echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
     echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
     echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    echo "graphify pi install" >&2
     exit 1
 fi
 
@@ -89,10 +90,11 @@ if ! graphify doctor \
     >"$DOCTOR_LOG" 2>&1; then
     cat "$DOCTOR_LOG" >&2
     rm -f "$DOCTOR_LOG"
-    echo "Reinstall graphify from Mase's local fork, then retry:" >&2
+    echo "Reinstall graphify from Mase's local fork, then refresh Pi's global skill and retry:" >&2
     echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
     echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
     echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    echo "graphify pi install" >&2
     exit 1
 fi
 rm -f "$DOCTOR_LOG"
@@ -100,10 +102,11 @@ rm -f "$DOCTOR_LOG"
 PYTHON=$(head -1 "$GRAPHIFY_BIN" | sed 's/^#!//')
 if [ -z "$PYTHON" ] || ! "$PYTHON" -c "import graphify" 2>/dev/null; then
     echo "Could not resolve graphify's Python interpreter from $GRAPHIFY_BIN." >&2
-    echo "Reinstall graphify from Mase's local fork, then retry:" >&2
+    echo "Reinstall graphify from Mase's local fork, then refresh Pi's global skill and retry:" >&2
     echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
     echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
     echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
+    echo "graphify pi install" >&2
     exit 1
 fi
 

@@ -229,9 +229,10 @@ without the combined suite is not complete.
 - Two fresh-context reviews approved the final diff, including the
   cache-checkpoint integrity regression.
 - On 2026-07-13, Mase authorized a `uv tool install --force --reinstall` from
-  this checkout. `graphify doctor --require-source` verified active CLI version
-  `0.9.13` and install source
-  `/Users/mase/Codebase/Personal-Projects/graphify`.
+  this checkout. `graphify pi install` refreshed the global Pi Graphify skill;
+  its `0.9.13` stamp and content match the packaged `skill-pi.md` source.
+  `graphify doctor --require-source` verified active CLI version `0.9.13` and
+  install source `/Users/mase/Codebase/Personal-Projects/graphify`.
 
 At evidence capture, the worktree was intentionally uncommitted; no rebase,
 fetch, push, source-repository self-analysis, or consumer-repository

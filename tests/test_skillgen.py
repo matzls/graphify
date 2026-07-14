@@ -269,6 +269,17 @@ def test_cli_skills_use_local_fork_install_and_cli_update_reference():
         assert "Step 3A" not in update
 
 
+def test_pi_cli_skill_reinstall_guidance_refreshes_only_pi_skill():
+    """Pi's generated recovery path refreshes its global skill, not Codex's."""
+    pi_core, _pi_refs = _platform_artifacts("pi")
+    codex_core, _codex_refs = _platform_artifacts("codex")
+
+    assert "then refresh Pi's global skill and retry:" in pi_core
+    assert 'echo "graphify pi install" >&2' in pi_core
+    assert "then refresh Pi's global skill and retry:" not in codex_core
+    assert 'echo "graphify pi install" >&2' not in codex_core
+
+
 def test_cli_skills_keep_cross_repo_guidance_on_ollama_default():
     """Multi-subfolder direct CLI guidance must not drift to API-key routing."""
     for key in ("pi", "codex"):
