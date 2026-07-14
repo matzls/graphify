@@ -1,7 +1,7 @@
 ---
 title: "Graphify Upstream Reconciliation Readiness Plan"
 kind: plan
-status: ready-for-approval
+status: refinement-required
 audience: "agents-operators"
 canonicality: canonical
 created: 2026-07-13
@@ -129,20 +129,18 @@ default.
 
 ## Autonomous Execution Slices
 
-### 1. Identify the actual reusable owner before designing code
+### 1. Confirm the reusable owner and define the Graphify overlay
 
-1. Inventory the global OSS fork-manager instructions, scripts, configuration,
-   and tests named by the existing process. Determine whether a shared owner
-   already has an intake/artifact format or mutation wrapper.
-2. Record the ownership-discovery result before any Slice 2 work: `found shared
-   owner`, `no shared owner—Graphify-only overlay approved`, or `new shared
-   component explicitly approved`. Record its exact path and test command when
-   found. Do not create a Graphify command merely because it is convenient.
-3. Inspect `graphify/cli.py`, `graphify/adoption.py`, `graphify/install.py`,
+Ownership discovery is complete: the **Ownership Discovery Checkpoint** below
+satisfies the original discovery steps and identifies `my-oss-fork-manager` as
+the shared owner. Re-run that discovery only if the owner code, registry, or
+Graphify registration materially changes. The remaining Slice 1 work is:
+
+1. Inspect `graphify/cli.py`, `graphify/adoption.py`, `graphify/install.py`,
    their CLI routing, and related tests only to identify Graphify-specific
    inputs/outputs. Keep Git mechanics and report serialization out of generic
    install/adoption modules. Do not add network scraping or LLM use.
-4. Define how the operator records release-note review and patch decisions
+2. Define how the operator records release-note review and patch decisions
    without pretending a local command verified GitHub content, and decide
    whether apply must only emit a guarded command or may ever invoke rebase.
 
@@ -232,3 +230,42 @@ only necessary Graphify overlay), deterministic fixture coverage passes,
 operator docs align, and the staged post-mutation workflow is reviewed. A
 Graphify-only command or documentation-only reminder without enforceable
 defaults does not meet the objective.
+
+## Ownership Discovery Checkpoint
+
+Executed 2026-07-13, read-only:
+
+- **Outcome:** `found shared owner` — Mase's global
+  `my-oss-fork-manager` skill owns standard-fork inventory, upstream intake,
+  handoff, provenance, and guarded update coordination.
+- **Owner code:**
+  `/Users/mase/.codex/skills/my-oss-fork-manager/scripts/oss_fork_manager.py`
+  with `GraphifyAdapter` in `scripts/adapters/base.py`.
+- **Registry:** `/Users/mase/.codex/oss-fork-manager/registry.json`; this
+  checkout's guardrail marker is `.codex/oss-fork-manager.json`.
+- **Owner test command:**
+  `cd /Users/mase/.codex && python3 -m unittest discover -s skills/my-oss-fork-manager/tests -p test_contracts.py`.
+- **Existing read-only command:**
+  `update-fork --fork graphify --handoff`. It supplied a valid no-mutation
+  handoff/intake result, but current Graphify state is `NO-GO`.
+
+The read-only result blocks live reconciliation because the checkout is dirty,
+`mase/local-fixes` diverges from origin, the registry expects a missing
+`upstream-v8` mirror while the repo marker declares `mirror/upstream-v8`, and
+local upstream refs lag live `v8`. No fetch, branch, rebase, reset, install,
+propagation, or push ran.
+
+Before Slice 2 implementation, refine the shared-owner design to:
+
+1. correct the registry's Graphify mirror value to `mirror/upstream-v8` to
+   match the marker and standing branch policy, unless Mase explicitly selects
+   a different convention; then align the remaining docs;
+2. replace the current direct approved-rebase path with the durable intake
+   artifact, decision matrix, exact-SHA, explicit `--apply`, and current-state
+   recheck contract; and
+3. remove Graphify-incompatible automatic `rebase --abort` and `reset --hard`
+   recovery behavior from its apply path.
+
+Graphify remains an overlay only: protected surfaces, release-impact/adoption
+input, validation, active-install provenance, and staged rollout policy belong
+here; reusable Git mechanics belong in the shared owner.
