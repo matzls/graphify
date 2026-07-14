@@ -378,7 +378,9 @@ def load_platforms() -> dict[str, Platform]:
             dispatch=cfg.get("dispatch"),
             extraction=cfg.get("extraction", "verbose"),
             shell=cfg.get("shell", "posix"),
-            reinstall_retry_message=cfg.get("reinstall_retry_message", "Reinstall graphify from Mase's local fork, then retry:"),
+            reinstall_retry_message=cfg.get(
+                "reinstall_retry_message", "Reinstall graphify from Mase's local fork, then retry:"
+            ),
             reinstall_followup=cfg.get("reinstall_followup", ""),
             claude_md=bool(cfg.get("claude_md", False)),
             hooks_variant=cfg.get("hooks_variant", "claude-md"),
