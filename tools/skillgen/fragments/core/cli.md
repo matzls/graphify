@@ -77,7 +77,7 @@ if [ -z "$GRAPHIFY_BIN" ]; then
     echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
     echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
     echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
-    exit 1
+@@REINSTALL_FOLLOWUP@@    exit 1
 fi
 
 DOCTOR_LOG=$(mktemp)
@@ -86,22 +86,22 @@ if ! graphify doctor \
     >"$DOCTOR_LOG" 2>&1; then
     cat "$DOCTOR_LOG" >&2
     rm -f "$DOCTOR_LOG"
-    echo "Reinstall graphify from Mase's local fork, then retry:" >&2
+    echo "@@REINSTALL_RETRY_MESSAGE@@" >&2
     echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
     echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
     echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
-    exit 1
+@@REINSTALL_FOLLOWUP@@    exit 1
 fi
 rm -f "$DOCTOR_LOG"
 
 PYTHON=$(head -1 "$GRAPHIFY_BIN" | sed 's/^#!//')
 if [ -z "$PYTHON" ] || ! "$PYTHON" -c "import graphify" 2>/dev/null; then
     echo "Could not resolve graphify's Python interpreter from $GRAPHIFY_BIN." >&2
-    echo "Reinstall graphify from Mase's local fork, then retry:" >&2
+    echo "@@REINSTALL_RETRY_MESSAGE@@" >&2
     echo "uv tool install --force --reinstall $EXPECTED_GRAPHIFY_SOURCE \\" >&2
     echo "  --with openai --with tiktoken --with faster-whisper \\" >&2
     echo "  --with yt-dlp --with watchdog --with tree-sitter-sql" >&2
-    exit 1
+@@REINSTALL_FOLLOWUP@@    exit 1
 fi
 
 # Write interpreter path for all subsequent steps (persists across invocations)

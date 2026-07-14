@@ -333,6 +333,8 @@ class Platform:
     dispatch: str | None = None
     extraction: str = "verbose"
     shell: str = "posix"
+    reinstall_retry_message: str = "Reinstall graphify from Mase's local fork, then retry:"
+    reinstall_followup: str = ""
     claude_md: bool = False
     hooks_variant: str = "claude-md"
     reference_overrides: dict[str, str] = field(default_factory=dict)
@@ -376,6 +378,8 @@ def load_platforms() -> dict[str, Platform]:
             dispatch=cfg.get("dispatch"),
             extraction=cfg.get("extraction", "verbose"),
             shell=cfg.get("shell", "posix"),
+            reinstall_retry_message=cfg.get("reinstall_retry_message", "Reinstall graphify from Mase's local fork, then retry:"),
+            reinstall_followup=cfg.get("reinstall_followup", ""),
             claude_md=bool(cfg.get("claude_md", False)),
             hooks_variant=cfg.get("hooks_variant", "claude-md"),
             reference_overrides=dict(cfg.get("reference_overrides", {})),
@@ -430,6 +434,9 @@ def _render_core(platform: Platform) -> str:
     install = _read_fragment(f"shell/{platform.shell}.md").rstrip("\n")
     dispatch = _read_fragment(f"dispatch/{platform.dispatch}.md").rstrip("\n")
     query_stub = _read_fragment(_QUERY_STUB).rstrip("\n")
+    reinstall_followup = platform.reinstall_followup.rstrip("\n")
+    if reinstall_followup:
+        reinstall_followup += "\n"
 
     if platform.extra_sections:
         extra = "".join(
@@ -444,6 +451,8 @@ def _render_core(platform: Platform) -> str:
         .replace("@@INSTALL@@", install)
         .replace("@@DISPATCH@@", dispatch)
         .replace("@@QUERY_STUB@@", query_stub)
+        .replace("@@REINSTALL_RETRY_MESSAGE@@", platform.reinstall_retry_message)
+        .replace("@@REINSTALL_FOLLOWUP@@", reinstall_followup)
         .replace("@@HOOKS_TARGET@@", platform.hooks_target)
         .replace("@@EXTRA@@", extra)
     )

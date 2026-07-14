@@ -378,7 +378,8 @@ After upstream reconciliation, treat propagation as a staged rollout when the
 incoming release changed graph IDs, cache/output formats, install surfaces,
 activation behavior, or semantic-refresh behavior:
 
-1. reinstall the active CLI from this fork and verify source/version with
+1. reinstall the active CLI from this fork, refresh the global Pi Graphify skill
+   with `graphify pi install`, then verify source/version with
    `graphify doctor --require-source`
 2. run `graphify adoption audit --root /Users/mase/Codebase`
 3. canary one code/update-heavy repo and, when semantic/wiki output matters, one
@@ -544,6 +545,8 @@ uv tool install --force --reinstall /Users/mase/Codebase/Personal-Projects/graph
   --with yt-dlp \
   --with watchdog \
   --with tree-sitter-sql
+graphify pi install
+graphify doctor --require-source /Users/mase/Codebase/Personal-Projects/graphify
 ```
 
 The OpenAI-compatible Python SDK is installed by Mase's local fork reinstall
