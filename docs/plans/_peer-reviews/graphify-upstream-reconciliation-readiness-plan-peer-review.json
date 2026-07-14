@@ -1,8 +1,8 @@
 {
   "schema_version": "peer-review-v1",
-  "review_id": "peer-review-35c151383346",
+  "review_id": "peer-review-2ca113915294",
   "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/graphify-upstream-reconciliation-readiness-plan.md",
-  "plan_sha256": "ecd2da0f5823e16301ad0babdc0cfff78ccfa4a6d10c3a9feee07c304137331e",
+  "plan_sha256": "76f9b93ba3d9a7d120b2853eee13aaf895a6c72fbdc9ff3439ada6f2fbd9d293",
   "mode": "workflow-plan-gate",
   "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews",
   "engine": "Claude",
@@ -26,90 +26,85 @@
       "attempt": 1,
       "timeout_seconds": 300,
       "result": "completed",
-      "elapsed_seconds": 83.193,
+      "elapsed_seconds": 266.307,
       "returncode": 0
     }
   ],
   "attempt_failures": [],
   "primary_failure": null,
   "fallback_failure": null,
-  "review_round": 2,
+  "review_round": 3,
   "max_rounds": 3,
-  "prior_review_id": "peer-review-018f9f89ec4b",
-  "caller_disposition_summary": "Addressed WARN: Phase 1 now explicitly captures git stash list. Addressed NOTE: Slice 1 now requires recording one of three explicit ownership outcomes, exact path, and test command before Slice 2. Deferred only the exact future validation commands because they depend on the verified owner.",
-  "addressed_issues": [
-    "Phase 1 evidence list does not explicitly require stash-list capture",
-    "Existence of a discoverable shared OSS fork-manager codebase is unverified"
-  ],
-  "deferred_issues": [
-    "Slice 4 validation command is intentionally underspecified at design stage"
-  ],
-  "recheck_requests": [
-    "stash-list capture",
-    "ownership-discovery outcome"
-  ],
+  "prior_review_id": "peer-review-35c151383346",
+  "caller_disposition_summary": "",
+  "addressed_issues": [],
+  "deferred_issues": [],
+  "recheck_requests": [],
   "model": "claude-sonnet-5",
   "verdict": "Sound-with-issues",
   "stance": null,
-  "issues_count": 1,
-  "ran_at": "2026-07-13T10:41:46.547206+00:00",
-  "raw_review_excerpt": "Both re-checked fixes are verifiably present in the current plan text: Phase 1 now explicitly lists `git stash list` as required evidence, and Slice 1 now mandates recording one of three closed ownership-discovery outcomes (with exact path/test command when found) before any Slice 2 work. No BLOCK-level issue was found. The only remaining item is the intentionally deferred Slice 4 validation-command detail, which is a reasonable design-stage deferral (NOTE, not blocking). The plan is safe to freeze at design-gate.\n\nIssues:\n- 1. [NOTE] Slice 4 validation command remains underspecified",
+  "issues_count": 3,
+  "ran_at": "2026-07-13T16:55:50.527034+00:00",
+  "raw_review_excerpt": "The plan's final round adds an 'Ownership Discovery Checkpoint' that identifies Mase's shared my-oss-fork-manager as the canonical reusable owner, documents a real registry-vs-marker mirror-branch mismatch, and commits (pre-Slice-2) to replacing direct apply with a durable-artifact/exact-SHA/--apply gate and to stripping automatic rebase --abort/reset --hard recovery from the shared apply path. All four focus claims are grounded in the actual shared-owner script, registry, and marker files. No BLOCK-level freeze-safety defect found; two WARN items remain around handoff clarity and an unresolved policy direction, both explicitly gated on before implementation begins.\n\nIssues:\n- 1. [WARN] Slice 1 duplicates work the checkpoint already performed\n- 2. [WARN] Mirror-policy normalization direction is unspecified\n- 3. [NOTE] Track A completion gate is a hard external dependency not independently re-verified this round",
   "error": null,
-  "closure_verification": "Checked the current document text directly (not the caller's summary) for both items. (1) Phase 1 required-evidence bullet list now reads: \\\"branch, HEAD, remotes, dirty/staged/untracked state, `git stash list`, ahead/behind state, and existing rebase/merge/cherry-pick state\\\" \u2014 stash-list capture is explicit and mandatory. (2) Slice 1 step 2 now reads: \\\"Record the ownership-discovery result before any Slice 2 work: `found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, or `new shared component explicitly approved`. Record its exact path and test command when found.\\\" \u2014 this is an explicit, closed set of three outcomes with a recording requirement gating Slice 2, matching the caller's claim.",
+  "closure_verification": "All four carried items from the prior round are addressed at the plan-text level: two (shared-owner identification, durable-intake-artifact contract) are fully resolved as design commitments; two (mirror-policy mismatch, automatic rebase-abort/reset-hard recovery) are correctly and transparently flagged as still-open in the actual code/config, with explicit pre-Slice-2 gating rather than false claims of completion. This is the expected and safe disposition for a plan-gate review at 'refinement-required' status \u2014 no BLOCK remains against the plan document itself.",
   "prior_round_closure": [
     {
-      "title": "Phase 1 evidence list does not explicitly require stash-list capture",
+      "title": "Shared OSS fork-manager ownership not identified",
+      "severity": "BLOCK",
+      "caller_claim": "Round 3 adds an Ownership Discovery Checkpoint identifying my-oss-fork-manager as the shared owner with GraphifyAdapter, registry entry, marker, and test command.",
+      "verification_status": "resolved",
+      "verification_notes": "Verified: GraphifyAdapter(ForkAdapter) exists in adapters/base.py and is imported by test_contracts.py; registry.json has a graphify fork entry at the exact checkout path; the guardrail marker file exists at the stated path with matching adapter/fork_id fields."
+    },
+    {
+      "title": "Graphify mirror-policy mismatch between registry, marker, and docs",
       "severity": "WARN",
-      "caller_claim": "Addressed: Phase 1 now explicitly captures git stash list.",
-      "verification_status": "resolved",
-      "verification_notes": "Confirmed in Phase 1 required-evidence bullet: \"...dirty/staged/untracked state, `git stash list`, ahead/behind state...\" is present verbatim in the current artifact."
-    },
-    {
-      "title": "Existence of a discoverable shared OSS fork-manager codebase is unverified",
-      "severity": "NOTE",
-      "caller_claim": "Addressed: Slice 1 now requires recording one of three explicit ownership outcomes, exact path, and test command before Slice 2.",
-      "verification_status": "resolved",
-      "verification_notes": "Confirmed in Slice 1 step 2: three closed outcomes (`found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, `new shared component explicitly approved`) with a requirement to record exact path and test command when found, gating Slice 2. The underlying real-world existence of such an owner remains genuinely unknown until executed, but the plan-level fix required was procedural recording, which is now present."
-    },
-    {
-      "title": "Slice 4 validation command is intentionally underspecified at design stage",
-      "severity": "NOTE",
-      "caller_claim": "Deferred because exact future validation commands depend on the verified owner.",
+      "caller_claim": "Plan documents the mismatch (registry expects a missing 'upstream-v8' mirror while the marker declares 'mirror/upstream-v8') and gates Slice 2 on normalizing it.",
       "verification_status": "still-open",
-      "verification_notes": "This is an accepted, reasonable deferral rather than an outstanding defect \u2014 the plan cannot name a concrete test command before Slice 1 identifies the owner. Left open by design; does not block freeze and does not require another review cycle by itself."
+      "verification_notes": "The mismatch is real and confirmed directly from registry.json vs the marker file vs AGENTS.md. The plan appropriately discloses it and gates future implementation on fixing it, but the underlying inconsistency itself remains unresolved in the repo, and the plan does not yet state which value should win."
+    },
+    {
+      "title": "Durable intake artifact contract undefined",
+      "severity": "WARN",
+      "caller_claim": "Phase 1 and Slice 2 now specify an explicit --output path requirement, atomic write, and default no-overwrite behavior for the intake artifact.",
+      "verification_status": "resolved",
+      "verification_notes": "The plan text now specifies enough contract detail (explicit output path required for durability, atomic write, refuse-overwrite default, schema fields for command versions/SHAs/timestamp/outcomes) to be actionable at design-review level; current shared-owner code only prints JSON to stdout today, consistent with this being correctly scoped as not-yet-built work."
+    },
+    {
+      "title": "Automatic rebase --abort / reset --hard recovery incompatible with Graphify's no-auto-recovery requirement",
+      "severity": "BLOCK",
+      "caller_claim": "Plan commits to removing this behavior from the apply path before Slice 2 begins.",
+      "verification_status": "still-open",
+      "verification_notes": "Confirmed the behavior is real and currently present: ForkAdapter._update_failure_recovery (inherited by GraphifyAdapter) runs 'git rebase --abort' on rebase failure and 'git reset --hard'/'git update-ref' during validation-failure recovery. The plan correctly identifies this as a pre-Slice-2 removal requirement rather than falsely claiming it is already fixed, which is the appropriate honest disposition for a plan document, but the unsafe behavior itself has not yet been removed from the code."
     }
   ],
   "rerun_recommendation": "stop",
   "review": {
-    "assumptions_to_verify": [
-      "That the confirmed shared OSS fork-manager owner (if one exists) will actually surface during Slice 1 execution and not require a fourth outcome category beyond the three listed",
-      "That Track A (semantic CLI recovery) reaches a validation-clean state before Slice 2 implementation begins, as the plan requires but does not itself enforce mechanically"
+    "mode": "workflow-plan-gate",
+    "summary": "The plan's final round adds an 'Ownership Discovery Checkpoint' that identifies Mase's shared my-oss-fork-manager as the canonical reusable owner, documents a real registry-vs-marker mirror-branch mismatch, and commits (pre-Slice-2) to replacing direct apply with a durable-artifact/exact-SHA/--apply gate and to stripping automatic rebase --abort/reset --hard recovery from the shared apply path. All four focus claims are grounded in the actual shared-owner script, registry, and marker files. No BLOCK-level freeze-safety defect found; two WARN items remain around handoff clarity and an unresolved policy direction, both explicitly gated on before implementation begins.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "Ownership Discovery Checkpoint + graphify AGENTS.md Upstream Sync section",
+        "claim": "A shared OSS fork-manager owner (my-oss-fork-manager) with a GraphifyAdapter, registry entry, guardrail marker, and test command already exists and produced a real NO-GO handoff result.",
+        "evidence": "Read /Users/mase/.codex/skills/my-oss-fork-manager/scripts/oss_fork_manager.py and adapters/base.py: confirmed GraphifyAdapter(ForkAdapter) class exists and is imported by tests/test_contracts.py. Read /Users/mase/.codex/oss-fork-manager/registry.json: graphify fork entry exists with branches.mirror='upstream-v8'. Read graphify/.codex/oss-fork-manager.json marker: branches.mirror='mirror/upstream-v8'. These two values genuinely disagree, matching the plan's stated NO-GO reason.",
+        "disposition": "present"
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "artifact vs conversation vs campaign coverage",
+        "claim": "Artifact-level claims (shared owner, mirror mismatch, automatic recovery code) are directly verifiable in code/config; conversation evidence is not applicable (no separate chat transcript reviewed); campaign coverage is a slice, not the full related-docs set.",
+        "evidence": "Directly read: plan doc, oss_fork_manager.py, adapters/base.py (both halves), registry.json, graphify/.codex/oss-fork-manager.json marker, graphify/AGENTS.md (partial), test_contracts.py (partial). Not read this round: docs/mase-fork-operating-model.md, ARCHITECTURE.md, Track A recovery plan, graphify/adoption.py, graphify/install.py, full cli.py (codex reconcile command not independently re-verified).",
+        "disposition": "partial"
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "Files inspected this round",
+        "claim": "This review is a slice: it covers the plan document plus the directly implicated shared-owner code/config artifacts named in the Ownership Discovery Checkpoint. It does not cover the full campaign (Track A plan, operating-model doc, ARCHITECTURE.md, Graphify adoption/install modules, or a prior-round conversation transcript).",
+        "evidence": "Read tool calls limited to: plan doc (embedded), oss_fork_manager.py, adapters/base.py (2 chunks), registry.json, oss-fork-manager.json marker, AGENTS.md (first 150 lines), test_contracts.py (first 60 lines), cli.py (1 line only, insufficient to verify 'codex reconcile' dry-run/--apply contract claim).",
+        "disposition": "partial"
+      }
     ],
-    "campaign_coverage": {
-      "scope": "slice-only",
-      "covered": [
-        "Phase 1 required-evidence list (stash-list capture)",
-        "Slice 1 ownership-discovery-outcome recording requirement"
-      ],
-      "missing": [
-        "Full re-read of Phases 0/2/3 and Slices 2-4 for issues unrelated to the two flagged fixes",
-        "Any live conversation/thread beyond the supplied prior-round packet"
-      ],
-      "gaps": [
-        "This round was explicitly scoped to the two named re-check items plus a general no-blockers confirmation; a full plan audit was not performed"
-      ]
-    },
-    "closure_verification": "Checked the current document text directly (not the caller's summary) for both items. (1) Phase 1 required-evidence bullet list now reads: \\\"branch, HEAD, remotes, dirty/staged/untracked state, `git stash list`, ahead/behind state, and existing rebase/merge/cherry-pick state\\\" \u2014 stash-list capture is explicit and mandatory. (2) Slice 1 step 2 now reads: \\\"Record the ownership-discovery result before any Slice 2 work: `found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, or `new shared component explicitly approved`. Record its exact path and test command when found.\\\" \u2014 this is an explicit, closed set of three outcomes with a recording requirement gating Slice 2, matching the caller's claim.",
-    "conversation_evidence": {
-      "used": true,
-      "sources": [
-        "Prior-round packet peer-review-018f9f89ec4b (caller disposition summary supplied in this task's context)"
-      ],
-      "summary": "The only conversation-layer evidence available is the prior review round's packet, which is treated per protocol as caller claims to verify, not as ground truth. No live multi-turn thread was provided beyond this.",
-      "gaps": [
-        "No access to the actual round-1 review text (only the caller's paraphrased disposition summary) to confirm the original WARN/NOTE wording verbatim"
-      ]
-    },
     "disposition_matrix": {
       "rows": [
         "artifact",
@@ -123,107 +118,150 @@
       ],
       "cells": [
         [
-          "stash-list evidence bullet; explicit 3-outcome ownership-discovery recording gate",
-          "Slice 4 validation command left underspecified (acknowledged design-time deferral)",
-          "none identified as missing at BLOCK level"
+          "shared-owner code, registry, marker, test file verified",
+          "cli.py 'codex reconcile' dry-run/--apply claim not re-verified",
+          "n/a"
         ],
         [
-          "prior-round packet claims cross-checked against current text",
-          "none",
-          "original round-1 raw review text not available, only caller paraphrase"
+          "prior-round packet treated as caller claims",
+          "no full chat transcript reviewed this round",
+          "no independent conversation evidence beyond prompt"
         ],
         [
-          "none",
-          "two-fix re-check plus general no-blockers scan of full document",
-          "full multi-slice/phase re-audit beyond the two flagged fixes"
+          "plan doc + 4 focus-item artifacts inspected",
+          "mase-fork-operating-model.md, ARCHITECTURE.md, Track A plan, adoption.py/install.py unread",
+          "no campaign-wide sweep performed"
         ]
       ]
     },
-    "downstream_risks": [
-      "If Slice 1 ownership discovery finds no shared owner and Graphify-only overlay is approved by default without genuine escalation to Mase, scope creep back into Graphify-owned Git mechanics could recur later",
-      "Deferred Slice 4 validation command could be under-specified enough at implementation time to cause rework if the discovered owner's test tooling is unconventional"
-    ],
-    "error": null,
-    "evidence_sources": [
-      "Embedded plan text: docs/plans/graphify-upstream-reconciliation-readiness-plan.md (Phase 1 required-evidence list, Slice 1 steps 1-2)"
-    ],
-    "freeze_recommendation": "Safe to freeze. Carry the remaining WARN/NOTE items as explicit follow-ups or implementation-time checks.",
+    "conversation_evidence": {
+      "used": false,
+      "sources": [],
+      "summary": "No separate conversation/thread transcript was supplied or reviewed; the only prior-round input was the compact 'PRIOR ROUND CONTEXT' packet naming the four focus items, which was treated as unverified caller claims and checked directly against the artifact and code.",
+      "gaps": [
+        "Full round 1/2 review text was not provided, so this review cannot independently confirm what exact wording was flagged before beyond the stated focus areas."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "partial",
+      "covered": [
+        "graphify-upstream-reconciliation-readiness-plan.md (full embedded text)",
+        "my-oss-fork-manager/scripts/oss_fork_manager.py (full)",
+        "my-oss-fork-manager/scripts/adapters/base.py (full, both chunks, including GraphifyAdapter and GsdAdapter)",
+        "my-oss-fork-manager/registry.json (full)",
+        "graphify/.codex/oss-fork-manager.json marker (full)",
+        "my-oss-fork-manager/tests/test_contracts.py (first 60 lines, confirms GraphifyAdapter import)",
+        "graphify/AGENTS.md (first 150 lines, Upstream Sync + mirror-branch note)"
+      ],
+      "missing": [
+        "docs/mase-fork-operating-model.md (full)",
+        "ARCHITECTURE.md",
+        "graphify-semantic-cli-reconciliation-recovery-plan.md (Track A, referenced as hard prerequisite)",
+        "graphify/adoption.py, graphify/install.py",
+        "full graphify/cli.py (only 1 line read; 'codex reconcile' dry-run/--apply contract claim not independently confirmed)",
+        "graphify-out/ derived artifacts (not consulted; not required since none of the four focus claims depend on them)"
+      ],
+      "gaps": [
+        "This review verified the four explicitly scoped focus items in depth but did not perform a full-document sweep of every cross-referenced doc in the plan's frontmatter 'related' list."
+      ]
+    },
     "issues": [
       {
-        "title": "Slice 4 validation command remains underspecified",
-        "details": "Slice 4 step 2 says to \"Run the full affected owner/Graphify CLI suite plus the project regression suite named in Track A\" without naming exact commands, because they depend on the shared-owner outcome discovered in Slice 1. This is a reasonable design-stage deferral, not a defect, since the owner is unknown until Slice 1 executes.",
-        "suggested_fix": "No action required now. When Slice 1 completes and the owner is recorded, amend Slice 4 (or the intake artifact template) with the concrete test command(s) tied to that owner before Slice 4 begins.",
+        "title": "Slice 1 duplicates work the checkpoint already performed",
+        "details": "Autonomous Execution Slices > Slice 1, steps 1-2 ask a future agent to 'Inventory the global OSS fork-manager instructions... Determine whether a shared owner already has an intake/artifact format' and 'Record the ownership-discovery result before any Slice 2 work.' The Ownership Discovery Checkpoint at the bottom of the document already executed this exact step on 2026-07-13 and recorded 'found shared owner' with exact paths. The plan does not mark Slice 1 steps 1-2 as satisfied, which could cause a future implementer to redo discovery or wonder whether the checkpoint superseded the slice instructions.",
+        "suggested_fix": "Add a one-line note in Slice 1 (or at the top of the checkpoint) stating that steps 1-2 are satisfied by the Ownership Discovery Checkpoint below, and that Slice 1 execution should begin at step 3 (adapter-boundary inspection) unless the shared-owner facts change before implementation.",
+        "severity": "WARN"
+      },
+      {
+        "title": "Mirror-policy normalization direction is unspecified",
+        "details": "The checkpoint correctly identifies that the registry declares mirror='upstream-v8' while the repo marker (and AGENTS.md, which says 'Keep local mirror branches such as mirror/upstream-v8 clean') declares mirror='mirror/upstream-v8'. The plan's refinement item 1 says only to 'normalize the Graphify mirror policy across registry, marker, and docs' without stating which convention should win or who decides. Two of three sources (marker, AGENTS.md) already agree on 'mirror/upstream-v8', suggesting the registry is the stale one, but the plan doesn't say so.",
+        "suggested_fix": "State a directional default (e.g., 'the registry.json mirror field for graphify should be corrected to mirror/upstream-v8 to match the marker and AGENTS.md unless Mase decides otherwise') so Slice 1 has a concrete default instead of an open-ended normalization task.",
+        "severity": "WARN"
+      },
+      {
+        "title": "Track A completion gate is a hard external dependency not independently re-verified this round",
+        "details": "The plan correctly treats Track A (semantic CLI reconciliation recovery) as a hard prerequisite and states its status is unresolved. This review did not open the Track A plan document to confirm its current validation state, since it is out of this round's scoped focus (shared-owner ownership, mirror-policy, durable intake, automatic-recovery prohibition).",
+        "suggested_fix": "No plan-text change needed; this is a disclosure for the reader, not a defect. Confirm Track A's validation-clean status via its own gate before authorizing any Slice 2/3 work under this plan.",
         "severity": "NOTE"
       }
     ],
-    "mode": "workflow-plan-gate",
-    "prior_round_closure": [
-      {
-        "title": "Phase 1 evidence list does not explicitly require stash-list capture",
-        "severity": "WARN",
-        "caller_claim": "Addressed: Phase 1 now explicitly captures git stash list.",
-        "verification_status": "resolved",
-        "verification_notes": "Confirmed in Phase 1 required-evidence bullet: \"...dirty/staged/untracked state, `git stash list`, ahead/behind state...\" is present verbatim in the current artifact."
-      },
-      {
-        "title": "Existence of a discoverable shared OSS fork-manager codebase is unverified",
-        "severity": "NOTE",
-        "caller_claim": "Addressed: Slice 1 now requires recording one of three explicit ownership outcomes, exact path, and test command before Slice 2.",
-        "verification_status": "resolved",
-        "verification_notes": "Confirmed in Slice 1 step 2: three closed outcomes (`found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, `new shared component explicitly approved`) with a requirement to record exact path and test command when found, gating Slice 2. The underlying real-world existence of such an owner remains genuinely unknown until executed, but the plan-level fix required was procedural recording, which is now present."
-      },
-      {
-        "title": "Slice 4 validation command is intentionally underspecified at design stage",
-        "severity": "NOTE",
-        "caller_claim": "Deferred because exact future validation commands depend on the verified owner.",
-        "verification_status": "still-open",
-        "verification_notes": "This is an accepted, reasonable deferral rather than an outstanding defect \u2014 the plan cannot name a concrete test command before Slice 1 identifies the owner. Left open by design; does not block freeze and does not require another review cycle by itself."
-      }
-    ],
-    "recommended_fixes": [],
-    "rerun_recommendation": "stop",
-    "rubric_cards": [
-      {
-        "title": "Claim anchoring",
-        "anchor": "Phase 1 required-evidence list; Slice 1 step 2",
-        "claim": "Both re-checked fixes (stash-list capture, ownership-discovery outcome recording) are present in the current plan text.",
-        "evidence": "Direct quotes from the embedded artifact: \"`git stash list`\" in Phase 1 evidence bullet; \"Record the ownership-discovery result before any Slice 2 work: `found shared owner`, `no shared owner\u2014Graphify-only overlay approved`, or `new shared component explicitly approved`. Record its exact path and test command when found.\" in Slice 1.",
-        "disposition": "present"
-      },
-      {
-        "title": "Disposition matrix",
-        "anchor": "3x3 grid across artifact/conversation/campaign",
-        "claim": "Artifact-level fixes are present; conversation evidence is limited to the supplied prior-round packet; campaign coverage this round was intentionally slice-only.",
-        "evidence": "See disposition_matrix field.",
-        "disposition": "present/partial mix, no missing at BLOCK level"
-      },
-      {
-        "title": "Coverage scope",
-        "anchor": "Task instruction: 'Recheck the two fixes only'",
-        "claim": "This review is a targeted slice-only re-check of two named items plus a general no-blockers scan, not a full re-audit of every phase and slice.",
-        "evidence": "Task framing explicitly scoped review to the two fixes; full document was read but not exhaustively re-litigated beyond confirming no new BLOCK-level issues.",
-        "disposition": "partial (by design)"
-      }
-    ],
-    "summary": "Both re-checked fixes are verifiably present in the current plan text: Phase 1 now explicitly lists `git stash list` as required evidence, and Slice 1 now mandates recording one of three closed ownership-discovery outcomes (with exact path/test command when found) before any Slice 2 work. No BLOCK-level issue was found. The only remaining item is the intentionally deferred Slice 4 validation-command detail, which is a reasonable design-stage deferral (NOTE, not blocking). The plan is safe to freeze at design-gate.",
-    "technical_reality": [
-      "Phase 1's required-evidence list explicitly names `git stash list` alongside branch/HEAD/remotes/dirty-state/ahead-behind/rebase-state.",
-      "Slice 1 step 2 defines a closed 3-way ownership-discovery outcome set and requires recording it, plus exact path and test command when a shared owner is found, gating all Slice 2 work.",
-      "Slice 4's exact validation command is deliberately left to be filled in once the Slice 1 owner is known \u2014 an internally consistent design-stage sequencing choice, not a gap in the current document."
-    ],
-    "verdict": "Sound-with-issues",
     "verification_gaps": [
-      "Real-world existence of a shared OSS fork-manager owner is still unverified in fact (only the plan's procedure for recording the discovery outcome was the thing required to be fixed, and that is now in place)",
-      "No access to the verbatim round-1 review text, only the caller's paraphrase, to confirm the original WARN/NOTE wording matches exactly"
+      "The 'codex reconcile' dry-run/--apply scope-boundary claim in the Decision Boundary section was not independently re-verified against graphify/cli.py this round (only 1 line was read).",
+      "docs/mase-fork-operating-model.md and ARCHITECTURE.md, both cited as authoritative context in 'Verified Starting State', were not opened this round to confirm they still say what the plan claims.",
+      "Whether the checkout is currently dirty and mase/local-fixes truly diverges from origin (as the checkpoint claims) could not be independently confirmed with the tools available in this review session (no shell/git access)."
+    ],
+    "recommended_fixes": [
+      "Mark Slice 1 steps 1-2 as already satisfied by the Ownership Discovery Checkpoint to avoid duplicate rediscovery work.",
+      "State a default direction for the mirror-branch naming conflict (registry vs marker/AGENTS.md) so Slice 1 has an unambiguous default to apply pending Mase's sign-off."
+    ],
+    "evidence_sources": [
+      "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/graphify-upstream-reconciliation-readiness-plan.md (embedded text)",
+      "/Users/mase/.codex/skills/my-oss-fork-manager/scripts/oss_fork_manager.py",
+      "/Users/mase/.codex/skills/my-oss-fork-manager/scripts/adapters/base.py",
+      "/Users/mase/.codex/oss-fork-manager/registry.json",
+      "/Users/mase/Codebase/Personal-Projects/graphify/.codex/oss-fork-manager.json",
+      "/Users/mase/.codex/skills/my-oss-fork-manager/tests/test_contracts.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/AGENTS.md"
+    ],
+    "error": null,
+    "verdict": "Sound-with-issues",
+    "workflow_compliance": [
+      "Plan correctly separates read-only intake (Phase 1) from explicit mutation (Phase 2), matching the shared-owner's actual update-plan/update-apply split found in code.",
+      "Plan defers implementation until the shared-owner ownership question is resolved, which it now demonstrably is (GraphifyAdapter exists, tested, registered).",
+      "Plan explicitly gates Slice 2 start on resolving the mirror-policy mismatch and removing automatic rebase --abort/reset --hard recovery, both of which are confirmed to be real, currently-present conditions rather than hypothetical risks."
+    ],
+    "technical_reality": [
+      "GraphifyAdapter(ForkAdapter) in adapters/base.py inherits _standard_update_apply, which currently runs 'git rebase --abort' on rebase failure and 'git reset --hard' plus 'git update-ref' during validation-failure recovery (lines ~1157-1198 of base.py) \u2014 this is the exact automatic recovery behavior the plan commits to removing before Slice 2.",
+      "registry.json declares graphify branches.mirror = 'upstream-v8'; the repo's own guardrail marker (.codex/oss-fork-manager.json) declares branches.mirror = 'mirror/upstream-v8'; AGENTS.md independently corroborates the marker's 'mirror/upstream-v8' naming \u2014 confirming the registry is the outlier needing correction.",
+      "test_contracts.py imports ArchonAdapter, GraphifyAdapter, GsdAdapter directly from adapters.base, confirming the adapter and its test coverage are real, not just described in the plan.",
+      "The shared owner's update-fork command supports a read-only --handoff mode and a separate --approved apply path with explicit denial when neither is set, matching the plan's Phase 1/Phase 2 split already partially built into the shared owner."
+    ],
+    "assumptions_to_verify": [
+      "That the checkout is currently dirty and mase/local-fixes diverges from origin as the checkpoint states (not independently confirmed via git in this tool-constrained review session).",
+      "That graphify/cli.py's 'codex reconcile' command truly has a separate, already-existing dry-run/--apply contract distinct from this plan's target process (only 1 line of cli.py was read this round).",
+      "That docs/mase-fork-operating-model.md and ARCHITECTURE.md still contain the release-review/adoption-category/staged-canary/operator-briefing content the plan attributes to them."
     ],
     "verification_sufficiency": [
-      "Sufficient for the narrow, explicitly requested re-check: both named fixes were located verbatim in the current artifact and matched against the caller's claims.",
-      "Not a full-document re-audit; scope was intentionally limited to the two flagged items plus a general no-blockers scan, per task instructions."
+      "Sufficient: all four explicitly scoped focus claims (shared-owner ownership, mirror-policy mismatch, durable-intake-artifact design, automatic reset/abort prohibition) were checked against real code/config files, not just narrative.",
+      "Insufficient: broader campaign context (Track A status, operating-model doc, ARCHITECTURE.md, adoption.py/install.py, full cli.py) was not re-read this round; treat those as carried-forward assumptions rather than re-verified facts."
     ],
-    "workflow_compliance": [
-      "Plan correctly frames itself as design-ready, not implementation approval, and gates Slice 2+ on Track A validation cleanliness and explicit ownership discovery.",
-      "Read-only intake (Phase 1) is clearly separated from acquisition (Phase 0) and mutation (Phase 2), consistent with the stated safety-gate objective.",
-      "Acceptance Criteria and Definition of Done sections are concrete and testable at a design level, appropriate for a design-gate artifact."
-    ]
+    "downstream_risks": [
+      "If Slice 1 is executed without noticing the Ownership Discovery Checkpoint already answered steps 1-2, an implementer could waste effort or, worse, second-guess the already-confirmed shared-owner location.",
+      "If the mirror-policy normalization is resolved in the wrong direction (e.g., someone 'fixes' the marker/AGENTS.md to match the registry's 'upstream-v8' instead of the reverse), it would silently diverge from the two sources that already agree, compounding the confusion this plan is trying to remove.",
+      "The automatic rebase --abort/reset --hard recovery in the shared owner's base ForkAdapter is also inherited by GsdAdapter and the generic adapter path used by other forks (Archon, agent-skills); removing or gating it only for Graphify (as this plan implies) could leave the same unsafe recovery behavior live for other managed forks unless the shared-owner fix is applied at the ForkAdapter base-class level with fork-aware exceptions, not a Graphify-only patch."
+    ],
+    "freeze_recommendation": "Safe to freeze. Carry the remaining WARN/NOTE items as explicit follow-ups or implementation-time checks.",
+    "prior_round_closure": [
+      {
+        "title": "Shared OSS fork-manager ownership not identified",
+        "severity": "BLOCK",
+        "caller_claim": "Round 3 adds an Ownership Discovery Checkpoint identifying my-oss-fork-manager as the shared owner with GraphifyAdapter, registry entry, marker, and test command.",
+        "verification_status": "resolved",
+        "verification_notes": "Verified: GraphifyAdapter(ForkAdapter) exists in adapters/base.py and is imported by test_contracts.py; registry.json has a graphify fork entry at the exact checkout path; the guardrail marker file exists at the stated path with matching adapter/fork_id fields."
+      },
+      {
+        "title": "Graphify mirror-policy mismatch between registry, marker, and docs",
+        "severity": "WARN",
+        "caller_claim": "Plan documents the mismatch (registry expects a missing 'upstream-v8' mirror while the marker declares 'mirror/upstream-v8') and gates Slice 2 on normalizing it.",
+        "verification_status": "still-open",
+        "verification_notes": "The mismatch is real and confirmed directly from registry.json vs the marker file vs AGENTS.md. The plan appropriately discloses it and gates future implementation on fixing it, but the underlying inconsistency itself remains unresolved in the repo, and the plan does not yet state which value should win."
+      },
+      {
+        "title": "Durable intake artifact contract undefined",
+        "severity": "WARN",
+        "caller_claim": "Phase 1 and Slice 2 now specify an explicit --output path requirement, atomic write, and default no-overwrite behavior for the intake artifact.",
+        "verification_status": "resolved",
+        "verification_notes": "The plan text now specifies enough contract detail (explicit output path required for durability, atomic write, refuse-overwrite default, schema fields for command versions/SHAs/timestamp/outcomes) to be actionable at design-review level; current shared-owner code only prints JSON to stdout today, consistent with this being correctly scoped as not-yet-built work."
+      },
+      {
+        "title": "Automatic rebase --abort / reset --hard recovery incompatible with Graphify's no-auto-recovery requirement",
+        "severity": "BLOCK",
+        "caller_claim": "Plan commits to removing this behavior from the apply path before Slice 2 begins.",
+        "verification_status": "still-open",
+        "verification_notes": "Confirmed the behavior is real and currently present: ForkAdapter._update_failure_recovery (inherited by GraphifyAdapter) runs 'git rebase --abort' on rebase failure and 'git reset --hard'/'git update-ref' during validation-failure recovery. The plan correctly identifies this as a pre-Slice-2 removal requirement rather than falsely claiming it is already fixed, which is the appropriate honest disposition for a plan document, but the unsafe behavior itself has not yet been removed from the code."
+      }
+    ],
+    "closure_verification": "All four carried items from the prior round are addressed at the plan-text level: two (shared-owner identification, durable-intake-artifact contract) are fully resolved as design commitments; two (mirror-policy mismatch, automatic rebase-abort/reset-hard recovery) are correctly and transparently flagged as still-open in the actual code/config, with explicit pre-Slice-2 gating rather than false claims of completion. This is the expected and safe disposition for a plan-gate review at 'refinement-required' status \u2014 no BLOCK remains against the plan document itself.",
+    "rerun_recommendation": "stop"
   }
 }
