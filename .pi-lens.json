@@ -1,0 +1,5 @@
+{
+  "ignore": [
+    "tools/skillgen/fragments/core/cli.md"
+  ]
+}
