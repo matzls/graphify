@@ -151,6 +151,101 @@ except Exception as exc:
     sys.exit(1)
 """
 
+# Classify the changed paths before launching a rebuild. Code changes can be
+# rebuilt deterministically; documentation and media only mark semantic work as
+# pending so hooks never spend LLM tokens.
+_REFRESH_BODY_COMMIT = """\
+import os, signal, sys
+from pathlib import Path
+
+changed = [Path(f.strip()) for f in os.environ.get('GRAPHIFY_CHANGED', '').splitlines() if f.strip()]
+if not changed:
+    sys.exit(0)
+
+print(f'[graphify hook] {len(changed)} file(s) changed')
+needs_code = False
+needs_semantic = False
+_root = Path('.')
+_out = os.environ.get('GRAPHIFY_OUT', 'graphify-out')
+try:
+    from graphify.detect import (
+        CODE_EXTENSIONS, DOC_EXTENSIONS, IMAGE_EXTENSIONS, PAPER_EXTENSIONS,
+        VIDEO_EXTENSIONS, FileType, _is_ignored, _load_graphifyignore, classify_file,
+    )
+    from graphify.watch import _apply_resource_limits
+    _apply_resource_limits()
+    _saved = Path(_out) / '.graphify_root'
+    if _saved.exists():
+        _saved_root = _saved.read_text(encoding='utf-8').strip()
+        if _saved_root:
+            _root = Path(_saved_root)
+    root = _root.resolve()
+    ignore_patterns = _load_graphifyignore(root)
+    for rel in changed:
+        path = (root / rel).resolve()
+        if not path.exists():
+            suffix = path.suffix.lower()
+            if suffix in CODE_EXTENSIONS:
+                needs_code = True
+            elif suffix in DOC_EXTENSIONS or suffix in PAPER_EXTENSIONS or suffix in IMAGE_EXTENSIONS or suffix in VIDEO_EXTENSIONS:
+                needs_semantic = True
+            continue
+        try:
+            if _is_ignored(path, root, ignore_patterns):
+                continue
+        except Exception as exc:
+            print(f'[graphify hook] ignore check failed for {path}: {exc}')
+            needs_semantic = True
+            continue
+        try:
+            file_type = classify_file(path)
+        except Exception as exc:
+            print(f'[graphify hook] classification failed for {path}: {exc}')
+            needs_semantic = True
+            continue
+        if file_type == FileType.CODE:
+            needs_code = True
+        elif file_type in {FileType.DOCUMENT, FileType.PAPER, FileType.IMAGE, FileType.VIDEO}:
+            needs_semantic = True
+except TimeoutError as exc:
+    print(f'[graphify hook] {exc}')
+    sys.exit(1)
+except Exception as exc:
+    print(f'[graphify hook] change classification failed: {exc}')
+    needs_semantic = True
+
+rebuild_failed = False
+if needs_code:
+    try:
+        from graphify.watch import _rebuild_code
+        timeout = int(os.environ.get('GRAPHIFY_REBUILD_TIMEOUT', '600'))
+        if timeout > 0 and hasattr(signal, 'SIGALRM'):
+            signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError(f'graphify rebuild exceeded {timeout}s')))
+            signal.alarm(timeout)
+        force = os.environ.get('GRAPHIFY_FORCE', '').lower() in ('1', 'true', 'yes')
+        rebuild_failed = not _rebuild_code(_root, changed_paths=changed, force=force)
+    except TimeoutError as exc:
+        print(f'[graphify hook] {exc}')
+        rebuild_failed = True
+    except Exception as exc:
+        print(f'[graphify hook] Rebuild failed: {exc}')
+        rebuild_failed = True
+else:
+    print('[graphify hook] no code rebuild needed')
+
+if needs_semantic:
+    try:
+        from graphify.watch import mark_needs_update
+        flag = mark_needs_update(_root)
+        print(f'[graphify hook] docs/media changed - wrote {flag}')
+    except Exception as exc:
+        print(f'[graphify hook] could not write needs_update flag: {exc}')
+if not needs_code and not needs_semantic:
+    print('[graphify hook] no graph-relevant file types changed')
+if rebuild_failed:
+    sys.exit(1)
+"""
+
 _REBUILD_BODY_CHECKOUT = """\
 from graphify.watch import _rebuild_code, _apply_resource_limits
 from pathlib import Path
@@ -261,7 +356,9 @@ fi
 
 _HOOK_SCRIPT = """\
 # graphify-hook-start
-# Auto-rebuilds the knowledge graph after each commit (code files only, no LLM needed).
+# Auto-refreshes Graphify after each commit:
+# - code changes trigger a deterministic graph rebuild (no LLM needed)
+# - docs/media changes write graphify-out/needs_update for later semantic refresh
 # Installed by: graphify hook install
 
 # Deterministic clustering: networkx louvain iterates string-keyed sets whose
@@ -302,15 +399,14 @@ fi
 """ + _PYTHON_DETECT + """
 export GRAPHIFY_CHANGED="$CHANGED"
 
-# Run the rebuild detached so git commit returns immediately. Full-repo rebuilds
-# can take hours; blocking the post-commit hook stalls the shell. The Python
-# launcher below detaches the child cross-platform, so it works on Git for
-# Windows' shell too (which lacks the coreutils backgrounding tools) (#1161).
+# Run the freshness check detached so git commit returns immediately. Code
+# changes rebuild deterministically; docs/media changes only mark semantic
+# refresh pending because hooks must not spend LLM tokens.
 _GRAPHIFY_LOG="${HOME}/.cache/graphify-rebuild.log"
 mkdir -p "$(dirname "$_GRAPHIFY_LOG")"
 export GRAPHIFY_REBUILD_LOG="$_GRAPHIFY_LOG"
-echo "[graphify hook] launching background rebuild (log: $_GRAPHIFY_LOG)"
-""" + _detached_launch(_REBUILD_BODY_COMMIT) + """# graphify-hook-end
+echo "[graphify hook] launching background freshness check (log: $_GRAPHIFY_LOG)"
+""" + _detached_launch(_REFRESH_BODY_COMMIT) + """# graphify-hook-end
 """
 
 
@@ -494,6 +590,10 @@ def _install_hook(
     if hook_path.exists():
         content = hook_path.read_text(encoding="utf-8")
         if marker in content and marker_end in content:
+            start = content.index(marker)
+            end = content.index(marker_end, start) + len(marker_end)
+            if content[start:end].strip() == script.strip():
+                return f"already installed at {hook_path}"
             new_content, count = re.subn(
                 rf"{re.escape(marker)}.*?{re.escape(marker_end)}\n?",
                 lambda _match: script,
