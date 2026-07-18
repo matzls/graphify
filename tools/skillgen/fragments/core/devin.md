@@ -1373,7 +1373,7 @@ graphify hook uninstall  # remove
 graphify hook status     # check
 ```
 
-After every `git commit`, the hook detects which code files changed, re-runs AST extraction on those files, and rebuilds `graph.json` and `GRAPH_REPORT.md`. Doc/image changes are ignored by the hook - run `/graphify --update` manually for those.
+After every `git commit`, the hook classifies changed paths. Code changes trigger a deterministic AST extraction and graph rebuild for the changed files; no LLM is used. Documentation, papers, media, and image changes write `graphify-out/needs_update` so a later semantic refresh can process them.
 
 ---
 
