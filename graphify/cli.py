@@ -113,6 +113,15 @@ def _clear_semantic_marker(out_dir: Path) -> None:
         pass
 
 
+def _clear_needs_update_markers(out_dir: Path) -> None:
+    """Clear semantic-refresh sentinels after a complete semantic-capable run."""
+    for name in ("needs_update", ".needs_update"):
+        try:
+            (out_dir / name).unlink()
+        except FileNotFoundError:
+            pass
+
+
 def _write_semantic_marker(
     out_dir: Path,
     *,
@@ -1056,6 +1065,7 @@ def _dispatch_extract() -> None:
         )
 
     video_transcript_map: dict[str, str] = {}
+    video_transcription_incomplete = False
     transcript_shadow_tmp = None
     if video_files and not code_only:
         if whisper_model:
@@ -1072,6 +1082,7 @@ def _dispatch_extract() -> None:
                         transcribe(video_file, output_dir=transcript_dir, initial_prompt=prompt)
                     )
                 except Exception as exc:
+                    video_transcription_incomplete = True
                     print(
                         f"[graphify extract] warning: could not transcribe {video_file}: {exc}",
                         file=sys.stderr,
@@ -1278,7 +1289,7 @@ def _dispatch_extract() -> None:
     # pass crashed, or some semantic chunks failed). A partial result must not
     # be force-written over a good complete graph — the final write falls back
     # to the #479 shrink guard unless --allow-partial is set.
-    _extraction_incomplete = False
+    _extraction_incomplete = video_transcription_incomplete
     # A walk that couldn't fully enumerate the corpus (permission-denied
     # subtree, I/O error) yields a legitimately smaller graph that must not
     # be force-written over a complete one — same failure class as a crashed
@@ -1741,6 +1752,8 @@ def _dispatch_extract() -> None:
             )
             try:
                 _save_manifest(_manifest_files, manifest_path=str(manifest_path), kind="both", root=scan_root, scan_corpus=_scan_corpus, clear_semantic=_cleared_semantic)
+                if semantic_files and not code_only and not _extraction_incomplete:
+                    _clear_needs_update_markers(graphify_out)
             except Exception as exc:
                 print(f"[graphify extract] warning: could not write manifest: {exc}", file=sys.stderr)
             stages.total()
@@ -1827,6 +1840,8 @@ def _dispatch_extract() -> None:
             _clear_semantic_marker(graphify_out)
         try:
             _save_manifest(_manifest_files, manifest_path=str(manifest_path), kind="both", root=scan_root, scan_corpus=_scan_corpus, clear_semantic=_cleared_semantic)
+            if semantic_files and not code_only and not _extraction_incomplete:
+                _clear_needs_update_markers(graphify_out)
         except Exception as exc:
             print(f"[graphify extract] warning: could not write manifest: {exc}", file=sys.stderr)
         if global_merge:
@@ -2006,6 +2021,8 @@ def _dispatch_extract() -> None:
         )
     try:
         _save_manifest(_manifest_files, manifest_path=str(manifest_path), kind="both", root=scan_root, scan_corpus=_scan_corpus, clear_semantic=_cleared_semantic)
+        if semantic_files and not code_only and not _extraction_incomplete:
+            _clear_needs_update_markers(graphify_out)
     except Exception as exc:
         print(f"[graphify extract] warning: could not write manifest: {exc}", file=sys.stderr)
 

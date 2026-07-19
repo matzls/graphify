@@ -467,10 +467,16 @@ def _reconcile_existing_graph(
         )
         new_ast_ids = {n["id"] for n in result["nodes"]}
         current_sources = {
-            source_paths.absolute_identity(str(path), project_root) for path in code_files
+            identity
+            for path in code_files
+            if (identity := source_paths.absolute_identity(str(path), project_root))
+            is not None
         }
         rebuilt_source_identities = {
-            source_paths.absolute_identity(str(path), project_root) for path in extract_targets
+            identity
+            for path in extract_targets
+            if (identity := source_paths.absolute_identity(str(path), project_root))
+            is not None
         }
         node_evicted_source_identities = set(deleted_source_identities)
         hyperedge_evicted_source_identities = set(deleted_source_identities)
@@ -824,6 +830,9 @@ def _rebuild_code(
     ``no_cluster`` skips community detection and writes raw merged extraction
     JSON to graphify-out/graph.json (mirrors ``extract --no-cluster``).
 
+    This AST-only path never clears ``graphify-out/needs_update``. Only a
+    complete semantic-capable extraction can satisfy that pending work.
+
     Returns True on success, False on error or skipped-due-to-lock.
     """
     if not _stabilize_rebuild_cwd(watch_path):
@@ -1083,8 +1092,16 @@ def _rebuild_code(
         _rebuilt_root = str(project_root)
         if changed_paths is None:
             rebuilt_sources = {
-                _nsf(str(p.relative_to(project_root)), _rebuilt_root)
-                for p in code_files if p.is_relative_to(project_root)
+                normalized
+                for p in code_files
+                if p.is_relative_to(project_root)
+                and (
+                    normalized := _nsf(
+                        str(p.relative_to(project_root)),
+                        _rebuilt_root,
+                    )
+                )
+                is not None
             }
         else:
             rebuilt_sources = {(_nsf(str(p), _rebuilt_root) or str(p)) for p in extract_targets}
@@ -1151,11 +1168,6 @@ def _rebuild_code(
             except Exception:
                 pass
 
-            # clear stale needs_update flag if present
-            flag = out / "needs_update"
-            if flag.exists():
-                flag.unlink()
-
             if same_graph:
                 print(
                     "[graphify watch] No code-graph changes detected (--no-cluster); outputs left untouched."
@@ -1208,9 +1220,6 @@ def _rebuild_code(
                     )
                 except Exception:
                     pass
-                flag = out / "needs_update"
-                if flag.exists():
-                    flag.unlink()
                 print(
                     "[graphify watch] No code-graph topology changes detected; outputs left untouched."
                 )
@@ -1341,11 +1350,6 @@ def _rebuild_code(
                     )
             except Exception as cf_err:
                 print(f"[graphify watch] callflow HTML update skipped: {cf_err}")
-
-        # clear stale needs_update flag if present
-        flag = out / "needs_update"
-        if flag.exists():
-            flag.unlink()
 
         if not no_change:
             print(

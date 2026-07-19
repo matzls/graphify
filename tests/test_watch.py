@@ -208,6 +208,32 @@ def test_rebuild_code_writes_community_name(tmp_path):
     )
 
 
+@pytest.mark.parametrize(
+    ("no_cluster", "change_code"),
+    [(True, False), (False, False), (False, True)],
+)
+def test_rebuild_code_preserves_pending_semantic_refresh(
+    tmp_path: Path,
+    no_cluster: bool,
+    change_code: bool,
+):
+    from graphify.watch import _rebuild_code
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    code = corpus / "app.py"
+    code.write_text("VALUE = 1\n", encoding="utf-8")
+    assert _rebuild_code(corpus, no_cluster=no_cluster, acquire_lock=False) is True
+
+    flag = corpus / "graphify-out" / "needs_update"
+    flag.write_text("1", encoding="utf-8")
+    if change_code:
+        code.write_text("VALUE = 2\nEXTRA = 3\n", encoding="utf-8")
+
+    assert _rebuild_code(corpus, no_cluster=no_cluster, acquire_lock=False) is True
+    assert flag.exists(), "an AST-only rebuild must not clear pending semantic work"
+
+
 def test_update_rebuilds_with_nested_star_gitignore(tmp_path):
     """#1880: `graphify update` must not emit 0 nodes (and then refuse to
     overwrite) just because the source tree has a nested `.gitignore` with a

@@ -6,15 +6,15 @@
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
       "status": "active",
       "currentLane": "debugging-and-error-recovery",
-      "currentPhase": "v0.9.20-promoted-adoption-cli-repair-validated",
-      "enteredLaneBecause": "The reconciled branch and active CLI were promoted to v0.9.20, and the first adoption audit exposed a missing top-level command route that now has a regression test and clean full-suite validation.",
+      "currentPhase": "v0.9.20-promoted-canary-marker-repair-validated",
+      "enteredLaneBecause": "The first clean consumer canary exposed that AST-only rebuilds cleared pending semantic-refresh state; marker ownership and the related source-identity typing boundary now have focused regression coverage and clean full-suite validation.",
       "exitCriteria": [
         "The promoted mase/local-fixes branch retains the exact v0.9.20 upstream base and the pre-reconciliation backup ref.",
         "The active CLI, source checkout, and global Pi skill resolve to the promoted v0.9.20 fork.",
         "The documented graphify adoption audit/apply/propagate command is reachable through the installed top-level CLI.",
         "A post-install adoption audit, bounded canary, and re-audit complete without broad propagation or push."
       ],
-      "nextAction": "Commit and reinstall the adoption CLI repair, then complete the bounded post-promotion audit, canary, re-audit, and operator briefing.",
+      "nextAction": "Commit and reinstall the semantic-marker ownership repair, restore the canary's pre-existing stale state, then complete its authorized safe semantic refresh, re-audit, and operator briefing.",
       "nextRecommendedLane": "shipping-and-launch",
       "artifacts": [
         "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",
@@ -24,6 +24,7 @@
       "approvalGates": [
         "Mase approved local branch promotion, active CLI reinstall, Pi skill refresh, adoption audit, and a bounded canary after the validated v0.9.20 reconciliation briefing.",
         "Mase separately approved the missing top-level adoption CLI repair, regression test, validation, commit, reinstall, and audit retry.",
+        "Mase approved the canary-discovered semantic-marker ownership repair, regression coverage, commit, reinstall, and bounded semantic canary completion.",
         "Do not push or run broad consumer-repo propagation without separate approval.",
         "Do not export private consumer-repo content or incur semantic inference cost until the audit identifies the exact canary and its privacy boundary is confirmed.",
         "Treat origin/mase/local-fixes as preserved historical divergence; do not merge, reset to, or force-push it."
