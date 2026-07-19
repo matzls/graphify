@@ -4,17 +4,17 @@
   "tasks": {
     "graphify-reconciliation-recovery-and-readiness-2026-07": {
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
-      "status": "active",
-      "currentLane": "debugging-and-error-recovery",
-      "currentPhase": "v0.9.20-promoted-canary-marker-repair-validated",
-      "enteredLaneBecause": "The first clean consumer canary exposed that AST-only rebuilds cleared pending semantic-refresh state; marker ownership and the related source-identity typing boundary now have focused regression coverage and clean full-suite validation.",
+      "status": "completed",
+      "currentLane": "shipping-and-launch",
+      "currentPhase": "v0.9.20-promoted-canary-validated",
+      "enteredLaneBecause": "The promoted v0.9.20 CLI and Pi skill are source-verified, the clean mase-pi-subagents canary passed code-only and semantic/wiki paths, and the post-canary adoption audit completed without broad propagation.",
       "exitCriteria": [
         "The promoted mase/local-fixes branch retains the exact v0.9.20 upstream base and the pre-reconciliation backup ref.",
         "The active CLI, source checkout, and global Pi skill resolve to the promoted v0.9.20 fork.",
         "The documented graphify adoption audit/apply/propagate command is reachable through the installed top-level CLI.",
         "A post-install adoption audit, bounded canary, and re-audit complete without broad propagation or push."
       ],
-      "nextAction": "Commit and reinstall the semantic-marker ownership repair, restore the canary's pre-existing stale state, then complete its authorized safe semantic refresh, re-audit, and operator briefing.",
+      "nextAction": "Brief Mase on the completed promotion and canary; await separate approval before broad propagation or push, and review the remaining three refresh-needed plus six activation-partial repos deliberately.",
       "nextRecommendedLane": "shipping-and-launch",
       "artifacts": [
         "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",
