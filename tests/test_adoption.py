@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest  # type: ignore[reportMissingImports]
 
+import graphify.__main__ as mainmod
 from graphify import adoption
 
 
@@ -255,6 +256,51 @@ def test_json_shape_and_chat_report(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert result == 0
     assert "Graphify adoption audit" in captured.out
     assert "Recommended next commands" in captured.out
+
+
+def test_top_level_cli_dispatches_adoption_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
+    monkeypatch.setattr(
+        mainmod.sys,
+        "argv",
+        ["graphify", "adoption", "audit", "--root", str(tmp_path)],
+    )
+
+    mainmod.main()
+
+    assert "Graphify adoption audit" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        mainmod.sys,
+        "argv",
+        ["graphify", "adoption", "audit", "--help"],
+    )
+    mainmod.main()
+
+    assert "graphify adoption audit" in capsys.readouterr().out
+
+
+def test_top_level_cli_propagates_adoption_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+):
+    monkeypatch.setattr(mainmod, "_check_skill_version", lambda _: None)
+    monkeypatch.setattr(
+        mainmod.sys,
+        "argv",
+        ["graphify", "adoption", "apply", "--root", str(tmp_path)],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        mainmod.main()
+
+    assert exc_info.value.code == 2
+    assert "requires --local and/or --semantic" in capsys.readouterr().err
 
 
 def test_apply_requires_local_or_semantic(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
