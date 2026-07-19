@@ -122,6 +122,163 @@ def test_extract_single_file_target_writes_output_next_to_file(
     assert graph["nodes"][0]["id"] == node_id
 
 
+def test_no_change_semantic_capable_extract_preserves_pending_marker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    import graphify.detect
+
+    root = tmp_path / "corpus"
+    root.mkdir()
+    doc = root / "doc.md"
+    doc.write_text("# unchanged\n", encoding="utf-8")
+    out = root / "graphify-out"
+    out.mkdir()
+    (out / "graph.json").write_text(
+        json.dumps({"nodes": [{"id": "doc", "source_file": "doc.md"}], "links": []}),
+        encoding="utf-8",
+    )
+    (out / "manifest.json").write_text("{}", encoding="utf-8")
+    pending = out / "needs_update"
+    pending.write_text("1", encoding="utf-8")
+    monkeypatch.setattr(
+        graphify.detect,
+        "detect_incremental",
+        lambda *_, **__: {
+            "files": {"document": [str(doc)], "code": [], "paper": [], "image": [], "video": []},
+            "new_files": {"document": [], "code": [], "paper": [], "image": [], "video": []},
+            "unchanged_files": {"document": [str(doc)]},
+            "deleted_files": [],
+            "excluded_files": [],
+        },
+    )
+    monkeypatch.setattr(graphify.detect, "save_manifest", lambda *_, **__: None)
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 0
+    assert pending.exists(), "no semantic input was processed, so pending work must remain"
+
+
+def test_extract_preserves_pending_marker_when_manifest_save_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    import graphify.cache
+    import graphify.detect
+
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={
+            "nodes": [
+                {
+                    "id": "fresh_doc",
+                    "label": "Fresh Doc",
+                    "file_type": "document",
+                    "source_file": "doc.md",
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "failed_chunks": 0,
+            "partial_chunks": 0,
+            "total_chunks": 1,
+        },
+    )
+    out = root / "graphify-out"
+    out.mkdir()
+    pending = out / "needs_update"
+    pending.write_text("1", encoding="utf-8")
+    monkeypatch.setattr(graphify.cache, "save_semantic_cache", lambda *_, **__: None)
+    monkeypatch.setattr(
+        graphify.detect,
+        "save_manifest",
+        lambda *_, **__: (_ for _ in ()).throw(OSError("manifest unavailable")),
+    )
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 0
+    assert pending.exists(), "manifest failure must keep semantic work pending"
+
+
+def test_video_transcription_failure_preserves_pending_marker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    import graphify.cache
+    import graphify.detect
+    import graphify.llm
+    import graphify.transcribe
+
+    root = tmp_path / "corpus"
+    root.mkdir()
+    doc = root / "doc.md"
+    doc.write_text("# semantic input\n", encoding="utf-8")
+    video = root / "demo.mp4"
+    video.write_bytes(b"video fixture")
+    out = root / "graphify-out"
+    out.mkdir()
+    pending = out / "needs_update"
+    pending.write_text("1", encoding="utf-8")
+    monkeypatch.setattr(
+        graphify.detect,
+        "detect",
+        lambda *_, **__: {
+            "files": {
+                "document": [str(doc)],
+                "video": [str(video)],
+                "code": [],
+                "paper": [],
+                "image": [],
+            },
+            "total_files": 2,
+            "total_words": 3,
+        },
+    )
+    monkeypatch.setattr(
+        graphify.cache,
+        "check_semantic_cache",
+        lambda paths, root, **_: ([], [], [], list(paths)),
+    )
+    monkeypatch.setattr(graphify.cache, "save_semantic_cache", lambda *_, **__: None)
+    monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
+    monkeypatch.setattr(
+        graphify.llm,
+        "extract_corpus_parallel",
+        lambda *_, **__: {
+            "nodes": [
+                {
+                    "id": "doc",
+                    "label": "Doc",
+                    "file_type": "document",
+                    "source_file": "doc.md",
+                }
+            ],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "failed_chunks": 0,
+            "partial_chunks": 0,
+            "total_chunks": 1,
+        },
+    )
+    monkeypatch.setattr(
+        graphify.transcribe,
+        "transcribe",
+        lambda *_, **__: (_ for _ in ()).throw(RuntimeError("transcription failed")),
+    )
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    assert rc == 0
+    assert pending.exists(), "a skipped video must keep semantic work pending"
+
+
 def test_extract_preserves_existing_graph_when_all_fresh_semantic_chunks_fail(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -268,12 +425,18 @@ def test_allow_partial_writes_ast_output_when_fresh_semantic_chunks_fail(
         },
         ast_nodes=[{"id": "app_value", "label": "VALUE", "source_file": "app.py"}],
     )
+    out = root / "graphify-out"
+    out.mkdir()
+    pending = out / "needs_update"
+    pending.write_text("1", encoding="utf-8")
+
     rc = _run_main(
         monkeypatch,
         ["extract", str(root), "--backend", "ollama", "--no-cluster", "--allow-partial"],
     )
 
     assert rc == 0
+    assert pending.exists(), "partial semantic output must remain pending"
     data = json.loads((root / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
     assert data["nodes"] == [{"id": "app_value", "label": "VALUE", "source_file": "app.py"}]
     marker = json.loads(
@@ -498,6 +661,8 @@ def test_code_only_extract_clears_stale_partial_semantic_marker(
         json.dumps({"status": "partial", "failed_chunks": 1}),
         encoding="utf-8",
     )
+    pending = out / "needs_update"
+    pending.write_text("1", encoding="utf-8")
     monkeypatch.setattr(
         graphify.detect,
         "detect",
@@ -514,10 +679,14 @@ def test_code_only_extract_clears_stale_partial_semantic_marker(
         },
     )
 
-    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+    rc = _run_main(
+        monkeypatch,
+        ["extract", str(root), "--backend", "ollama", "--no-cluster", "--code-only"],
+    )
 
     assert rc == 0
     assert not (out / ".graphify_semantic_marker").exists()
+    assert pending.exists(), "code-only extraction must preserve pending semantic work"
 
 
 def test_fresh_semantic_extract_rewrites_stale_partial_marker_as_clean(
@@ -551,10 +720,16 @@ def test_fresh_semantic_extract_rewrites_stale_partial_marker_as_clean(
         json.dumps({"status": "partial", "failed_chunks": 1}),
         encoding="utf-8",
     )
+    pending = out / "needs_update"
+    legacy_pending = out / ".needs_update"
+    pending.write_text("1", encoding="utf-8")
+    legacy_pending.write_text("1", encoding="utf-8")
 
     rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
 
     assert rc == 0
+    assert not pending.exists()
+    assert not legacy_pending.exists()
     marker = json.loads((out / ".graphify_semantic_marker").read_text(encoding="utf-8"))
     assert marker["status"] == "clean"
     assert marker["failed_chunks"] == 0
@@ -650,9 +825,17 @@ def test_extract_writes_graph_report_from_current_graph(
         },
     )
     monkeypatch.setattr("graphify.cache.save_semantic_cache", lambda *_, **__: None)
+    out = root / "graphify-out"
+    out.mkdir()
+    pending = out / "needs_update"
+    legacy_pending = out / ".needs_update"
+    pending.write_text("1", encoding="utf-8")
+    legacy_pending.write_text("1", encoding="utf-8")
 
     rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama"])
 
+    assert not pending.exists()
+    assert not legacy_pending.exists()
     report = (root / "graphify-out" / "GRAPH_REPORT.md").read_text(encoding="utf-8")
     graph = json.loads((root / "graphify-out" / "graph.json").read_text(encoding="utf-8"))
     assert rc == 0
