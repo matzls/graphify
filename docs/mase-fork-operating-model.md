@@ -8,9 +8,9 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-07-13
-last_verified: 2026-07-02
-reconciliation_status: "semantic CLI recovery pending targeted validation; no new intake authorized"
+updated: 2026-07-19
+last_verified: 2026-07-19
+reconciliation_status: "v0.9.20 intake approved; baseline clean; isolated reconciliation pending"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
