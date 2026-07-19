@@ -5,29 +5,28 @@
     "graphify-reconciliation-recovery-and-readiness-2026-07": {
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
       "status": "active",
-      "currentLane": "planning-and-task-breakdown",
-      "currentPhase": "track-b-owner-confirmed-refinement-and-guardrail-blocked",
-      "enteredLaneBecause": "The completed upstream rebase has unresolved targeted validation and the requested reusable process hardening crosses repository and shared fork-manager boundaries.",
+      "currentLane": "git-workflow-and-versioning",
+      "currentPhase": "v0.9.20-approved-isolated-apply",
+      "enteredLaneBecause": "Track A validation is clean, the shared fork-manager mirror policy is aligned, and Mase approved an exact-SHA isolated reconciliation onto upstream v0.9.20.",
       "exitCriteria": [
-        "Track A is validation-clean, independently reviewed, and its active CLI is reinstalled and source-verified.",
-        "Track B shared-owner design is refined and peer-reviewed with Graphify-specific mirror and apply-policy conflicts resolved.",
-        "Deterministic fixture coverage validates read-only intake and guarded apply refusal before any real reconciliation.",
-        "Mase explicitly authorizes any Track B mutation/apply envelope; planning alone does not authorize mutations."
+        "The isolated reconciliation rebases onto edec9eabeceeae6aa2375eddb3835efa1a32c0a3 without unresolved conflicts.",
+        "The targeted reconciliation regression suite and fresh review are clean.",
+        "Mase receives the release-impact, local-patch, validation, install, commit, and push-state briefing before any promotion or rollout."
       ],
-      "nextAction": "Refine and re-review the shared my-oss-fork-manager intake/apply design: normalize Graphify mirror policy and remove Graphify-incompatible automatic abort/reset recovery before implementation.",
-      "nextRecommendedLane": "planning-and-task-breakdown",
+      "nextAction": "Create the approved backup and isolated worktree, fast-forward mirror/upstream-v8 to the pinned target, and stop if the rebase conflicts or validation fails.",
+      "nextRecommendedLane": "code-review-and-quality",
       "artifacts": [
         "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",
         "docs/plans/graphify-upstream-reconciliation-readiness-plan.md",
         "docs/mase-fork-operating-model.md"
       ],
       "approvalGates": [
-        "Do not start another rebase, fetch, pull, reset, abort, push, active-CLI reinstall, or consumer-repo propagation without explicit authority.",
-        "Track A must be validation-clean before a fresh upstream reconciliation is considered.",
-        "Track B automation is conditional on confirming the canonical shared OSS fork-manager owner; do not assume a Graphify CLI command is the right shared solution.",
-        "Local commits require a separate explicit commit-capable workflow or request."
+        "The approved apply envelope is limited to the exact v0.9.20 target, a backup ref, a fresh isolated worktree, and a conflict-free rebase.",
+        "Stop on any rebase conflict or failed validation; do not auto-abort, reset, stash, or resolve conflicts silently.",
+        "Do not push, reinstall the active CLI, propagate consumer repos, or alter existing stashes or the historical reconciliation worktree.",
+        "Treat origin/mase/local-fixes as preserved historical divergence; do not merge, reset to, or force-push it."
       ],
-      "lastUpdated": "2026-07-13"
+      "lastUpdated": "2026-07-19"
     }
   }
 }
