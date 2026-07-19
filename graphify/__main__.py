@@ -582,6 +582,9 @@ def _run_cli() -> None:
         print("  install [--platform P]  copy skill to platform config dir (claude|windows|codebuddy|codex|opencode|aider|amp|agents|claw|droid|trae|trae-cn|gemini|cursor|antigravity|hermes|kiro|pi|devin)")
         print("  uninstall               remove graphify from all detected platforms in one shot")
         print("    --purge                 also delete graphify-out/ directory")
+        print("  adoption audit         read-only multi-repo adoption report")
+        print("  adoption apply         explicitly apply selected local or semantic actions")
+        print("  adoption propagate     run and verify a bounded multi-repo rollout")
         print("  path \"A\" \"B\"            shortest path between two nodes in graph.json")
         print("    --graph <path>          path to graph.json (default graphify-out/graph.json)")
         print("  explain \"X\"             plain-language explanation of a node and its neighbors")
@@ -791,6 +794,7 @@ def _run_cli() -> None:
         "install",
         "uninstall",
         "doctor",
+        "adoption",
     }
     if cmd not in _FREE_TEXT_CMDS and any(a in {"-h", "--help", "-?"} for a in sys.argv[2:]):
         print(f"Run 'graphify --help' for full usage.")

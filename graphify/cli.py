@@ -2058,7 +2058,13 @@ def _dispatch_extract() -> None:
 
 
 def dispatch_command(cmd: str) -> None:
-    if cmd == "provider":
+    if cmd == "adoption":
+        from graphify.adoption import run_cli as _run_adoption_cli
+
+        exit_code = _run_adoption_cli(sys.argv[2:])
+        if exit_code:
+            sys.exit(exit_code)
+    elif cmd == "provider":
         from graphify.llm import _custom_providers_path, BACKENDS
         import json as _json
         subcmd = sys.argv[2] if len(sys.argv) > 2 else ""

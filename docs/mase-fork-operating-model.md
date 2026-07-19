@@ -10,7 +10,7 @@ owners:
 created: 2026-05-02
 updated: 2026-07-19
 last_verified: 2026-07-19
-reconciliation_status: "v0.9.20 intake approved; baseline clean; isolated reconciliation pending"
+reconciliation_status: "v0.9.20 promoted locally; active CLI 0.9.20; canary rollout pending"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"

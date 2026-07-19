@@ -5,25 +5,27 @@
     "graphify-reconciliation-recovery-and-readiness-2026-07": {
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
       "status": "active",
-      "currentLane": "code-review-and-quality",
-      "currentPhase": "v0.9.20-isolated-apply-validated",
-      "enteredLaneBecause": "The exact-SHA isolated rebase onto upstream v0.9.20 is complete, the full local suite is clean, and fresh review found no remaining blockers.",
+      "currentLane": "debugging-and-error-recovery",
+      "currentPhase": "v0.9.20-promoted-adoption-cli-repair-validated",
+      "enteredLaneBecause": "The reconciled branch and active CLI were promoted to v0.9.20, and the first adoption audit exposed a missing top-level command route that now has a regression test and clean full-suite validation.",
       "exitCriteria": [
-        "The isolated reconciliation rebases onto edec9eabeceeae6aa2375eddb3835efa1a32c0a3 without unresolved conflicts.",
-        "The targeted reconciliation regression suite and fresh review are clean.",
-        "Mase receives the release-impact, local-patch, validation, install, commit, and push-state briefing before any promotion or rollout."
+        "The promoted mase/local-fixes branch retains the exact v0.9.20 upstream base and the pre-reconciliation backup ref.",
+        "The active CLI, source checkout, and global Pi skill resolve to the promoted v0.9.20 fork.",
+        "The documented graphify adoption audit/apply/propagate command is reachable through the installed top-level CLI.",
+        "A post-install adoption audit, bounded canary, and re-audit complete without broad propagation or push."
       ],
-      "nextAction": "Brief Mase on release impact, retained local patches, validation, and branch/install/push state; await separate approval before promotion, reinstall, propagation, or push.",
-      "nextRecommendedLane": "git-workflow-and-versioning",
+      "nextAction": "Commit and reinstall the adoption CLI repair, then complete the bounded post-promotion audit, canary, re-audit, and operator briefing.",
+      "nextRecommendedLane": "shipping-and-launch",
       "artifacts": [
         "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",
         "docs/plans/graphify-upstream-reconciliation-readiness-plan.md",
         "docs/mase-fork-operating-model.md"
       ],
       "approvalGates": [
-        "The approved apply envelope is limited to the exact v0.9.20 target, a backup ref, a fresh isolated worktree, and a conflict-free rebase.",
-        "Stop on any rebase conflict or failed validation; do not auto-abort, reset, stash, or resolve conflicts silently.",
-        "Do not push, reinstall the active CLI, propagate consumer repos, or alter existing stashes or the historical reconciliation worktree.",
+        "Mase approved local branch promotion, active CLI reinstall, Pi skill refresh, adoption audit, and a bounded canary after the validated v0.9.20 reconciliation briefing.",
+        "Mase separately approved the missing top-level adoption CLI repair, regression test, validation, commit, reinstall, and audit retry.",
+        "Do not push or run broad consumer-repo propagation without separate approval.",
+        "Do not export private consumer-repo content or incur semantic inference cost until the audit identifies the exact canary and its privacy boundary is confirmed.",
         "Treat origin/mase/local-fixes as preserved historical divergence; do not merge, reset to, or force-push it."
       ],
       "lastUpdated": "2026-07-19"
