@@ -1020,6 +1020,22 @@ def _is_uv_from_interpreter_fix_line(line: str) -> bool:
     return "uv tool run" in line and "graphifyy python" in line
 
 
+def _is_hook_refresh_contract_line(line: str) -> bool:
+    """Whether a line describes the complete incremental hook contract.
+
+    The hook now classifies changed paths: code triggers a local AST rebuild,
+    while docs, papers, media, and images mark semantic state stale. Both the
+    removed code-only paragraph and the replacement paragraph are sanctioned
+    so monolith round-trip checks still reject unrelated prose drift.
+    """
+    stripped = line.strip()
+    return stripped.startswith(
+        "After every `git commit`, the hook detects which code files changed"
+    ) or stripped.startswith(
+        "After every `git commit`, the hook classifies changed paths."
+    )
+
+
 def _is_semantic_cache_scope_fix_line(line: str) -> bool:
     """Whether a line scopes semantic cache writes to dispatched files (#1757).
 
@@ -1055,6 +1071,7 @@ _SANCTIONED_MONOLITH_DIFFS = (
     _is_shebang_allowlist_fix_line,
     _is_obsidian_usage_comment_line,
     _is_uv_from_interpreter_fix_line,
+    _is_hook_refresh_contract_line,
     _is_semantic_cache_scope_fix_line,
 )
 

@@ -1254,8 +1254,14 @@ def _dispatch_extract() -> None:
                     )
                     sys.exit(1)
             if not allow_no_key:
+                code_only_hint = (
+                    " Or pass --code-only to skip semantic files and index local code only."
+                    if semantic_files
+                    else ""
+                )
                 print(
-                    f"error: backend '{backend}' requires {_format_backend_env_keys(backend)} to be set.",
+                    f"error: backend '{backend}' requires "
+                    f"{_format_backend_env_keys(backend)} to be set.{code_only_hint}",
                     file=sys.stderr,
                 )
                 sys.exit(1)

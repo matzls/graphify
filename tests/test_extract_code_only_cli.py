@@ -49,10 +49,15 @@ def test_code_only_succeeds_without_key(tmp_path):
     assert any(str(l).startswith("hello") for l in labels), "code was indexed"
 
 
-def test_mixed_repo_without_key_errors_and_points_at_code_only(tmp_path):
+def test_explicit_cloud_backend_without_key_points_at_code_only(tmp_path):
+    """The fork's automatic Ollama default may be locally available without a key.
+
+    Use an explicit hosted backend to exercise the deterministic no-key path
+    without making a live local inference request.
+    """
     repo = _mixed_repo(tmp_path)
-    r = _run(repo)  # no --code-only, no key
-    assert r.returncode != 0, "mixed repo with no key should still error without the flag"
+    r = _run(repo, "--backend", "openai")
+    assert r.returncode != 0, "explicit cloud backend should require its key"
     assert "--code-only" in r.stderr, "the no-key error must point users at --code-only"
 
 

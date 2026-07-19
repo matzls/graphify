@@ -5,16 +5,16 @@
     "graphify-reconciliation-recovery-and-readiness-2026-07": {
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
       "status": "active",
-      "currentLane": "git-workflow-and-versioning",
-      "currentPhase": "v0.9.20-approved-isolated-apply",
-      "enteredLaneBecause": "Track A validation is clean, the shared fork-manager mirror policy is aligned, and Mase approved an exact-SHA isolated reconciliation onto upstream v0.9.20.",
+      "currentLane": "code-review-and-quality",
+      "currentPhase": "v0.9.20-isolated-apply-validated",
+      "enteredLaneBecause": "The exact-SHA isolated rebase onto upstream v0.9.20 is complete, the full local suite is clean, and fresh review found no remaining blockers.",
       "exitCriteria": [
         "The isolated reconciliation rebases onto edec9eabeceeae6aa2375eddb3835efa1a32c0a3 without unresolved conflicts.",
         "The targeted reconciliation regression suite and fresh review are clean.",
         "Mase receives the release-impact, local-patch, validation, install, commit, and push-state briefing before any promotion or rollout."
       ],
-      "nextAction": "Create the approved backup and isolated worktree, fast-forward mirror/upstream-v8 to the pinned target, and stop if the rebase conflicts or validation fails.",
-      "nextRecommendedLane": "code-review-and-quality",
+      "nextAction": "Brief Mase on release impact, retained local patches, validation, and branch/install/push state; await separate approval before promotion, reinstall, propagation, or push.",
+      "nextRecommendedLane": "git-workflow-and-versioning",
       "artifacts": [
         "docs/plans/graphify-semantic-cli-reconciliation-recovery-plan.md",
         "docs/plans/graphify-upstream-reconciliation-readiness-plan.md",
