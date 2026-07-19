@@ -1249,8 +1249,8 @@ def detect(root: Path, *, follow_symlinks: bool | None = None, google_workspace:
     if memory_dir.exists():
         scan_paths.append(memory_dir)
 
-    seen: set[Path] = set()
-    all_files: list[Path] = []
+    seen: set[Path] = {root} if single_file else set()
+    all_files: list[Path] = [root] if single_file else []
 
     # os.walk swallows os.scandir errors by default (no onerror -> the failing
     # directory subtree is silently skipped). That turns a transient
