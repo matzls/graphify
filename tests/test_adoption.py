@@ -178,6 +178,24 @@ def test_audit_skips_retired_default_exclusions(tmp_path: Path):
     assert rows["workshops-origin-main"].reason == "workshop workspace; excluded from Graphify propagation"
 
 
+def test_audit_skips_stabilization_repos_but_keeps_main_second_brain_repo(tmp_path: Path):
+    excluded_names = (
+        "my-second-brain-build-repository-stabilization",
+        "my-second-brain-build-repository-stabilization-future-run",
+    )
+    for name in (*excluded_names, "my-second-brain-build"):
+        repo = _init_repo(tmp_path / name)
+        (repo / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+        _commit_all(repo)
+
+    rows = {r.name: r for r in adoption.audit(tmp_path).repos}
+
+    for name in excluded_names:
+        assert rows[name].status == "skip"
+        assert rows[name].reason == "stabilization workspace; excluded from Graphify propagation"
+    assert rows["my-second-brain-build"].status == "candidate"
+
+
 def test_dirty_source_blocks_but_dirty_graph_can_be_allowed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):

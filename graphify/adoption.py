@@ -99,6 +99,12 @@ DEFAULT_AUDIT_EXCLUSIONS: dict[str, str] = {
     "workshops-origin-main": "workshop workspace; excluded from Graphify propagation",
 }
 
+DEFAULT_AUDIT_EXCLUSION_PREFIXES: dict[str, str] = {
+    "my-second-brain-build-repository-stabilization": (
+        "stabilization workspace; excluded from Graphify propagation"
+    ),
+}
+
 STATUS_ORDER = {
     "full": 0,
     "refresh-needed": 1,
@@ -327,7 +333,17 @@ def _is_self_graphify_repo(path: Path) -> bool:
 
 
 def _default_audit_exclusion_reason(path: Path) -> str | None:
-    return DEFAULT_AUDIT_EXCLUSIONS.get(path.name)
+    exact_reason = DEFAULT_AUDIT_EXCLUSIONS.get(path.name)
+    if exact_reason:
+        return exact_reason
+    return next(
+        (
+            reason
+            for prefix, reason in DEFAULT_AUDIT_EXCLUSION_PREFIXES.items()
+            if path.name.startswith(prefix)
+        ),
+        None,
+    )
 
 
 def _iter_dirs(root: Path) -> Iterable[Path]:
@@ -887,7 +903,9 @@ def _semantic_extract_command(options: ApplyOptions) -> tuple[list[str], dict[st
     if max_concurrency is not None:
         cmd += ["--max-concurrency", str(max_concurrency)]
     if api_timeout is not None:
-        timeout_text = str(int(api_timeout)) if float(api_timeout).is_integer() else str(api_timeout)
+        timeout_text = (
+            str(int(api_timeout)) if float(api_timeout).is_integer() else str(api_timeout)
+        )
         cmd += ["--api-timeout", timeout_text]
     if llm_trace:
         cmd += ["--llm-trace"]
@@ -994,14 +1012,14 @@ def apply(options: ApplyOptions) -> list[ApplyResult]:
                     _ensure_graphify_out_ignored(repo_path)
                     commands.append("ensure .gitignore ignores graphify-out/")
                 if _effective_safe_ollama(options):
-                    changed = _ensure_graphifyignore(
-                        repo_path, SAFE_OLLAMA_GRAPHIFYIGNORE_PATTERNS
-                    )
+                    changed = _ensure_graphifyignore(repo_path, SAFE_OLLAMA_GRAPHIFYIGNORE_PATTERNS)
                     if changed:
                         commands.append("ensure .graphifyignore has safe Ollama defaults")
             except OSError as exc:
                 outputs.append(
-                    ApplyResult(repo=repo.name, status="failed", commands=commands, message=str(exc))
+                    ApplyResult(
+                        repo=repo.name, status="failed", commands=commands, message=str(exc)
+                    )
                 )
                 continue
 
@@ -1083,9 +1101,7 @@ def _apply_options_for(
 
 def _matches_target(repo: RepoAdoption, target: str) -> bool:
     needle = target.strip()
-    return bool(needle) and (
-        repo.name == needle or repo.root == needle or needle in repo.root
-    )
+    return bool(needle) and (repo.name == needle or repo.root == needle or needle in repo.root)
 
 
 def _selected_final_repos(result: AdoptionAudit, targets: Sequence[str]) -> list[RepoAdoption]:
@@ -1138,9 +1154,7 @@ def _verify_activation(root: Path, targets: Sequence[str]) -> list[ActivationChe
         checks.append(
             ActivationCheck(repo=repo.name, status="verified", command=rendered, message="ok")
         )
-    missing = [
-        t for t in targets if not any(_matches_target(repo, t) for repo in selected)
-    ]
+    missing = [t for t in targets if not any(_matches_target(repo, t) for repo in selected)]
     for target in missing:
         checks.append(
             ActivationCheck(

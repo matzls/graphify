@@ -8,8 +8,8 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-07-19
-last_verified: 2026-07-19
+updated: 2026-07-21
+last_verified: 2026-07-21
 reconciliation_status: "v0.9.20 promoted locally; active CLI 0.9.20; canary passed; broad propagation gated"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
@@ -393,9 +393,12 @@ risk.
 
 The normal `/Users/mase/Codebase` audit has default retired/workspace exclusions
 in `graphify/adoption.py` so they do not keep surfacing as partial or candidate
-targets. As of 2026-06-30, `maser-pm`, `pm-agent-toolkit`, `workshops`, and
-`workshops-origin-main` are excluded from routine Graphify propagation. Update
-`DEFAULT_AUDIT_EXCLUSIONS` there when Mase changes the maintained repo set.
+targets. Exact-name exclusions include `maser-pm`, `pm-agent-toolkit`,
+`workshops`, and `workshops-origin-main`. All current and future repos whose
+names start with `my-second-brain-build-repository-stabilization` are also
+excluded; the main `my-second-brain-build` repo remains audited normally. Update
+`DEFAULT_AUDIT_EXCLUSIONS` or `DEFAULT_AUDIT_EXCLUSION_PREFIXES` there when Mase
+changes the maintained repo set.
 
 Apply remains explicit and re-runs the audit before mutating selected repos:
 
