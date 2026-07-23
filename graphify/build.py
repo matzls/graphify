@@ -45,15 +45,41 @@ from .validate import validate_extraction
 # edge (#1547/#1556) is dropped. Kept local to build.py (not imported from extract.py,
 # which imports build.py — a cycle) and deliberately mirrors extract._LANG_FAMILY_BY_EXT.
 _EDGE_LANG_FAMILY: dict[str, str] = {
-    ".py": "py", ".pyi": "py",
-    ".js": "js", ".mjs": "js", ".cjs": "js", ".jsx": "js",
-    ".ts": "js", ".tsx": "js", ".mts": "js", ".cts": "js",
-    ".go": "go", ".rs": "rs",
-    ".java": "jvm", ".kt": "jvm", ".scala": "jvm", ".groovy": "jvm",
-    ".c": "c", ".h": "c", ".cc": "c", ".cpp": "c", ".hpp": "c",
-    ".cxx": "c", ".hh": "c", ".hxx": "c",
-    ".cu": "c", ".cuh": "c", ".metal": "c", ".m": "c", ".mm": "c",
-    ".rb": "rb", ".rake": "rb", ".php": "php", ".cs": "cs", ".swift": "swift", ".lua": "lua",
+    ".py": "py",
+    ".pyi": "py",
+    ".js": "js",
+    ".mjs": "js",
+    ".cjs": "js",
+    ".jsx": "js",
+    ".ts": "js",
+    ".tsx": "js",
+    ".mts": "js",
+    ".cts": "js",
+    ".go": "go",
+    ".rs": "rs",
+    ".java": "jvm",
+    ".kt": "jvm",
+    ".scala": "jvm",
+    ".groovy": "jvm",
+    ".c": "c",
+    ".h": "c",
+    ".cc": "c",
+    ".cpp": "c",
+    ".hpp": "c",
+    ".cxx": "c",
+    ".hh": "c",
+    ".hxx": "c",
+    ".cu": "c",
+    ".cuh": "c",
+    ".metal": "c",
+    ".m": "c",
+    ".mm": "c",
+    ".rb": "rb",
+    ".rake": "rb",
+    ".php": "php",
+    ".cs": "cs",
+    ".swift": "swift",
+    ".lua": "lua",
 }
 
 
@@ -295,10 +321,7 @@ def _shortest_unique_suffix(sf: str, all_sfs: "set[str]") -> str:
     `x/index.ts` vs `y/index.ts` -> `x/index.ts`. Derived from the path (never the
     current label) so relabeling is idempotent across incremental rebuilds."""
     parts = [p for p in sf.replace("\\", "/").split("/") if p]
-    others = [
-        [p for p in o.replace("\\", "/").split("/") if p]
-        for o in all_sfs if o != sf
-    ]
+    others = [[p for p in o.replace("\\", "/").split("/") if p] for o in all_sfs if o != sf]
     for k in range(1, len(parts) + 1):
         suffix = parts[-k:]
         if all(o[-k:] != suffix for o in others):
@@ -312,6 +335,7 @@ def _file_label_reassignments(items: "list[tuple]") -> dict:
     directory-qualified suffix (#2032). Keys of non-colliding/basename-unique file
     nodes are omitted (their label stays bare)."""
     from collections import defaultdict
+
     groups: dict[str, list[tuple]] = defaultdict(list)
     for key, label, sf in items:
         if sf and label and _is_file_node_label(str(label), str(sf)):
@@ -342,7 +366,8 @@ def disambiguate_file_labels_in_nodes(nodes: "list") -> None:
     extraction directly without going through build_from_json."""
     items = [
         (i, n.get("label"), n.get("source_file"))
-        for i, n in enumerate(nodes) if isinstance(n, dict)
+        for i, n in enumerate(nodes)
+        if isinstance(n, dict)
     ]
     for i, new_label in _file_label_reassignments(items).items():
         nodes[i]["label"] = new_label
@@ -576,7 +601,7 @@ def _semantic_id_remap(nodes: list, root: str | None) -> dict:
                 break
             prefix = old_stem + "_"
             if norm_nid.startswith(prefix):
-                entity = norm_nid[len(prefix):]
+                entity = norm_nid[len(prefix) :]
                 new_id = make_id(new_stem, entity)
                 break
         if new_id and new_id != nid:
@@ -596,6 +621,7 @@ def graph_has_legacy_ids(nodes: list, root: str | Path | None = None, sample: in
     file-stem form and would otherwise false-positive. Returns True as soon as one
     file node's ID matches an OLD stem form but not the canonical full-path form."""
     from graphify.extractors.base import _file_stem
+
     _r = str(root) if root is not None else None
     checked = 0
     for node in nodes:
@@ -723,7 +749,9 @@ def _filter_hyperedges_for_valid_nodes(
     return filtered
 
 
-def build_from_json(extraction: dict, *, directed: bool = False, root: str | Path | None = None) -> nx.Graph:
+def build_from_json(
+    extraction: dict, *, directed: bool = False, root: str | Path | None = None
+) -> nx.Graph:
     """Build a NetworkX graph from an extraction dict.
 
     directed=True produces a DiGraph that preserves edge direction (source→target).
@@ -744,7 +772,8 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
             # Count edges that reference this node so the warning is actionable (#479)
             node_id = node.get("id", "?")
             affected_edges = sum(
-                1 for e in extraction.get("edges", [])
+                1
+                for e in extraction.get("edges", [])
                 if e.get("source") == node_id or e.get("target") == node_id
             )
             print(
@@ -797,7 +826,10 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
     # Dangling edges (stdlib/external imports) are expected - only warn about real schema errors.
     real_errors = [e for e in errors if "does not match any node id" not in e]
     if real_errors:
-        print(f"[graphify] Extraction warning ({len(real_errors)} issues): {real_errors[0]}", file=sys.stderr)
+        print(
+            f"[graphify] Extraction warning ({len(real_errors)} issues): {real_errors[0]}",
+            file=sys.stderr,
+        )
     # Deterministic semantic re-key (#1504/#1509): the node-ID stem is now the
     # full repo-relative path (docs/v1/api/README.md -> docs_v1_api_readme), but
     # the semantic cache is UNVERSIONED, so a cached/LLM fragment can still carry
@@ -830,7 +862,8 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
     _doc_remap = _doc_twin_remap(extraction.get("nodes", []))
     if _doc_remap:
         extraction["nodes"] = [
-            n for n in extraction.get("nodes", [])
+            n
+            for n in extraction.get("nodes", [])
             if not (isinstance(n, dict) and n.get("id") in _doc_remap)
         ]
         _new_edges = []
@@ -843,7 +876,9 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
                     edge["target"] = _doc_remap[t0]
                 # Drop only self-loops the remap itself collapsed (a bare->_doc
                 # link becoming doc->doc); leave any pre-existing self-loop alone.
-                if edge.get("source") == edge.get("target") and (s0 in _doc_remap or t0 in _doc_remap):
+                if edge.get("source") == edge.get("target") and (
+                    s0 in _doc_remap or t0 in _doc_remap
+                ):
                     continue
             _new_edges.append(edge)
         extraction["edges"] = _new_edges
@@ -882,7 +917,7 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
     # populates source_location, so those ghosts survived. Extended fix: use
     # _origin=="ast" as the canonical signal. AST nodes always win; any non-AST
     # node sharing (basename, label) with an AST node is a ghost.
-    _loc_nodes: dict[tuple[str, str], str] = {}   # (source_file, label) -> canonical node id
+    _loc_nodes: dict[tuple[str, str], str] = {}  # (source_file, label) -> canonical node id
     _loc_collisions: set[tuple[str, str]] = set()  # keys shared by 2+ AST nodes
     _noloc_nodes: dict[tuple[str, str], str] = {}  # (source_file, label) -> ghost node id
 
@@ -989,6 +1024,7 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
     # the header silently dropping out of the race and leaving the PHP file as
     # the lone (wrong) "unambiguous" winner.
     from graphify.extractors.base import _file_stem as _fs
+
     _alias_candidates: dict[str, set[str]] = {}
     for nid in node_set:
         attrs = G.nodes[nid]
@@ -1004,7 +1040,7 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
         else:
             suffix = ""
             if _normalize_id(nid).startswith(new_stem):
-                suffix = _normalize_id(nid)[len(new_stem):]  # leading "_entity" or ""
+                suffix = _normalize_id(nid)[len(new_stem) :]  # leading "_entity" or ""
         for old_stem in _old_file_stems(rel):
             if old_stem == new_stem:
                 continue
@@ -1080,7 +1116,11 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
         # strings, NaN/inf, negatives — while numeric strings coerce cleanly.
         # Repair (not drop) the key so graph.json round-trips a clean value and a
         # cluster-only/--update reload never re-ingests the null.
-        attrs = {k: v for k, v in edge.items() if k not in ("source", "target", "target_file", "local_alias")}
+        attrs = {
+            k: v
+            for k, v in edge.items()
+            if k not in ("source", "target", "target_file", "local_alias")
+        }
         for _num_key in ("weight", "confidence_score"):
             if _num_key in attrs:
                 try:
@@ -1095,9 +1135,7 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
         # flags and leaves query results with no file reference (#1279).
         if not attrs.get("source_file"):
             attrs["source_file"] = (
-                G.nodes[src].get("source_file")
-                or G.nodes[tgt].get("source_file")
-                or ""
+                G.nodes[src].get("source_file") or G.nodes[tgt].get("source_file") or ""
             )
         if "source_file" in attrs:
             attrs["source_file"] = _norm_source_file(attrs["source_file"], _root)
@@ -1117,7 +1155,9 @@ def build_from_json(extraction: dict, *, directed: bool = False, root: str | Pat
                 # soon as either family differs (an unknown ext counts as different).
                 if (
                     attrs.get("confidence") == "INFERRED"
-                    and src_ext and tgt_ext and src_fam != tgt_fam
+                    and src_ext
+                    and tgt_ext
+                    and src_fam != tgt_fam
                 ):
                     continue
             else:
@@ -1233,7 +1273,14 @@ def build(
     collisions remain isolated and are reported.
     """
     from graphify.dedup import deduplicate_entities
-    combined: dict = {"nodes": [], "edges": [], "hyperedges": [], "input_tokens": 0, "output_tokens": 0}
+
+    combined: dict = {
+        "nodes": [],
+        "edges": [],
+        "hyperedges": [],
+        "input_tokens": 0,
+        "output_tokens": 0,
+    }
     for ext in extractions:
         combined["nodes"].extend(ext.get("nodes", []))
         combined["edges"].extend(ext.get("edges", []))
@@ -1244,15 +1291,15 @@ def build(
         combined["nodes"], combined["edges"], remap = cast(
             tuple[list[dict], list[dict], dict[str, str]],
             deduplicate_entities(
-                combined["nodes"], combined["edges"], communities={},
+                combined["nodes"],
+                combined["edges"],
+                communities={},
                 dedup_llm_backend=dedup_llm_backend,
                 return_remap=True,
             ),
         )
         valid_ids = {
-            node_id
-            for n in combined["nodes"]
-            if isinstance((node_id := n.get("id")), str)
+            node_id for n in combined["nodes"] if isinstance((node_id := n.get("id")), str)
         }
         combined["hyperedges"] = _rewrite_hyperedge_nodes(
             combined["hyperedges"],
@@ -1269,9 +1316,7 @@ def build(
         )
         if label_remap:
             valid_ids = {
-                node_id
-                for n in combined["nodes"]
-                if isinstance((node_id := n.get("id")), str)
+                node_id for n in combined["nodes"] if isinstance((node_id := n.get("id")), str)
             }
             combined["hyperedges"] = _rewrite_hyperedge_nodes(
                 combined["hyperedges"],
@@ -1310,7 +1355,7 @@ def deduplicate_by_label(
     """
     _CHUNK_SUFFIX = re.compile(r"_c\d+$")
     canonical: dict[str, dict] = {}  # norm_label -> surviving node
-    remap: dict[str, str] = {}       # old_id -> surviving_id
+    remap: dict[str, str] = {}  # old_id -> surviving_id
 
     for node in nodes:
         key = _norm_label(node.get("label", node.get("id", "")))
@@ -1381,6 +1426,7 @@ def build_merge(
         # attrs are popped before saving in export.py, so going through the
         # NetworkX round-trip loses direction permanently (#760).
         from graphify.security import check_graph_file_size_cap
+
         check_graph_file_size_cap(graph_path)
         try:
             data = json.loads(graph_path.read_text(encoding="utf-8"))
@@ -1407,10 +1453,7 @@ def build_merge(
     # (#1571 — the skill's --update runbook calls build_merge without root, so
     # absolute deleted-file paths never matched the relative node keys and their
     # nodes survived as ghosts).
-    _eff_root = (
-        str(Path(root).resolve()) if root is not None
-        else _infer_merge_root(graph_path)
-    )
+    _eff_root = str(Path(root).resolve()) if root is not None else _infer_merge_root(graph_path)
 
     internal_sources = {
         source
@@ -1443,9 +1486,11 @@ def build_merge(
             if norm:
                 new_sources.add(norm)
     if new_sources:
+
         def _kept(item: dict) -> bool:
             sf = item.get("source_file")
             return sf not in new_sources and _norm_source_file(sf, _replace_root) not in new_sources
+
         existing_nodes = [n for n in existing_nodes if _kept(n)]
         existing_edges = [e for e in existing_edges if _kept(e)]
         kept_ids = {n.get("id") for n in existing_nodes if n.get("id")}
@@ -1455,9 +1500,11 @@ def build_merge(
             prune_sources=new_sources,
         )
 
-    base = [
-        {"nodes": existing_nodes, "edges": existing_edges, "hyperedges": existing_hyperedges}
-    ] if had_graph else []
+    base = (
+        [{"nodes": existing_nodes, "edges": existing_edges, "hyperedges": existing_hyperedges}]
+        if had_graph
+        else []
+    )
 
     all_chunks = base + list(new_chunks)
     G = build(
@@ -1475,7 +1522,7 @@ def build_merge(
     # succeeds even when the scan root is a symlink. (#1007, #1571)
     prune_set: set[str] = set()
     prune_abs: set[str] = set()
-    for p in (prune_sources or []):
+    for p in prune_sources or []:
         if not p:
             continue
         prune_set.add(p)
@@ -1539,10 +1586,7 @@ def build_merge(
 
     # Prune nodes and edges from deleted source files
     if prune_sources:
-        to_remove = [
-            n for n, d in G.nodes(data=True)
-            if _prune_match(d.get("source_file"))
-        ]
+        to_remove = [n for n, d in G.nodes(data=True) if _prune_match(d.get("source_file"))]
         G.remove_nodes_from(to_remove)
         n_files = len(prune_sources)
         n_nodes = len(to_remove)
@@ -1553,8 +1597,7 @@ def build_merge(
             )
 
         edges_to_remove = [
-            (u, v) for u, v, d in G.edges(data=True)
-            if _prune_match(d.get("source_file"))
+            (u, v) for u, v, d in G.edges(data=True) if _prune_match(d.get("source_file"))
         ]
         if edges_to_remove:
             G.remove_edges_from(edges_to_remove)

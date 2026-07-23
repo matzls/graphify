@@ -106,6 +106,7 @@ def _resolve_ollama_base_url(default: str) -> str:
     # Default the port to Ollama's 11434 when the host omits it (bare hostname
     # would otherwise resolve to port 80 and silently fail to connect).
     from urllib.parse import urlsplit, urlunsplit
+
     try:
         parts = urlsplit(host)
         if parts.hostname and parts.port is None:
@@ -212,10 +213,15 @@ BACKENDS: dict[str, dict] = {
         #           AZURE_OPENAI_DEPLOYMENT or GRAPHIFY_AZURE_MODEL (deployment name).
         # base_url is intentionally absent — prevents accidental routing through
         # _call_openai_compat, which requires it and uses the wrong SDK client class.
-        "default_model": os.environ.get("AZURE_OPENAI_DEPLOYMENT", os.environ.get("GRAPHIFY_AZURE_MODEL", "gpt-4o")),
+        "default_model": os.environ.get(
+            "AZURE_OPENAI_DEPLOYMENT", os.environ.get("GRAPHIFY_AZURE_MODEL", "gpt-4o")
+        ),
         "env_key": "AZURE_OPENAI_API_KEY",
         "model_env_key": "GRAPHIFY_AZURE_MODEL",
-        "pricing": {"input": 2.50, "output": 10.00},  # USD per 1M tokens (gpt-4o; may mis-estimate other deployments)
+        "pricing": {
+            "input": 2.50,
+            "output": 10.00,
+        },  # USD per 1M tokens (gpt-4o; may mis-estimate other deployments)
         "temperature": 0,
         "max_tokens": 16384,
     },
@@ -263,8 +269,7 @@ def validate_backend_dependencies(backend: str) -> None:
     package, install_hint = requirement
     if find_spec(package) is None:
         raise ImportError(
-            f"Backend '{backend}' requires the {package!r} package. "
-            f"Run: {install_hint}"
+            f"Backend '{backend}' requires the {package!r} package. Run: {install_hint}"
         )
 
 
@@ -345,11 +350,15 @@ def provider_base_url_ok(base_url: str, name: str, *, warn: bool = True) -> bool
     config is the GRAPHIFY_ALLOW_LOCAL_PROVIDERS gate on project-local files.
     """
     from urllib.parse import urlparse
+
     try:
         parsed = urlparse(base_url)
     except Exception:
         if warn:
-            print(f"[graphify] WARNING: provider {name!r} has an unparseable base_url; ignoring.", file=sys.stderr)
+            print(
+                f"[graphify] WARNING: provider {name!r} has an unparseable base_url; ignoring.",
+                file=sys.stderr,
+            )
         return False
     if parsed.scheme not in ("http", "https"):
         if warn:
@@ -377,7 +386,11 @@ def _load_custom_providers() -> dict[str, dict]:
     # the user's own global ~/.graphify/providers.json stays trusted.
     local_path = _custom_providers_path(global_=False)
     global_path = _custom_providers_path(global_=True)
-    allow_local = os.environ.get("GRAPHIFY_ALLOW_LOCAL_PROVIDERS", "").strip().lower() in ("1", "true", "yes")
+    allow_local = os.environ.get("GRAPHIFY_ALLOW_LOCAL_PROVIDERS", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     if local_path.is_file() and not allow_local:
         print(
             f"[graphify] WARNING: ignoring project-local {local_path} (custom providers control "
@@ -693,6 +706,7 @@ def _file_to_text(path: Path) -> str:
     """
     if path.suffix.lower() == ".pdf":
         from graphify.detect import extract_pdf_text
+
         return extract_pdf_text(path)
     return path.read_text(encoding="utf-8", errors="replace")
 
@@ -743,11 +757,7 @@ def _wrap_untrusted(rel: str, content: str) -> str:
     """
     sha = hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest()
     safe = _neutralise_injection_sentinels(content)
-    return (
-        f'<untrusted_source path="{rel}" sha256="{sha}">\n'
-        f"{safe}\n"
-        f"</untrusted_source>"
-    )
+    return f'<untrusted_source path="{rel}" sha256="{sha}">\n{safe}\n</untrusted_source>'
 
 
 def _read_files(units: "Sequence[Path | FileSlice]", root: Path) -> str:
@@ -870,8 +880,9 @@ def _bind_node_evidence(result: dict, text_units: "list[Path | FileSlice]", root
     # Perf: skip the (potentially expensive, e.g. PDF re-extraction) source read
     # entirely when the result has no code-typed node with a source_file — the
     # common case for a document/paper batch.
-    if not any(isinstance(n, dict) and n.get("file_type") == "code" and n.get("source_file")
-               for n in nodes):
+    if not any(
+        isinstance(n, dict) and n.get("file_type") == "code" and n.get("source_file") for n in nodes
+    ):
         return 0
     source_by_path = _dispatched_source_text(text_units, root)
     if not source_by_path:
@@ -893,7 +904,9 @@ def _bind_node_evidence(result: dict, text_units: "list[Path | FileSlice]", root
         src = source_by_path.get(key)
         if src is None:
             continue  # not dispatched in this call — #1895's out-of-scope domain
-        idents = _label_identifiers(str(n.get("label", ""))) + _label_identifiers(str(n.get("id", "")))
+        idents = _label_identifiers(str(n.get("label", ""))) + _label_identifiers(
+            str(n.get("id", ""))
+        )
         if not idents:
             continue  # nothing checkable — do not flag
         if any(ident.lower() in src for ident in idents):
@@ -952,9 +965,9 @@ class _ImageRef:
     becomes a graph node.
     """
 
-    path: Path        # absolute path (claude-cli reads it via the Read tool)
-    rel: str          # path relative to the corpus root (the node's source_file)
-    media_type: str   # e.g. "image/png"
+    path: Path  # absolute path (claude-cli reads it via the Read tool)
+    rel: str  # path relative to the corpus root (the node's source_file)
+    media_type: str  # e.g. "image/png"
     raw: bytes | None
 
     @property
@@ -984,7 +997,9 @@ def _partition_semantic_files(
     return text_units, image_files
 
 
-def _build_image_refs(image_files: list[Path], root: Path, *, read_bytes: bool = True) -> list[_ImageRef]:
+def _build_image_refs(
+    image_files: list[Path], root: Path, *, read_bytes: bool = True
+) -> list[_ImageRef]:
     """Build `_ImageRef`s for raster images.
 
     `read_bytes=True` (base64 backends) loads the pixels and drops any image over
@@ -1060,13 +1075,10 @@ def _image_notes(refs: list[_ImageRef], *, with_paths: bool = False) -> str:
             "then emit one node per image"
         )
     else:
-        header = (
-            "The following image file(s) are attached as visual input. Emit one "
-            "node per image"
-        )
+        header = "The following image file(s) are attached as visual input. Emit one node per image"
     lines = [
         "=== IMAGES ===",
-        f"{header} with \"file_type\":\"image\" and the listed source_file, a label "
+        f'{header} with "file_type":"image" and the listed source_file, a label '
         "describing what it depicts (diagram, screenshot, chart, photo, UI, logo), "
         "and edges to any code/doc nodes the image clearly references.",
     ]
@@ -1121,9 +1133,7 @@ def _openai_content(user_message: str, refs: list[_ImageRef]):
 def _bedrock_content(user_message: str, refs: list[_ImageRef]) -> list[dict]:
     """Build the Bedrock Converse user content list (raw bytes, not base64)."""
     content: list[dict] = [
-        {"image": {"format": r.bedrock_format, "source": {"bytes": r.raw}}}
-        for r in refs
-        if r.raw
+        {"image": {"format": r.bedrock_format, "source": {"bytes": r.raw}}} for r in refs if r.raw
     ]
     content.append({"text": _with_image_notes(user_message, refs)})
     return content
@@ -1229,8 +1239,7 @@ def _parse_llm_json(raw: str) -> dict:
                     except json.JSONDecodeError:
                         break
     print(
-        f"[graphify] LLM returned invalid JSON, skipping chunk "
-        f"(first 200 chars: {raw[:200]!r})",
+        f"[graphify] LLM returned invalid JSON, skipping chunk (first 200 chars: {raw[:200]!r})",
         file=sys.stderr,
     )
     return {"nodes": [], "edges": [], "hyperedges": []}
@@ -1304,7 +1313,7 @@ def _backend_pkg_hint(pkg: str, extra: str) -> str:
     """
     return (
         f"the '{pkg}' package is required for this backend but is not installed. "
-        f"Install it with:  uv tool install \"graphifyy[{extra}]\" --force  "
+        f'Install it with:  uv tool install "graphifyy[{extra}]" --force  '
         f"(uv tool), or  pip install {pkg}  (pip/venv install)."
     )
 
@@ -1509,7 +1518,15 @@ def _call_openai_compat(
     return result
 
 
-def _call_claude(api_key: str, model: str, user_message: str, max_tokens: int = 8192, *, deep_mode: bool = False, images: list[_ImageRef] | None = None) -> dict:
+def _call_claude(
+    api_key: str,
+    model: str,
+    user_message: str,
+    max_tokens: int = 8192,
+    *,
+    deep_mode: bool = False,
+    images: list[_ImageRef] | None = None,
+) -> dict:
     """Call Anthropic Claude directly (not via OpenAI compat layer)."""
     try:
         import anthropic  # pyright: ignore[reportMissingImports]
@@ -1564,10 +1581,7 @@ def _claude_cli_envelope(stdout: str) -> dict:
             f"first 500 chars of stdout: {stdout[:500]!r}"
         ) from exc
     if isinstance(envelope, list):
-        result_events = [
-            e for e in envelope
-            if isinstance(e, dict) and e.get("type") == "result"
-        ]
+        result_events = [e for e in envelope if isinstance(e, dict) and e.get("type") == "result"]
         if result_events:
             return result_events[-1]
         if envelope and isinstance(envelope[-1], dict):
@@ -1635,7 +1649,13 @@ def _claude_cli_supports_json_schema(claude_cmd: str) -> bool:
     return supported
 
 
-def _call_claude_cli(user_message: str, max_tokens: int = 8192, *, deep_mode: bool = False, images: list[_ImageRef] | None = None) -> dict:
+def _call_claude_cli(
+    user_message: str,
+    max_tokens: int = 8192,
+    *,
+    deep_mode: bool = False,
+    images: list[_ImageRef] | None = None,
+) -> dict:
     """Call Claude via the locally-installed Claude Code CLI (`claude -p`).
 
     Routes through the user's Claude Code subscription auth instead of a separate
@@ -1710,8 +1730,10 @@ def _call_claude_cli(user_message: str, max_tokens: int = 8192, *, deep_mode: bo
         + user_message
     )
     cli_args = [
-        claude_cmd, "-p",
-        "--output-format", "json",
+        claude_cmd,
+        "-p",
+        "--output-format",
+        "json",
         "--no-session-persistence",
         *add_dir_args,
     ]
@@ -1745,9 +1767,7 @@ def _call_claude_cli(user_message: str, max_tokens: int = 8192, *, deep_mode: bo
         **_no_window_kwargs(),
     )
     if proc.returncode != 0:
-        raise RuntimeError(
-            f"claude -p exited {proc.returncode}: {proc.stderr.strip()[:500]}"
-        )
+        raise RuntimeError(f"claude -p exited {proc.returncode}: {proc.stderr.strip()[:500]}")
 
     envelope = _claude_cli_envelope(proc.stdout)
 
@@ -1802,8 +1822,13 @@ def _azure_client(api_key: str, endpoint: str):
                 timeout_s = v
         except ValueError:
             pass
-    return AzureOpenAI(api_key=api_key, azure_endpoint=endpoint, api_version=api_version, timeout=timeout_s,
-                       max_retries=_resolve_max_retries())
+    return AzureOpenAI(
+        api_key=api_key,
+        azure_endpoint=endpoint,
+        api_version=api_version,
+        timeout=timeout_s,
+        max_retries=_resolve_max_retries(),
+    )
 
 
 def _call_azure(
@@ -1847,7 +1872,14 @@ def _call_azure(
     return result
 
 
-def _call_bedrock(model: str, user_message: str, max_tokens: int = 8192, *, deep_mode: bool = False, images: list[_ImageRef] | None = None) -> dict:
+def _call_bedrock(
+    model: str,
+    user_message: str,
+    max_tokens: int = 8192,
+    *,
+    deep_mode: bool = False,
+    images: list[_ImageRef] | None = None,
+) -> dict:
     """Call AWS Bedrock via boto3 Converse API using the standard AWS credential chain."""
     try:
         import boto3  # pyright: ignore[reportMissingImports]
@@ -1962,11 +1994,17 @@ def extract_files_direct(
     max_out = _resolve_max_tokens(cfg.get("max_tokens", 8192))
 
     if backend == "claude":
-        result = _call_claude(key, mdl, user_msg, max_tokens=max_out, deep_mode=deep_mode, images=image_refs)
+        result = _call_claude(
+            key, mdl, user_msg, max_tokens=max_out, deep_mode=deep_mode, images=image_refs
+        )
     elif backend == "claude-cli":
-        result = _call_claude_cli(user_msg, max_tokens=max_out, deep_mode=deep_mode, images=image_refs)
+        result = _call_claude_cli(
+            user_msg, max_tokens=max_out, deep_mode=deep_mode, images=image_refs
+        )
     elif backend == "bedrock":
-        result = _call_bedrock(mdl, user_msg, max_tokens=max_out, deep_mode=deep_mode, images=image_refs)
+        result = _call_bedrock(
+            mdl, user_msg, max_tokens=max_out, deep_mode=deep_mode, images=image_refs
+        )
     elif backend == "azure":
         endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
         if not endpoint:
@@ -2275,8 +2313,7 @@ def _extract_with_adaptive_retry(
             "model": model,
             "finish_reason": "stop",
             "_partial_files": _merged_partial_files(left, right),
-            "partial_chunks": left.get("partial_chunks", 0)
-            + right.get("partial_chunks", 0),
+            "partial_chunks": left.get("partial_chunks", 0) + right.get("partial_chunks", 0),
         }
 
     def _split_lone_text_unit() -> "tuple[FileSlice, FileSlice] | None":
@@ -2377,8 +2414,7 @@ def _extract_with_adaptive_retry(
             "model": model,
             "finish_reason": "stop",
             "_partial_files": _merged_partial_files(left, right),
-            "partial_chunks": left.get("partial_chunks", 0)
-            + right.get("partial_chunks", 0),
+            "partial_chunks": left.get("partial_chunks", 0) + right.get("partial_chunks", 0),
         }
 
     if result.get("finish_reason") != "length":
@@ -2404,8 +2440,7 @@ def _extract_with_adaptive_retry(
         # empty item set) still marks the file partial (#1950 empty-parse gap).
         _mark_partial(result)
         result["_partial_files"] = sorted(
-            set(_chunk_partial_files(chunk))
-            | set(result.get("_partial_files", []) or [])
+            set(_chunk_partial_files(chunk)) | set(result.get("_partial_files", []) or [])
         )
         result["partial_chunks"] = result.get("partial_chunks", 0) + 1
         return result
@@ -2422,8 +2457,7 @@ def _extract_with_adaptive_retry(
         # complete, so err toward re-extraction.
         _mark_partial(result)
         result["_partial_files"] = sorted(
-            set(_chunk_partial_files(chunk))
-            | set(result.get("_partial_files", []) or [])
+            set(_chunk_partial_files(chunk)) | set(result.get("_partial_files", []) or [])
         )
         result["partial_chunks"] = result.get("partial_chunks", 0) + 1
         return result
@@ -2451,8 +2485,7 @@ def _extract_with_adaptive_retry(
         "model": result.get("model"),
         "finish_reason": "stop",
         "_partial_files": _merged_partial_files(left, right),
-        "partial_chunks": left.get("partial_chunks", 0)
-        + right.get("partial_chunks", 0),
+        "partial_chunks": left.get("partial_chunks", 0) + right.get("partial_chunks", 0),
     }
 
 
@@ -2531,8 +2564,11 @@ def extract_corpus_parallel(
         chunks = [units[i : i + chunk_size] for i in range(0, len(units), chunk_size)]
 
     merged: dict = {
-        "nodes": [], "edges": [], "hyperedges": [],
-        "input_tokens": 0, "output_tokens": 0,
+        "nodes": [],
+        "edges": [],
+        "hyperedges": [],
+        "input_tokens": 0,
+        "output_tokens": 0,
         "failed_chunks": 0,  # count of chunks that raised — loud failure on chunk errors
         "partial_chunks": 0,  # count of chunks kept after retry exhaustion/truncation
     }
@@ -2571,8 +2607,12 @@ def extract_corpus_parallel(
         max_concurrency = 1
     # claude-cli shells out to a Claude Code session; parallel subprocesses conflict
     # over session state. Force serial unless the user explicitly opts in.
-    if backend == "claude-cli" and os.environ.get("GRAPHIFY_CLAUDE_CLI_PARALLEL", "").strip() != "1":
+    if (
+        backend == "claude-cli"
+        and os.environ.get("GRAPHIFY_CLAUDE_CLI_PARALLEL", "").strip() != "1"
+    ):
         max_concurrency = 1
+
     def _checkpoint_chunk(result: dict, chunk: "list[Path | FileSlice]") -> None:
         # Persist each chunk's semantic results to the cache as soon as it
         # completes. Without this, the semantic cache is only written once, at
@@ -2584,6 +2624,7 @@ def extract_corpus_parallel(
             return
         try:
             from .cache import save_semantic_cache as _scs
+
             # Scope the write to the files actually dispatched in this chunk
             # (#1757). The model can attribute a node's source_file to another
             # corpus file; without this bound, that stray node would clobber the
@@ -2726,15 +2767,16 @@ def extract_corpus_parallel(
         # dropped node's id (or itself attributed to an undispatched real
         # file) must not survive its endpoint.
         merged["edges"] = [
-            e for e in merged.get("edges", [])
+            e
+            for e in merged.get("edges", [])
             if not _out_of_scope(e)
             and e.get("source") not in dropped_ids
             and e.get("target") not in dropped_ids
         ]
         merged["hyperedges"] = [
-            h for h in merged.get("hyperedges", [])
-            if not _out_of_scope(h)
-            and not (dropped_ids & set(h.get("nodes", []) or []))
+            h
+            for h in merged.get("hyperedges", [])
+            if not _out_of_scope(h) and not (dropped_ids & set(h.get("nodes", []) or []))
         ]
         shown = ", ".join(sorted(Path(f).name for f in dropped_files)[:5])
         more = f" (+{len(dropped_files) - 5} more)" if len(dropped_files) > 5 else ""
@@ -2752,10 +2794,7 @@ def extract_corpus_parallel(
         if sf:
             p = Path(sf)
             covered.add(p if p.is_absolute() else (root / p))
-    uncovered = sorted(
-        p for p in dispatched
-        if p.resolve() not in {c.resolve() for c in covered}
-    )
+    uncovered = sorted(p for p in dispatched if p.resolve() not in {c.resolve() for c in covered})
     merged["uncovered_files"] = [str(p) for p in uncovered]
     if uncovered:
         shown = ", ".join(p.name for p in uncovered[:5])
@@ -2859,6 +2898,7 @@ def _call_llm(
 
     if backend == "claude-cli":
         import platform, shutil, subprocess
+
         # Mirror the extraction-path resolution: on Windows the npm shim is
         # claude.cmd, which CreateProcess can't resolve from a bare "claude"
         # (PATHEXT doesn't apply), so pass the resolved .cmd path explicitly.
@@ -2898,7 +2938,6 @@ def _call_llm(
             )
         return envelope.get("result", "")
 
-
     if backend == "bedrock":
         try:
             import boto3  # pyright: ignore[reportMissingImports]
@@ -2921,9 +2960,7 @@ def _call_llm(
     if backend == "azure":
         endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "").strip()
         if not endpoint:
-            raise ValueError(
-                "Azure OpenAI backend requires AZURE_OPENAI_ENDPOINT to be set."
-            )
+            raise ValueError("Azure OpenAI backend requires AZURE_OPENAI_ENDPOINT to be set.")
         azure_client = _azure_client(key, endpoint)
         azure_kwargs: dict = {
             "model": mdl,
@@ -3001,6 +3038,7 @@ def _ollama_host_is_link_local_or_metadata(host: str) -> bool:
     """
     import ipaddress
     import socket
+
     if host in ("metadata.google.internal", "metadata.google.com", "0.0.0.0", "::", "[::]"):  # nosec B104 - blocklist, not a bind
         return True
     if host.startswith("169.254."):  # link-local literal, includes the metadata IP
@@ -3033,6 +3071,7 @@ def _validate_ollama_base_url(url: str, *, warn: bool = True) -> None:
     """
     try:
         from urllib.parse import urlparse
+
         parsed = urlparse(url)
     except Exception:
         if warn:
@@ -3088,10 +3127,10 @@ def detect_backend() -> str | None:
 # batched call and return a complete ``{cid: name}`` map (#1097).
 
 _LABEL_FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$", re.IGNORECASE)
-_LABEL_MAX_COMMUNITIES = 200   # legacy soft-cap; kept for callers that pin it.
-_LABEL_TOP_K = 12              # node labels sampled per community for the prompt
-_LABEL_MAXLEN = 60             # truncate individual labels to keep the prompt small
-_LABEL_BATCH_SIZE = 100        # communities per LLM call; sized for ~16k context windows
+_LABEL_MAX_COMMUNITIES = 200  # legacy soft-cap; kept for callers that pin it.
+_LABEL_TOP_K = 12  # node labels sampled per community for the prompt
+_LABEL_MAXLEN = 60  # truncate individual labels to keep the prompt small
+_LABEL_BATCH_SIZE = 100  # communities per LLM call; sized for ~16k context windows
 
 
 def _placeholder_community_labels(communities) -> dict[int, str]:

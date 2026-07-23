@@ -11,6 +11,7 @@ from pathlib import Path
 
 # Single source of truth in graphify.paths (#1423); re-exported as _GRAPHIFY_OUT.
 from graphify.paths import GRAPHIFY_OUT as _GRAPHIFY_OUT
+
 _PENDING_FILENAME = ".pending_changes"
 _PENDING_DRAIN_MAX_PASSES = 20
 
@@ -380,9 +381,8 @@ class _StoredSourcePaths:
                     if not stored or Path(stored).is_absolute():
                         continue
                     normalized = posixpath.normpath(stored)
-                    if (
-                        normalized == relative_marker_prefix
-                        or normalized.startswith(relative_marker_prefix + "/")
+                    if normalized == relative_marker_prefix or normalized.startswith(
+                        relative_marker_prefix + "/"
                     ):
                         has_project_relative_source = True
                         break
@@ -484,14 +484,12 @@ def _reconcile_existing_graph(
         current_sources = {
             identity
             for path in code_files
-            if (identity := source_paths.absolute_identity(str(path), project_root))
-            is not None
+            if (identity := source_paths.absolute_identity(str(path), project_root)) is not None
         }
         rebuilt_source_identities = {
             identity
             for path in extract_targets
-            if (identity := source_paths.absolute_identity(str(path), project_root))
-            is not None
+            if (identity := source_paths.absolute_identity(str(path), project_root)) is not None
         }
         node_evicted_source_identities = set(deleted_source_identities)
         hyperedge_evicted_source_identities = set(deleted_source_identities)
@@ -579,14 +577,8 @@ def _reconcile_existing_graph(
             and not (
                 node.get("_origin") == "ast"
                 and (
-                    (
-                        not node.get("source_file")
-                        and (full_rebuild or not code_files)
-                    )
-                    or (
-                        full_rebuild
-                        and source_paths.in_watch_root(node.get("source_file"))
-                    )
+                    (not node.get("source_file") and (full_rebuild or not code_files))
+                    or (full_rebuild and source_paths.in_watch_root(node.get("source_file")))
                 )
             )
             and not source_paths.is_evicted(node, node_evicted_source_identities)
@@ -784,14 +776,14 @@ def _check_shrink(
         return True
     if rebuilt_sources is not None:
         from graphify.build import _norm_source_file
+
         new_ids = {n.get("id") for n in new_nodes}
         lost = [n for n in existing_nodes if n.get("id") not in new_ids]
 
         def _accounted(n: dict) -> bool:
             sf = n.get("source_file")
-            return (not sf
-                    or sf in rebuilt_sources
-                    or _norm_source_file(sf) in rebuilt_sources)
+            return not sf or sf in rebuilt_sources or _norm_source_file(sf) in rebuilt_sources
+
         if all(_accounted(n) for n in lost):
             return True
     if tmp is not None:
@@ -959,11 +951,12 @@ def _rebuild_code(
         # (#1886).
         _persisted_excludes = _read_build_excludes(out)
         detected = detect(
-            watch_path, follow_symlinks=follow_symlinks,
+            watch_path,
+            follow_symlinks=follow_symlinks,
             extra_excludes=_persisted_excludes or None,
             gitignore=_read_build_gitignore(out),
         )
-        code_files = [Path(f) for f in detected['files']['code']]
+        code_files = [Path(f) for f in detected["files"]["code"]]
 
         # Include document files that have AST extractors (e.g. .md, .mdx, .qmd)
         ast_doc_files: list[Path] = []
@@ -1021,7 +1014,11 @@ def _rebuild_code(
                     if node.get("_origin") == "ast":
                         continue
                     if node.get("file_type") not in (
-                        "document", "concept", "rationale", "paper", "code"
+                        "document",
+                        "concept",
+                        "rationale",
+                        "paper",
+                        "code",
                     ):
                         continue
                     identity = prior_paths.identity(node.get("source_file"))
@@ -1029,7 +1026,8 @@ def _rebuild_code(
                         semantic_doc_identities.add(identity)
                 if semantic_doc_identities:
                     semantic_doc_files = {
-                        p for p in ast_doc_files
+                        p
+                        for p in ast_doc_files
                         if prior_paths.absolute_identity(str(p), project_root)
                         in semantic_doc_identities
                     }
@@ -1041,6 +1039,7 @@ def _rebuild_code(
         # tracked separately so their stale nodes can be evicted below.
         deleted_paths: set[str] = set()
         deleted_source_identities: set[str] = set()
+
         def _add_deleted_source(path: Path) -> None:
             deleted_source_identities.add(Path(os.path.abspath(path)).as_posix())
             for root in (project_root, watch_root):
@@ -1113,10 +1112,17 @@ def _rebuild_code(
             extract_targets = [p for p in code_files if p not in semantic_doc_files]
 
         commit = _git_head()
-        result = extract(extract_targets, cache_root=watch_root) if extract_targets else {
-            "nodes": [], "edges": [], "hyperedges": [],
-            "input_tokens": 0, "output_tokens": 0,
-        }
+        result = (
+            extract(extract_targets, cache_root=watch_root)
+            if extract_targets
+            else {
+                "nodes": [],
+                "edges": [],
+                "hyperedges": [],
+                "input_tokens": 0,
+                "output_tokens": 0,
+            }
+        )
         _rebase_relative_source_files(result, watch_root, project_root)
 
         # Preserve semantic nodes/edges from a previous full run.
@@ -1289,11 +1295,14 @@ def _rebuild_code(
         surprises = surprising_connections(G, communities)
         labels_file = out / ".graphify_labels.json"
         try:
-            raw = json.loads(labels_file.read_text(encoding="utf-8")) if labels_file.exists() else {}
+            raw = (
+                json.loads(labels_file.read_text(encoding="utf-8")) if labels_file.exists() else {}
+            )
             # Skip persisted "Community N" placeholders so the hub-fill below
             # replaces them instead of perpetuating them on every rebuild (#2073).
             labels = {
-                int(k): v for k, v in raw.items()
+                int(k): v
+                for k, v in raw.items()
                 if int(k) in communities and v != f"Community {int(k)}"
             }
         except Exception:
@@ -1304,19 +1313,39 @@ def _rebuild_code(
             # Deterministic hub name (highest-degree member) beats a bare "Community N"
             # placeholder for any community without a saved label.
             from graphify.cluster import label_communities_by_hub
+
             labels.update(label_communities_by_hub(G, missing))
         questions = suggest_questions(G, communities, labels)
         from graphify.report import load_learning_for_report as _llfr
-        report = generate(G, communities, cohesion, labels, gods, surprises, detection,
-                          {"input": 0, "output": 0}, report_root, suggested_questions=questions,
-                          built_at_commit=commit, learning=_llfr(out / "graph.json"))
+
+        report = generate(
+            G,
+            communities,
+            cohesion,
+            labels,
+            gods,
+            surprises,
+            detection,
+            {"input": 0, "output": 0},
+            report_root,
+            suggested_questions=questions,
+            built_at_commit=commit,
+            learning=_llfr(out / "graph.json"),
+        )
         report_path = out / "GRAPH_REPORT.md"
         labels_json = (
             json.dumps({str(k): v for k, v in sorted(labels.items())}, ensure_ascii=False, indent=2)
             + "\n"
         )
         graph_tmp = out / ".graph.tmp.json"
-        json_written = to_json(G, communities, str(graph_tmp), force=True, built_at_commit=commit, community_labels=labels)
+        json_written = to_json(
+            G,
+            communities,
+            str(graph_tmp),
+            force=True,
+            built_at_commit=commit,
+            community_labels=labels,
+        )
         if not json_written:
             return False
         candidate_graph_data = json.loads(graph_tmp.read_text(encoding="utf-8"))
