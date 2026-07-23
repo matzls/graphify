@@ -8,9 +8,9 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-07-21
-last_verified: 2026-07-21
-reconciliation_status: "v0.9.20 promoted locally; active CLI 0.9.20; canary passed; broad propagation gated"
+updated: 2026-07-23
+last_verified: 2026-07-23
+reconciliation_status: "v0.9.25 rebased, validated, and installed locally; canary and broad propagation blocked on dirty consumer repos"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
