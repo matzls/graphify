@@ -374,6 +374,7 @@ from graphify.hooks import (  # noqa: E402
     _CHECKOUT_SCRIPT,
     _REBUILD_BODY_COMMIT,
     _REBUILD_BODY_CHECKOUT,
+    _REFRESH_BODY_COMMIT,
     _detached_launch,
 )
 
@@ -498,6 +499,58 @@ def test_rebuild_bodies_arm_a_timeout_without_sigalrm(name, body):
     # rest of the body, or the same event reads differently per platform.
     prefixes = set(re.findall(r"print\(f'\[([a-z ]+)\]", body))
     assert len(prefixes) == 1, f"{name} mixes log prefixes {sorted(prefixes)} (#2148)"
+
+
+def test_refresh_body_arms_daemon_timer_without_sigalrm():
+    """The active post-commit refresh must time out on platforms without SIGALRM."""
+    body = _REFRESH_BODY_COMMIT
+    fallbacks = [
+        node.orelse
+        for node in ast.walk(ast.parse(body))
+        if isinstance(node, ast.If) and "'SIGALRM'" in ast.dump(node.test) and node.orelse
+    ]
+    assert fallbacks, "post-commit refresh has no missing-SIGALRM fallback"
+    fallback = fallbacks[0]
+    timer_calls = [
+        node
+        for stmt in fallback
+        for node in ast.walk(stmt)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "threading"
+        and node.func.attr == "Timer"
+    ]
+    assert timer_calls, "post-commit refresh fallback does not arm threading.Timer"
+    assert any(
+        isinstance(stmt, ast.Assign)
+        and any(
+            isinstance(target, ast.Attribute) and target.attr == "daemon" for target in stmt.targets
+        )
+        for stmt in fallback
+    ), "post-commit refresh fallback does not mark its timer daemon"
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "_watchdog"
+        and node.func.attr == "start"
+        for stmt in fallback
+        for node in ast.walk(stmt)
+    ), "post-commit refresh fallback does not start its timer"
+    assert any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "os"
+        and node.func.attr == "_exit"
+        for stmt in fallback
+        for node in ast.walk(stmt)
+    ), "post-commit refresh fallback does not call os._exit"
+    prefixes = set(re.findall(r"print\(f'\[([a-z ]+)\]", body))
+    assert prefixes == {"graphify hook"}, (
+        f"post-commit refresh mixes log prefixes {sorted(prefixes)}"
+    )
 
 
 def test_detached_launch_targets_graphify_python():

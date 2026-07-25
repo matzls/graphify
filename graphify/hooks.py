@@ -163,7 +163,7 @@ except Exception as exc:
 # rebuilt deterministically; documentation and media only mark semantic work as
 # pending so hooks never spend LLM tokens.
 _REFRESH_BODY_COMMIT = """\
-import os, signal, sys
+import os, signal, sys, threading
 from pathlib import Path
 
 changed = [Path(f.strip()) for f in os.environ.get('GRAPHIFY_CHANGED', '').splitlines() if f.strip()]
@@ -227,9 +227,17 @@ if needs_code:
     try:
         from graphify.watch import _rebuild_code
         timeout = int(os.environ.get('GRAPHIFY_REBUILD_TIMEOUT', '600'))
-        if timeout > 0 and hasattr(signal, 'SIGALRM'):
-            signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError(f'graphify rebuild exceeded {timeout}s')))
-            signal.alarm(timeout)
+        if timeout > 0:
+            if hasattr(signal, 'SIGALRM'):
+                signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError(f'graphify rebuild exceeded {timeout}s')))
+                signal.alarm(timeout)
+            else:
+                def _bail():
+                    print(f'[graphify hook] graphify rebuild exceeded {timeout}s', flush=True)
+                    os._exit(1)
+                _watchdog = threading.Timer(timeout, _bail)
+                _watchdog.daemon = True
+                _watchdog.start()
         force = os.environ.get('GRAPHIFY_FORCE', '').lower() in ('1', 'true', 'yes')
         rebuild_failed = not _rebuild_code(_root, changed_paths=changed, force=force)
     except TimeoutError as exc:

@@ -8,9 +8,9 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-07-23
-last_verified: 2026-07-23
-reconciliation_status: "v0.9.25 rebased, validated, and installed locally; canary and broad propagation blocked on dirty consumer repos"
+updated: 2026-07-25
+last_verified: 2026-07-25
+reconciliation_status: "v0.9.26 target 66d8110 with all 71 pre-existing local commits preserved and the stage-one adaptation validated on the temporary branch; promotion, active CLI/Pi skill refresh, and canary pending"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -222,20 +222,35 @@ matters to this fork?", and "Should Mase do anything differently now?"
 
 ## Current Local Delta From Upstream
 
-As last verified on 2026-05-16 against `upstream/v8`, the local fork carries
-Mase-specific or recently upstream-oriented changes in these areas:
+The temporary branch `mase/reconcile/graphify-v0.9.26` descends from the
+immutable v0.9.26 target `66d8110a534b52df3d660b5fda5aa5461a6b667a`
+and preserves all 71 pre-v0.9.26 local commits after a clean rebase. Its
+intended tree, including the scoped stage-one adaptation, passed focused and
+full validation on 2026-07-25. Promotion to the local release branch,
+active CLI/Pi skill refresh, and consumer canary remain pending separate
+approval. The active CLI and installed Pi skill still reflect the promoted
+v0.9.25 state; this document does not claim an installed v0.9.26.
+
+As last verified on 2026-07-25 against `upstream/v8` at the v0.9.26 base, the
+local fork carries Mase-specific or recently upstream-oriented changes in these
+areas:
 
 - `AGENTS.md`: fork operating notes for Mase's local setup.
 - `graphify/__main__.py`: install-source diagnostics via
   `graphify doctor --require-source`, Codex/agent install guidance, and related
   platform install behavior.
-- `graphify/skill.md`: packaging or skill text alignment with the fork.
+- `graphify/skill-pi.md`, `graphify/skill-codex.md`, and skill-generation
+  sources: package the fork's Pi/Codex workflows without colliding across
+  harness-specific install destinations.
 - `graphify/transcribe.py`: stable transcript paths that include media suffix
   and a stable hash so same-stem media files such as `sample.mp3` and
   `sample.mp4` do not collide.
+- `graphify/detect.py`: preserve single-file scan targets alongside upstream's
+  v0.9.26 ignore-file BOM handling.
 - `graphify/hooks.py`: repo-local hooks classify code versus semantic changes,
-  rebuild code graphs without spending LLM tokens, and write
-  `graphify-out/needs_update` for docs/media/image changes.
+  rebuild code graphs without spending LLM tokens, write
+  `graphify-out/needs_update` for docs/media/image changes, and extend the
+  v0.9.26 Windows timeout fallback to the fork's active refresh payload.
 - `graphify/llm.py` and `graphify/__main__.py`: degraded semantic refreshes
   propagate failed/partial chunk state, fail closed unless `--allow-partial`,
   and mark partial outputs so wiki refreshes cannot look clean.
@@ -245,13 +260,19 @@ Mase-specific or recently upstream-oriented changes in these areas:
   hyperedges missing `id` are normalized with deterministic stable IDs during
   build, merge, and export so semantic-cache reuse cannot re-poison graph
   output.
+- `graphify/adoption.py`: audit, apply, and bounded propagation workflows keep
+  generated graph state local by default and preserve Mase's target exclusions.
+- `graphify/semantic_eval.py`: the local decision-grade semantic harness
+  calibrates provider/model quality and fail-closed behavior.
 - `tests/test_install.py`, `tests/test_transcribe.py`, `tests/test_watch.py`,
+  `tests/test_detect.py`, `tests/test_hooks.py`,
   `tests/test_cli_semantic_fail_closed.py`, `tests/test_llm_backends.py`,
   `tests/test_cli_export.py`, `tests/test_hypergraph.py`,
-  `tests/test_build_merge_hyperedges_and_prune.py`, and
-  `tests/test_extract_cli.py`: coverage for the local install, transcript,
-  watcher, hyperedge-normalization, and local semantic-refresh safety behavior
-  above.
+  `tests/test_build_merge_hyperedges_and_prune.py`, `tests/test_extract_cli.py`,
+  `tests/test_adoption.py`, `tests/test_semantic_eval.py`, and
+  `tests/test_skillgen.py`: coverage for local install, transcript, watcher,
+  detection, hook, adoption, skill-generation, hyperedge-normalization, and
+  semantic-refresh behavior above.
 
 Refresh this section from `git diff upstream/v8..HEAD` before relying on it for
 shipping decisions.
@@ -602,7 +623,9 @@ This document is derived from:
 
 - repo-local `AGENTS.md`
 - `ARCHITECTURE.md`
-- `git diff upstream/v8..HEAD` as of 2026-05-16
+- `git diff upstream/v8`, `git merge-base --is-ancestor upstream/v8 HEAD`, and
+  `git rev-list --left-right --count upstream/v8...HEAD` on the temporary
+  branch as of 2026-07-25
 - `/Users/mase/.codex/docs/reference/graphify.md`
 - local inspection of `graphify/__main__.py`, `watch.py`, `transcribe.py`, and
   related tests

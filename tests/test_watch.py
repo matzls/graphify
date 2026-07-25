@@ -2298,4 +2298,3 @@ def test_rebuild_code_changed_paths_drop_stale_edges_from_changed_source(
         and edge.get("relation") == "calls"
         for edge in graph.get("links", graph.get("edges", []))
     )
-

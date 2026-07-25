@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "activeTaskId": "graphify-reconciliation-recovery-and-readiness-2026-07",
+  "activeTaskId": "graphify-upstream-v0.9.26-reconciliation-2026-07-25",
   "tasks": {
     "graphify-reconciliation-recovery-and-readiness-2026-07": {
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
@@ -30,6 +30,34 @@
         "Treat origin/mase/local-fixes as preserved historical divergence; do not merge, reset to, or force-push it."
       ],
       "lastUpdated": "2026-07-19"
+    },
+    "graphify-upstream-v0.9.26-reconciliation-2026-07-25": {
+      "title": "Reconcile Graphify v0.9.26 stage one and validate the hook integration",
+      "status": "in_progress",
+      "currentLane": "shipping-and-launch",
+      "currentPhase": "stage-one-rebased-validated-committed-on-temporary-branch",
+      "enteredLaneBecause": "The v0.9.26 base is rebased cleanly and the active post-commit refresh hook now has focused missing-SIGALRM coverage and a validated timer fallback on the temporary reconciliation branch.",
+      "exitCriteria": [
+        "The temporary branch contains the minimal post-commit refresh timer fallback and focused regression coverage.",
+        "The focused, affected, and full test suites pass and fresh review finds no blocker.",
+        "The scoped reconciliation commit is verified on the temporary branch.",
+        "Promotion to the local release branch, active CLI/Pi skill refresh, and consumer canary receive separate approval and validation."
+      ],
+      "nextAction": "Request separate approval for branch promotion, active CLI reinstall/Pi skill refresh, and a bounded consumer canary; do not perform those actions from this task.",
+      "nextRecommendedLane": "shipping-and-launch",
+      "artifacts": [
+        "docs/mase-fork-operating-model.md",
+        "graphify/hooks.py",
+        "tests/test_hooks.py"
+      ],
+      "approvalGates": [
+        "The scoped stage-one reconciliation commit is the only commit authorized by this task; no additional commit or branch promotion is approved.",
+        "Do not promote the temporary branch or change mase/local-fixes without separate approval.",
+        "Do not reinstall the active CLI, refresh the global Pi skill, or update global hooks without separate approval.",
+        "Do not run consumer canaries, propagation, semantic refreshes, or pushes without separate approval.",
+        "Preserve historical tasks and backup refs; do not reset, stash, or rewrite reconciliation history."
+      ],
+      "lastUpdated": "2026-07-25"
     }
   }
 }
