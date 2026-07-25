@@ -122,11 +122,13 @@ def test_extract_single_file_target_writes_output_next_to_file(
     assert graph["nodes"][0]["id"] == node_id
 
 
-def test_no_change_semantic_capable_extract_preserves_pending_marker(
+def test_pending_marker_widens_no_change_incremental_semantic_pass(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ):
+    import graphify.cache
     import graphify.detect
+    import graphify.llm
 
     root = tmp_path / "corpus"
     root.mkdir()
@@ -135,12 +137,14 @@ def test_no_change_semantic_capable_extract_preserves_pending_marker(
     out = root / "graphify-out"
     out.mkdir()
     (out / "graph.json").write_text(
-        json.dumps({"nodes": [{"id": "doc", "source_file": "doc.md"}], "links": []}),
+        json.dumps({"nodes": [{"id": "old", "source_file": "doc.md"}], "links": []}),
         encoding="utf-8",
     )
     (out / "manifest.json").write_text("{}", encoding="utf-8")
     pending = out / "needs_update"
+    legacy_pending = out / ".needs_update"
     pending.write_text("1", encoding="utf-8")
+    legacy_pending.write_text("1", encoding="utf-8")
     monkeypatch.setattr(
         graphify.detect,
         "detect_incremental",
@@ -153,11 +157,36 @@ def test_no_change_semantic_capable_extract_preserves_pending_marker(
         },
     )
     monkeypatch.setattr(graphify.detect, "save_manifest", lambda *_, **__: None)
+    monkeypatch.setattr(
+        graphify.cache,
+        "check_semantic_cache",
+        lambda paths, root, **_: (
+            [
+                {
+                    "id": "cached_doc",
+                    "label": "Cached Doc",
+                    "file_type": "document",
+                    "source_file": str(doc),
+                }
+            ],
+            [],
+            [],
+            [],
+        ),
+    )
+    monkeypatch.setattr(
+        graphify.llm,
+        "validate_backend_dependencies",
+        lambda backend: (_ for _ in ()).throw(AssertionError("semantic preflight called")),
+    )
 
     rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
 
     assert rc == 0
-    assert pending.exists(), "no semantic input was processed, so pending work must remain"
+    assert not pending.exists()
+    assert not legacy_pending.exists()
+    graph = json.loads((out / "graph.json").read_text(encoding="utf-8"))
+    assert [node["id"] for node in graph["nodes"]] == ["cached_doc"]
 
 
 def test_extract_preserves_pending_marker_when_manifest_save_fails(

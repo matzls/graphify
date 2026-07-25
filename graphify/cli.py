@@ -168,6 +168,11 @@ def _clear_semantic_marker(out_dir: Path) -> None:
         pass
 
 
+def _has_needs_update_marker(out_dir: Path) -> bool:
+    """Return whether hooks recorded pending semantic work."""
+    return any((out_dir / name).exists() for name in ("needs_update", ".needs_update"))
+
+
 def _clear_needs_update_markers(out_dir: Path) -> None:
     """Clear semantic-refresh sentinels after a complete semantic-capable run."""
     for name in ("needs_update", ".needs_update"):
@@ -1175,16 +1180,19 @@ def _dispatch_extract() -> None:
         graph_stale_sources = []
         unchanged_total = 0
 
-    if deep_mode and incremental_mode and not code_only:
-        # A deep run must cover the full live semantic corpus rather than only
-        # the changed subset selected by incremental detection. This includes
-        # videos, whose generated transcripts are appended below.
+    pending_semantic_refresh = _has_needs_update_marker(graphify_out)
+    if (deep_mode or pending_semantic_refresh) and incremental_mode and not code_only:
+        # Deep runs and hook-recorded semantic work must cover the full live
+        # semantic corpus rather than trusting an AST-only manifest refresh to
+        # identify the changed subset. The semantic cache still prevents
+        # unchanged files from spending inference tokens.
         doc_files = [Path(p) for p in files_by_type.get("document", [])]
         paper_files = [Path(p) for p in files_by_type.get("paper", [])]
         image_files = [Path(p) for p in files_by_type.get("image", [])]
         video_files = [Path(p) for p in files_by_type.get("video", [])]
+        reason = "deep mode" if deep_mode else "pending semantic marker"
         print(
-            "[graphify extract] deep mode: widening semantic pass to the full live "
+            f"[graphify extract] {reason}: widening semantic pass to the full live "
             f"corpus ({len(doc_files)} docs, {len(paper_files)} papers, "
             f"{len(image_files)} images, {len(video_files)} video/audio)"
         )
