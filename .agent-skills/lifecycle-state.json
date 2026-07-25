@@ -35,25 +35,28 @@
       "title": "Reconcile Graphify v0.9.26 and align the promoted local install",
       "status": "completed",
       "currentLane": "shipping-and-launch",
-      "currentPhase": "v0.9.26-promoted-installed-source-verified-and-audited",
-      "enteredLaneBecause": "The promoted local branch, active CLI, and global Pi/Codex skills now resolve to the validated v0.9.26 fork, and the post-install adoption audit completed without consumer mutation.",
+      "currentPhase": "v0.9.26-promoted-installed-personal-ai-canary-validated",
+      "enteredLaneBecause": "The promoted fork and active CLI include the cache-aware pending-marker fix, and the bounded Personal AI semantic retry passed activation, audit, output, and query verification without changing its pre-existing dirty source/config state.",
       "exitCriteria": [
-        "The promoted mase/local-fixes branch contains the v0.9.26 base, all 71 pre-existing local commits, and the scoped hook adaptation.",
+        "The promoted mase/local-fixes branch contains the v0.9.26 base, all 71 pre-existing local commits, the hook adaptation, and the cache-aware pending-marker fix.",
         "Focused, affected, and full test suites pass and fresh review finds no blocker.",
         "The active CLI and global Pi/Codex Graphify skills are source-verified at v0.9.26.",
-        "A read-only post-install adoption audit completes and identifies consumer follow-up without mutation."
+        "The Personal AI semantic canary reports full after a 0-token cache-only retry, activation verification, and a successful graph query smoke."
       ],
-      "nextAction": "Brief Mase on the completed local reconciliation; await separate approval before refreshing the two identified repositories, running a consumer canary, propagating broadly, or pushing.",
+      "nextAction": "Brief Mase on the completed Personal AI canary; await separate approval before refreshing my-second-brain-build, propagating broadly, or pushing.",
       "nextRecommendedLane": "shipping-and-launch",
       "artifacts": [
         "docs/mase-fork-operating-model.md",
         "graphify/hooks.py",
-        "tests/test_hooks.py"
+        "graphify/cli.py",
+        "tests/test_hooks.py",
+        "tests/test_cli_semantic_fail_closed.py"
       ],
       "approvalGates": [
         "Mase approved finalizing v0.9.26 through local branch promotion, CLI and Pi/Codex skill refresh, read-only adoption audit, and a clean repository closeout.",
-        "Do not mutate my-second-brain-build, Personal AI, or any other consumer repository without separate approval.",
-        "Do not run consumer canaries, semantic refreshes, broad propagation, or pushes without separate approval.",
+        "Mase approved Personal AI only, including the dirty-target override, semantic canary, local fork fix, reinstall, and retry; no other consumer was authorized.",
+        "Personal AI derived graph output changed, while its eight pre-existing dirty source/config entries remained unchanged and uncommitted.",
+        "Do not refresh my-second-brain-build, mutate another consumer, propagate broadly, or push without separate approval.",
         "Treat origin/mase/local-fixes as preserved historical divergence; do not merge, reset to, or force-push it.",
         "Preserve the pre-v0.9.26 backup ref and validated temporary reconciliation branch."
       ],

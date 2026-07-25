@@ -10,7 +10,7 @@ owners:
 created: 2026-05-02
 updated: 2026-07-25
 last_verified: 2026-07-25
-reconciliation_status: "v0.9.26 promoted to mase/local-fixes with the active CLI and global Pi/Codex skills source-verified; adoption audit complete; consumer refresh/canary and push remain gated"
+reconciliation_status: "v0.9.26 promoted and source-verified; the cache-aware marker fix is installed and the Personal AI semantic canary passed; my-second-brain-build, broader propagation, and push remain gated"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -227,9 +227,11 @@ v0.9.26 target `66d8110a534b52df3d660b5fda5aa5461a6b667a` and preserves
 all 71 pre-v0.9.26 local commits after a clean rebase. The validated temporary
 branch `mase/reconcile/graphify-v0.9.26` remains at the same stage-one commit,
 `6228b3c18c2f92d7ecf4f4d16b0174da07e999a6`. The active CLI and global
-Pi/Codex Graphify skills are source-verified at v0.9.26. The post-install
-adoption audit completed read-only; consumer refreshes, canary work,
-propagation, and push remain separate approval gates.
+Pi/Codex Graphify skills are source-verified at v0.9.26. A cache-only stale
+marker bug found by the Personal AI canary was repaired in the local CLI,
+reinstalled, and verified by a successful semantic retry plus query smoke.
+`my-second-brain-build`, broader propagation, and push remain separate approval
+gates.
 
 As last verified on 2026-07-25 against `upstream/v8` at the v0.9.26 base, the
 local fork carries Mase-specific or recently upstream-oriented changes in these
@@ -251,9 +253,10 @@ areas:
   rebuild code graphs without spending LLM tokens, write
   `graphify-out/needs_update` for docs/media/image changes, and extend the
   v0.9.26 Windows timeout fallback to the fork's active refresh payload.
-- `graphify/llm.py` and `graphify/__main__.py`: degraded semantic refreshes
-  propagate failed/partial chunk state, fail closed unless `--allow-partial`,
-  and mark partial outputs so wiki refreshes cannot look clean.
+- `graphify/cli.py`, `graphify/llm.py`, and `graphify/__main__.py`: degraded
+  semantic refreshes propagate failed/partial chunk state and fail closed unless
+  `--allow-partial`; pending semantic markers widen incremental runs to the live
+  semantic corpus while content-hash cache hits avoid unnecessary inference.
 - `graphify/watch.py`: code-only rebuilds preserve upstream v8's stable graph
   behavior while dropping stale edges from changed sources.
 - `graphify/build.py` and `graphify/export.py`: legacy or model-produced
@@ -421,9 +424,12 @@ excluded; the main `my-second-brain-build` repo remains audited normally. Update
 `DEFAULT_AUDIT_EXCLUSIONS` or `DEFAULT_AUDIT_EXCLUSION_PREFIXES` there when Mase
 changes the maintained repo set.
 
-The read-only post-v0.9.26 audit on 2026-07-25 scanned 60 repositories: 9 full,
-2 refresh-needed, 27 candidates, and 22 skipped. The refresh-needed repositories
-were `my-second-brain-build` and `Personal AI`; neither was mutated.
+The initial post-v0.9.26 audit on 2026-07-25 scanned 60 repositories: 9 full,
+2 refresh-needed, 27 candidates, and 22 skipped. A bounded Personal AI semantic
+canary then exposed and verified the cache-aware pending-marker fix without
+changing its pre-existing dirty source/config state. The post-canary audit was
+10 full, 1 refresh-needed, 27 candidates, and 22 skipped;
+`my-second-brain-build` is the sole remaining refresh-needed repository.
 
 Apply remains explicit and re-runs the audit before mutating selected repos:
 
@@ -630,8 +636,8 @@ This document is derived from:
 - `git diff upstream/v8`, `git merge-base --is-ancestor upstream/v8 HEAD`, and
   `git rev-list --left-right --count upstream/v8...HEAD` on the promoted
   `mase/local-fixes` branch as of 2026-07-25
-- `graphify doctor --require-source` plus the post-install Graphify adoption
-  audit on 2026-07-25
+- `graphify doctor --require-source` plus the post-install and post-Personal AI
+  canary Graphify adoption audits on 2026-07-25
 - `/Users/mase/.codex/docs/reference/graphify.md`
 - local inspection of `graphify/__main__.py`, `watch.py`, `transcribe.py`, and
   related tests
