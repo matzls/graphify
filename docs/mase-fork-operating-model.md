@@ -10,7 +10,7 @@ owners:
 created: 2026-05-02
 updated: 2026-07-25
 last_verified: 2026-07-25
-reconciliation_status: "v0.9.26 target 66d8110 with all 71 pre-existing local commits preserved and the stage-one adaptation validated on the temporary branch; promotion, active CLI/Pi skill refresh, and canary pending"
+reconciliation_status: "v0.9.26 promoted to mase/local-fixes with the active CLI and global Pi/Codex skills source-verified; adoption audit complete; consumer refresh/canary and push remain gated"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -222,14 +222,14 @@ matters to this fork?", and "Should Mase do anything differently now?"
 
 ## Current Local Delta From Upstream
 
-The temporary branch `mase/reconcile/graphify-v0.9.26` descends from the
-immutable v0.9.26 target `66d8110a534b52df3d660b5fda5aa5461a6b667a`
-and preserves all 71 pre-v0.9.26 local commits after a clean rebase. Its
-intended tree, including the scoped stage-one adaptation, passed focused and
-full validation on 2026-07-25. Promotion to the local release branch,
-active CLI/Pi skill refresh, and consumer canary remain pending separate
-approval. The active CLI and installed Pi skill still reflect the promoted
-v0.9.25 state; this document does not claim an installed v0.9.26.
+The promoted local branch `mase/local-fixes` descends from the immutable
+v0.9.26 target `66d8110a534b52df3d660b5fda5aa5461a6b667a` and preserves
+all 71 pre-v0.9.26 local commits after a clean rebase. The validated temporary
+branch `mase/reconcile/graphify-v0.9.26` remains at the same stage-one commit,
+`6228b3c18c2f92d7ecf4f4d16b0174da07e999a6`. The active CLI and global
+Pi/Codex Graphify skills are source-verified at v0.9.26. The post-install
+adoption audit completed read-only; consumer refreshes, canary work,
+propagation, and push remain separate approval gates.
 
 As last verified on 2026-07-25 against `upstream/v8` at the v0.9.26 base, the
 local fork carries Mase-specific or recently upstream-oriented changes in these
@@ -420,6 +420,10 @@ names start with `my-second-brain-build-repository-stabilization` are also
 excluded; the main `my-second-brain-build` repo remains audited normally. Update
 `DEFAULT_AUDIT_EXCLUSIONS` or `DEFAULT_AUDIT_EXCLUSION_PREFIXES` there when Mase
 changes the maintained repo set.
+
+The read-only post-v0.9.26 audit on 2026-07-25 scanned 60 repositories: 9 full,
+2 refresh-needed, 27 candidates, and 22 skipped. The refresh-needed repositories
+were `my-second-brain-build` and `Personal AI`; neither was mutated.
 
 Apply remains explicit and re-runs the audit before mutating selected repos:
 
@@ -624,8 +628,10 @@ This document is derived from:
 - repo-local `AGENTS.md`
 - `ARCHITECTURE.md`
 - `git diff upstream/v8`, `git merge-base --is-ancestor upstream/v8 HEAD`, and
-  `git rev-list --left-right --count upstream/v8...HEAD` on the temporary
-  branch as of 2026-07-25
+  `git rev-list --left-right --count upstream/v8...HEAD` on the promoted
+  `mase/local-fixes` branch as of 2026-07-25
+- `graphify doctor --require-source` plus the post-install Graphify adoption
+  audit on 2026-07-25
 - `/Users/mase/.codex/docs/reference/graphify.md`
 - local inspection of `graphify/__main__.py`, `watch.py`, `transcribe.py`, and
   related tests

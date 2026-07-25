@@ -32,18 +32,18 @@
       "lastUpdated": "2026-07-19"
     },
     "graphify-upstream-v0.9.26-reconciliation-2026-07-25": {
-      "title": "Reconcile Graphify v0.9.26 stage one and validate the hook integration",
-      "status": "in_progress",
+      "title": "Reconcile Graphify v0.9.26 and align the promoted local install",
+      "status": "completed",
       "currentLane": "shipping-and-launch",
-      "currentPhase": "stage-one-rebased-validated-committed-on-temporary-branch",
-      "enteredLaneBecause": "The v0.9.26 base is rebased cleanly and the active post-commit refresh hook now has focused missing-SIGALRM coverage and a validated timer fallback on the temporary reconciliation branch.",
+      "currentPhase": "v0.9.26-promoted-installed-source-verified-and-audited",
+      "enteredLaneBecause": "The promoted local branch, active CLI, and global Pi/Codex skills now resolve to the validated v0.9.26 fork, and the post-install adoption audit completed without consumer mutation.",
       "exitCriteria": [
-        "The temporary branch contains the minimal post-commit refresh timer fallback and focused regression coverage.",
-        "The focused, affected, and full test suites pass and fresh review finds no blocker.",
-        "The scoped reconciliation commit is verified on the temporary branch.",
-        "Promotion to the local release branch, active CLI/Pi skill refresh, and consumer canary receive separate approval and validation."
+        "The promoted mase/local-fixes branch contains the v0.9.26 base, all 71 pre-existing local commits, and the scoped hook adaptation.",
+        "Focused, affected, and full test suites pass and fresh review finds no blocker.",
+        "The active CLI and global Pi/Codex Graphify skills are source-verified at v0.9.26.",
+        "A read-only post-install adoption audit completes and identifies consumer follow-up without mutation."
       ],
-      "nextAction": "Request separate approval for branch promotion, active CLI reinstall/Pi skill refresh, and a bounded consumer canary; do not perform those actions from this task.",
+      "nextAction": "Brief Mase on the completed local reconciliation; await separate approval before refreshing the two identified repositories, running a consumer canary, propagating broadly, or pushing.",
       "nextRecommendedLane": "shipping-and-launch",
       "artifacts": [
         "docs/mase-fork-operating-model.md",
@@ -51,11 +51,11 @@
         "tests/test_hooks.py"
       ],
       "approvalGates": [
-        "The scoped stage-one reconciliation commit is the only commit authorized by this task; no additional commit or branch promotion is approved.",
-        "Do not promote the temporary branch or change mase/local-fixes without separate approval.",
-        "Do not reinstall the active CLI, refresh the global Pi skill, or update global hooks without separate approval.",
-        "Do not run consumer canaries, propagation, semantic refreshes, or pushes without separate approval.",
-        "Preserve historical tasks and backup refs; do not reset, stash, or rewrite reconciliation history."
+        "Mase approved finalizing v0.9.26 through local branch promotion, CLI and Pi/Codex skill refresh, read-only adoption audit, and a clean repository closeout.",
+        "Do not mutate my-second-brain-build, Personal AI, or any other consumer repository without separate approval.",
+        "Do not run consumer canaries, semantic refreshes, broad propagation, or pushes without separate approval.",
+        "Treat origin/mase/local-fixes as preserved historical divergence; do not merge, reset to, or force-push it.",
+        "Preserve the pre-v0.9.26 backup ref and validated temporary reconciliation branch."
       ],
       "lastUpdated": "2026-07-25"
     }
