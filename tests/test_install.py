@@ -1148,6 +1148,7 @@ def test_remove_marker_section_matches_exact_heading_only(tmp_path):
     # The section runs to the next H2 (not stopping at a `###` inside it).
     c2 = "## graphify\n\nintro\n\n### sub\n\ninner\n\n## Keep\n\nkeep me\n"
     out2 = _remove_marker_section(c2, m)
+    assert out2 is not None
     assert "## Keep" in out2 and "keep me" in out2
     assert "inner" not in out2 and "intro" not in out2
 
