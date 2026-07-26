@@ -1084,6 +1084,33 @@ def _managed_codex_session_start_command(repo: Path) -> str:
     return json.loads(command_line.split("=", 1)[1].strip())
 
 
+def _run_codex_reconcile(repo: Path, *args: str):
+    return subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "reconcile", *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+
+_CODEX_TEST_HOOK_START = "# graphify-session-start-hook-start"
+_CODEX_TEST_HOOK_END = "# graphify-session-start-hook-end"
+
+
+def _codex_test_managed_block(command: str) -> str:
+    return "\n".join(
+        [
+            _CODEX_TEST_HOOK_START,
+            "[[hooks.SessionStart]]",
+            "[[hooks.SessionStart.hooks]]",
+            'type = "command"',
+            f"command = {json.dumps(command)}",
+            _CODEX_TEST_HOOK_END,
+            "",
+        ]
+    )
+
+
 def test_codex_install_uses_config_toml_not_hooks_json(tmp_path):
     result = _run_codex_install(tmp_path)
 
@@ -1314,6 +1341,112 @@ def test_codex_install_removes_only_graphify_hook_check_near_miss(tmp_path):
     data = json.loads(hooks_json.read_text(encoding="utf-8"))
     commands = [hook["command"] for entry in data["hooks"]["PreToolUse"] for hook in entry["hooks"]]
     assert commands == ["cd /repos/graphify && ./lint.sh"]
+
+
+@pytest.mark.parametrize("portable", [False, True], ids=["path-bound", "portable"])
+def test_codex_reconcile_active_preserves_recognized_session_start_mode(tmp_path, portable):
+    repo = _make_git_repo(tmp_path)
+    codex_dir = repo / ".codex"
+    codex_dir.mkdir()
+    config_toml = codex_dir / "config.toml"
+    user_hook = """[[hooks.SessionStart]]
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "echo user-session-start"
+
+[features]
+keep = true
+"""
+    config_toml.write_text(user_hook, encoding="utf-8")
+    install_args = ("--portable",) if portable else ()
+    install_result = _run_codex_install(repo, *install_args)
+    expected_command = _managed_codex_session_start_command(repo)
+    (repo / "AGENTS.md").unlink()
+
+    result = _run_codex_reconcile(repo, "--state", "active", "--apply")
+
+    assert install_result.returncode == 0, install_result.stderr
+    assert result.returncode == 0, result.stderr
+    assert _managed_codex_session_start_command(repo) == expected_command
+    assert (expected_command == "graphify codex-session-start") is portable
+    config = config_toml.read_text(encoding="utf-8")
+    assert "echo user-session-start" in config
+    assert "[features]\nkeep = true" in config
+    assert config.count(_CODEX_TEST_HOOK_START) == 1
+    assert config.count(_CODEX_TEST_HOOK_END) == 1
+    assert (repo / "AGENTS.md").exists()
+
+
+def test_codex_reconcile_active_installs_path_bound_default_when_session_start_missing(tmp_path):
+    repo = _make_git_repo(tmp_path)
+
+    result = _run_codex_reconcile(repo, "--state", "active", "--apply")
+
+    assert result.returncode == 0, result.stderr
+    command = _managed_codex_session_start_command(repo)
+    assert command != "graphify codex-session-start"
+    assert command.endswith(f"codex-session-start {repo.resolve()}")
+
+
+@pytest.mark.parametrize(
+    "managed_content",
+    [
+        _CODEX_TEST_HOOK_START + "\n",
+        _CODEX_TEST_HOOK_END + "\n",
+        _CODEX_TEST_HOOK_END + "\n" + _CODEX_TEST_HOOK_START + "\n",
+        (
+            _CODEX_TEST_HOOK_START
+            + "\n"
+            + _codex_test_managed_block("graphify codex-session-start")
+            + _CODEX_TEST_HOOK_END
+            + "\n"
+        ),
+        _codex_test_managed_block("graphify codex-session-start") * 2,
+        (
+            _CODEX_TEST_HOOK_START
+            + "\ncommand = \"unterminated\n"
+            + _CODEX_TEST_HOOK_END
+            + "\n"
+        ),
+        _codex_test_managed_block("'unterminated"),
+        _codex_test_managed_block("graphify codex-session-start ."),
+        _codex_test_managed_block("graphify codex-session-start /stale/checkout"),
+        _codex_test_managed_block("echo custom-command"),
+    ],
+    ids=[
+        "start-only",
+        "end-only",
+        "reversed",
+        "nested",
+        "duplicate-pairs",
+        "undecodable",
+        "untokenizable",
+        "portable-extra-argument",
+        "stale-project-path",
+        "custom-command",
+    ],
+)
+def test_codex_reconcile_unrecognized_block_requires_manual_review_before_apply(
+    tmp_path, managed_content
+):
+    repo = _make_git_repo(tmp_path)
+    config_toml = repo / ".codex" / "config.toml"
+    config_toml.parent.mkdir()
+    config_toml.write_text("[features]\nkeep = true\n\n" + managed_content, encoding="utf-8")
+    before_config = config_toml.read_bytes()
+
+    dry_run = _run_codex_reconcile(repo, "--state", "active")
+    apply_result = _run_codex_reconcile(repo, "--state", "active", "--apply")
+
+    assert dry_run.returncode == 0, dry_run.stderr
+    assert "Codex SessionStart: unrecognized" in dry_run.stdout
+    assert "manual review" in dry_run.stdout.lower()
+    assert apply_result.returncode != 0
+    assert "manual review" in (apply_result.stdout + apply_result.stderr).lower()
+    assert config_toml.read_bytes() == before_config
+    assert not (repo / "AGENTS.md").exists()
+    assert not (repo / ".git" / "hooks" / "post-commit").exists()
+    assert not (repo / ".git" / "hooks" / "post-checkout").exists()
 
 
 def test_codex_reconcile_staged_dry_run_does_not_mutate(tmp_path):

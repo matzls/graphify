@@ -66,7 +66,7 @@
       "title": "Add opt-in portable Codex SessionStart activation",
       "status": "in-progress",
       "currentLane": "/build auto",
-      "currentPhase": "t-002-and-cp-1-complete-t-003-next",
+      "currentPhase": "t-003-and-cp-2-complete-t-004-next",
       "enteredLaneBecause": "Mase invoked /build auto against the approved revision-4 scope after the exact HEAD, plan hash, clean worktree, and pending task set passed revalidation.",
       "exitCriteria": [
         "T-001 through T-004 and checkpoints CP-1 and CP-2 are complete with one verified local commit per task.",
@@ -74,7 +74,7 @@
         "A fresh-context code review reports no blocker and the final scope audit finds only approved task files and status updates.",
         "The worktree is clean and no active-CLI reinstall, global-skill refresh, downstream mutation, upstream reconciliation, push, publish, or PR occurred."
       ],
-      "nextAction": "Execute T-003 with RED-to-GREEN coverage for recognized SessionStart mode classification, reconcile preservation, malformed-block fail-closed behavior, and safe uninstall, then run checkpoint CP-2.",
+      "nextAction": "Execute T-004 documentation alignment and the complete synthetic clean-clone, nested-directory, linked-worktree, help, focused, full-suite, lint, bounded Pyright, LSP, Pi Lens, review, and scope gates.",
       "nextRecommendedLane": "/build auto",
       "artifacts": [
         "tasks/plan.md",
@@ -89,7 +89,7 @@
         "The AST-identical pre-existing tests/test_hooks.py formatting diff was isolated in preparatory commit 0e210b2 and must not be mixed into later implementation commits.",
         "Do not reinstall the active CLI, refresh global skills, modify my-second-brain-build, propagate, push, or create a PR without separate authority."
       ],
-      "lastUpdated": "2026-07-26T12:32:24Z"
+      "lastUpdated": "2026-07-26T12:39:20Z"
     }
   }
 }

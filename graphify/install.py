@@ -1695,11 +1695,50 @@ def _clean_legacy_codex_config_toml(project_dir: Path) -> bool:
     return True
 
 
-def _codex_config_has_session_start(project_dir: Path) -> bool:
+def _codex_session_start_mode(project_dir: Path) -> str:
+    """Classify Graphify's marker-owned Codex SessionStart command."""
     config_path = project_dir / ".codex" / "config.toml"
-    return config_path.exists() and _CODEX_CONFIG_HOOK_START in config_path.read_text(
-        encoding="utf-8"
-    )
+    if not config_path.exists():
+        return "missing"
+
+    content = config_path.read_text(encoding="utf-8")
+    start_count = content.count(_CODEX_CONFIG_HOOK_START)
+    end_count = content.count(_CODEX_CONFIG_HOOK_END)
+    if start_count == 0 and end_count == 0:
+        return "missing"
+    if start_count != 1 or end_count != 1:
+        return "unrecognized"
+
+    start_index = content.index(_CODEX_CONFIG_HOOK_START)
+    end_index = content.index(_CODEX_CONFIG_HOOK_END)
+    if start_index >= end_index:
+        return "unrecognized"
+
+    block = content[start_index + len(_CODEX_CONFIG_HOOK_START) : end_index]
+    command_values = re.findall(r"(?m)^[ \t]*command[ \t]*=[ \t]*(.+?)[ \t]*$", block)
+    if len(command_values) != 1:
+        return "unrecognized"
+    try:
+        command = json.loads(command_values[0])
+    except (json.JSONDecodeError, TypeError):
+        return "unrecognized"
+    if not isinstance(command, str):
+        return "unrecognized"
+    if command == "graphify codex-session-start":
+        return "portable"
+
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return "unrecognized"
+    if len(parts) != 3 or parts[1] != "codex-session-start":
+        return "unrecognized"
+    executable_name = parts[0].replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if executable_name not in {"graphify", "graphify.exe"}:
+        return "unrecognized"
+    if parts[2] != str(project_dir.resolve()):
+        return "unrecognized"
+    return "path-bound"
 
 
 def _codex_config_has_legacy_hook_check(project_dir: Path) -> bool:
@@ -2006,7 +2045,8 @@ def _reconcile_codex(project_dir: Path, *, desired_state: str, apply: bool = Fal
     """Audit or reconcile Graphify's Codex activation surfaces for one repo."""
     project_dir = project_dir.resolve()
     agents_state = _agents_graphify_state(project_dir)
-    codex_session = _codex_config_has_session_start(project_dir)
+    codex_session_mode = _codex_session_start_mode(project_dir)
+    codex_session = codex_session_mode in {"portable", "path-bound"}
     legacy_config = _codex_config_has_legacy_hook_check(project_dir)
     legacy_hooks_json = _codex_hooks_json_has_legacy_hook_check(project_dir)
     git_hooks = _git_hooks_have_graphify(project_dir)
@@ -2026,15 +2066,28 @@ def _reconcile_codex(project_dir: Path, *, desired_state: str, apply: bool = Fal
     print(f"mode: {'apply' if apply else 'dry-run'}")
     print("\nSurfaces:")
     print(f"  AGENTS.md: {agents_state}")
-    print(f"  Codex SessionStart: {'present' if codex_session else 'missing'}")
+    print(f"  Codex SessionStart: {codex_session_mode}")
     print(f"  Legacy config.toml hook-check: {'present' if legacy_config else 'missing'}")
     print(f"  Legacy hooks.json hook-check: {'present' if legacy_hooks_json else 'missing'}")
     print(f"  Git hooks: {'present' if git_hooks else 'missing'}")
     print(f"  Artifacts/docs: {', '.join(artifacts) if artifacts else 'none'}")
 
+    if codex_session_mode == "unrecognized":
+        print(
+            "\nManual review required: the Graphify SessionStart marker block "
+            "is malformed or does not match a recognized managed command."
+        )
+        if apply:
+            print("Refusing to apply reconciliation changes before manual review.", file=sys.stderr)
+            return 2
+        return 0
+
     activate = desired_state == "active"
     needs_codex = (
-        agents_state != "managed" or not codex_session or legacy_config or legacy_hooks_json
+        agents_state != "managed"
+        or codex_session_mode == "missing"
+        or legacy_config
+        or legacy_hooks_json
     )
     actions: list[str] = []
     if activate:
@@ -2069,7 +2122,11 @@ def _reconcile_codex(project_dir: Path, *, desired_state: str, apply: bool = Fal
         return 0
     if activate:
         if needs_codex:
-            _agents_install(project_dir, "codex")
+            _agents_install(
+                project_dir,
+                "codex",
+                portable=codex_session_mode == "portable",
+            )
         if not git_hooks:
             from graphify.hooks import install as hook_install
 
