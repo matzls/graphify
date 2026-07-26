@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "activeTaskId": "graphify-upstream-v0.9.26-reconciliation-2026-07-25",
+  "activeTaskId": "graphify-codex-session-start-portability-2026-07-26",
   "tasks": {
     "graphify-reconciliation-recovery-and-readiness-2026-07": {
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
@@ -61,6 +61,35 @@
         "Preserve the pre-v0.9.26 backup ref and validated temporary reconciliation branch."
       ],
       "lastUpdated": "2026-07-25"
+    },
+    "graphify-codex-session-start-portability-2026-07-26": {
+      "title": "Add opt-in portable Codex SessionStart activation",
+      "status": "approved",
+      "currentLane": "planning-and-task-breakdown",
+      "currentPhase": "approved-revision-4-clean-baseline-ready-for-build-auto",
+      "enteredLaneBecause": "Mase approved formal planning for the reviewed Codex SessionStart portability design with /build auto intended as the next execution lane.",
+      "exitCriteria": [
+        "tasks/plan.md and tasks/todo.md carry the complete behavior, task, validation, and authority contract.",
+        "The operator-selected GPT-5.6-Sol X-HIGH review artifact is hash-fresh for approved revision 4 and has no blocking issue.",
+        "Mase explicitly approved revision 4 and exact scope T-001 through T-004 at 2026-07-26T11:22:38Z.",
+        "The pre-existing tests/test_hooks.py formatting diff is preserved in separate local commit 0e210b2 and the approved planning artifacts are assigned to their own preparatory commit before /build auto."
+      ],
+      "nextAction": "After the planning/governance commit and final clean-status verification, await an explicit /build auto invocation for T-001 through T-004; do not reinstall, roll out downstream, push, or create a PR.",
+      "nextRecommendedLane": "/build auto",
+      "artifacts": [
+        "tasks/plan.md",
+        "tasks/todo.md",
+        "docs/plans/_peer-reviews/plan-peer-review.json",
+        "docs/plans/_peer-reviews/plan-gpt-5.6-sol-xhigh-review.md"
+      ],
+      "approvalGates": [
+        "Drafting and peer review do not authorize implementation or commits.",
+        "Mase explicitly selected GPT-5.6-Sol X-HIGH as the same-model substitute after the preferred opposite-model review failed from a Claude session limit; do not claim opposite-model provenance.",
+        "Normal /build auto requires approved revision metadata whose approval_scope exactly matches T-001 through T-004.",
+        "The AST-identical pre-existing tests/test_hooks.py formatting diff was isolated in preparatory commit 0e210b2 and must not be mixed into later implementation commits.",
+        "Do not reinstall the active CLI, refresh global skills, modify my-second-brain-build, propagate, push, or create a PR without separate authority."
+      ],
+      "lastUpdated": "2026-07-26"
     }
   }
 }
