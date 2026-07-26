@@ -1,0 +1,204 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-99720701d164",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/graphify-extraction-contract-and-harness-calibration-plan.md",
+  "plan_sha256": "d4fe46540bb6369a805b7a2271caeb3bf3a76a51ac9884c9677f8576667d6755",
+  "mode": "artifact-review",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_doc-reviews",
+  "engine": "GPT",
+  "requested_engine": "codex",
+  "origin_runtime": "codex",
+  "engine_policy": "explicit",
+  "resolved_primary_engine": "codex",
+  "preferred_engine": "codex",
+  "fallback_engine": null,
+  "final_engine": "codex",
+  "reviewer_match": "same_model_fallback",
+  "gate_quality": "preferred",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_doc-reviews/graphify-extraction-contract-and-harness-calibration-plan-peer-review.json",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "attempt_chain": [
+    {
+      "engine": "codex",
+      "phase": "primary",
+      "result": "completed",
+      "returncode": 0
+    }
+  ],
+  "attempt_failures": [],
+  "primary_failure": null,
+  "fallback_failure": null,
+  "codex_sandbox": "read-only",
+  "review_round": 2,
+  "max_rounds": 3,
+  "prior_review_id": "peer-review-aa8a1a27ae25",
+  "caller_disposition_summary": "Added an in-plan dated Task 8 evidence record with exact test commands/results, warning disposition, executable/package paths, doctor result, installed/source SHA-256 pairs, Pi-skill hash and stamp, plus honest install-order provenance. Removed pi-agent-skills propagation/audit from this plan's completion proof and delegated it to canonical operating/lifecycle status.",
+  "addressed_issues": [
+    "Completion status outruns the final verification record",
+    "The pi-agent-skills audit claim is unscoped and unanchored"
+  ],
+  "deferred_issues": [],
+  "recheck_requests": [
+    "Completion status outruns the final verification record",
+    "The pi-agent-skills audit claim is unscoped and unanchored"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "verdict": "Sound",
+  "stance": null,
+  "issues_count": 0,
+  "ran_at": "2026-07-26T15:38:16.709380+00:00",
+  "raw_review_excerpt": "The artifact is safe to hand off as complete. The dated Task 8 record now grounds the required tests, active-install source verification, installed/source hashes, Pi-skill identity, and install-order provenance. The separate pi-agent-skills propagation and fleet audit are explicitly excluded from this plan\u2019s completion proof and delegated to their owning operational records.",
+  "error": null,
+  "closure_verification": "Both carried issues are resolved in the current artifact. No BLOCK, WARN, or NOTE item remains that should delay handoff or trigger another review cycle.",
+  "prior_round_closure": [
+    {
+      "title": "Completion status outruns the final verification record",
+      "severity": "BLOCK",
+      "caller_claim": "A dated Task 8 record was added with exact tests, warnings, install paths, doctor result, hashes, Pi-skill identity, and install-order provenance.",
+      "verification_status": "resolved",
+      "verification_notes": "The current artifact contains those details under Final Verification Evidence and distinguishes prior installer execution from the current session\u2019s readback checks. The completion claim no longer outruns its recorded evidence."
+    },
+    {
+      "title": "The pi-agent-skills audit claim is unscoped and unanchored",
+      "severity": "BLOCK",
+      "caller_claim": "Propagation and fleet auditing were removed from this plan\u2019s proof and delegated to canonical operational/lifecycle status.",
+      "verification_status": "resolved",
+      "verification_notes": "The artifact explicitly says those activities are not part of completion proof, names their owning records, repeats the separation at Checkpoint C, and makes no fleet-count claim."
+    }
+  ],
+  "rerun_recommendation": "stop",
+  "review": {
+    "mode": "artifact-review",
+    "summary": "The artifact is safe to hand off as complete. The dated Task 8 record now grounds the required tests, active-install source verification, installed/source hashes, Pi-skill identity, and install-order provenance. The separate pi-agent-skills propagation and fleet audit are explicitly excluded from this plan\u2019s completion proof and delegated to their owning operational records.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "Completion Record > Final Verification Evidence",
+        "claim": "Task 8 completion is sufficiently grounded in the current artifact.",
+        "evidence": "The artifact records exact focused and full-suite commands and results, warning dispositions, executable and package paths, doctor source verification, four matching source/installed SHA-256 pairs, the Pi-skill hash and stamp, and the fact that this session verified\u2014but did not rerun\u2014the preceding authorized installs.",
+        "disposition": "PASS \u2014 no load-bearing Task 8 completion claim lacks an artifact anchor."
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "Current review\u2019s artifact/conversation/campaign separation",
+        "claim": "Evidence from the artifact, prior-round packet, and broader campaign is kept distinct.",
+        "evidence": "The completion conclusion relies on the current artifact. The prior packet is used only to identify two claims for rechecking. External propagation and fleet status are not treated as completion evidence.",
+        "disposition": "PASS \u2014 evidence layers are separated without importing unverified campaign claims."
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "User-specified Round-2 focus and Completion Record",
+        "claim": "This is a slice-only closeout review, not a full re-audit of Tasks 1\u20137 or the external fleet campaign.",
+        "evidence": "Review coverage is limited to final Task 8 verification grounding, pi-agent-skills operational separation, and the two carried prior-round issues.",
+        "disposition": "PASS \u2014 the conclusion is appropriately limited to handoff readiness for the requested closeout slice."
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "Accept dated Task 8 record",
+          "Treat installer execution as declared provenance",
+          "None blocking"
+        ],
+        [
+          "Verify two carried claims",
+          "Use prior packet only as hypotheses",
+          "No broader thread evidence"
+        ],
+        [
+          "Close scoped Round-2 slice",
+          "Limit conclusion to Task 8 and separation",
+          "Do not imply fleet-audit coverage"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": true,
+      "sources": [
+        "Caller-supplied PRIOR ROUND CONTEXT for review round 2/3",
+        "Caller-supplied explicit re-check requests"
+      ],
+      "summary": "Conversation evidence was used only to identify the two carried issues. Resolution was determined from the current artifact.",
+      "gaps": [
+        "No broader review-thread history was supplied or relied upon."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "Final Task 8 verification grounding",
+        "Separation of pi-agent-skills propagation and fleet-audit context",
+        "Closure of the two carried Round-1 issues"
+      ],
+      "missing": [
+        "Comprehensive revalidation of Tasks 1\u20137",
+        "Independent inspection of the external pi-agent-skills propagation/fleet campaign",
+        "Independent review of operating-model or lifecycle-state contents"
+      ],
+      "gaps": [
+        "No conclusion is made about full-campaign or fleet status."
+      ]
+    },
+    "issues": [],
+    "verification_gaps": [
+      "No repo files, saved command logs, or mutable installations were independently inspected; the scoped review assesses the completeness and internal grounding of the supplied dated record. The unnamed 232-test/Ruff/Pyright handover is supporting context rather than necessary completion proof because the artifact directly records the broader 3818-test run and installation checks."
+    ],
+    "recommended_fixes": [],
+    "evidence_sources": [
+      "Supplied artifact: docs/plans/graphify-extraction-contract-and-harness-calibration-plan.md \u2014 Summary",
+      "Supplied artifact \u2014 Completion Record > Accepted Evidence",
+      "Supplied artifact \u2014 Completion Record > Final Verification Evidence",
+      "Supplied artifact \u2014 Completion Record > Deviations And Supersessions",
+      "Supplied artifact \u2014 Task 8: Closeout",
+      "Supplied artifact \u2014 Checkpoint C",
+      "Supplied artifact \u2014 Recommended Next Action",
+      "Caller-supplied prior-round packet"
+    ],
+    "error": null,
+    "verdict": "Sound",
+    "core_challenge": "Whether the complete status is now supported by a durable final Task 8 verification record without improperly depending on pi-agent-skills fleet work.",
+    "assumptions_to_verify": [],
+    "technical_reality": [
+      "The artifact records 197 focused tests passing and an offline full suite of 3818 passing with 7 skipped and three disposed warnings.",
+      "The active executable, package directory, checkout source result, matching installed/source hashes, and Pi-skill hash/stamp are recorded explicitly.",
+      "Install provenance is honest: the installers ran after an earlier passing gate, while the closeout session rechecked resulting mutable state without claiming to rerun them.",
+      "pi-agent-skills propagation and fleet auditing are assigned to separate operating/lifecycle records and are not used to prove this plan complete."
+    ],
+    "spec_gaps": [],
+    "downstream_risks": [
+      "The active CLI and global Pi skill are mutable after the dated verification; future operational claims should re-run source and hash checks.",
+      "External propagation or fleet status may change independently, but that does not reopen this completed plan."
+    ],
+    "prior_round_closure": [
+      {
+        "title": "Completion status outruns the final verification record",
+        "severity": "BLOCK",
+        "caller_claim": "A dated Task 8 record was added with exact tests, warnings, install paths, doctor result, hashes, Pi-skill identity, and install-order provenance.",
+        "verification_status": "resolved",
+        "verification_notes": "The current artifact contains those details under Final Verification Evidence and distinguishes prior installer execution from the current session\u2019s readback checks. The completion claim no longer outruns its recorded evidence."
+      },
+      {
+        "title": "The pi-agent-skills audit claim is unscoped and unanchored",
+        "severity": "BLOCK",
+        "caller_claim": "Propagation and fleet auditing were removed from this plan\u2019s proof and delegated to canonical operational/lifecycle status.",
+        "verification_status": "resolved",
+        "verification_notes": "The artifact explicitly says those activities are not part of completion proof, names their owning records, repeats the separation at Checkpoint C, and makes no fleet-count claim."
+      }
+    ],
+    "closure_verification": "Both carried issues are resolved in the current artifact. No BLOCK, WARN, or NOTE item remains that should delay handoff or trigger another review cycle.",
+    "rerun_recommendation": "stop"
+  }
+}

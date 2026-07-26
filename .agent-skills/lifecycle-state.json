@@ -65,31 +65,39 @@
     "graphify-codex-session-start-portability-2026-07-26": {
       "title": "Add opt-in portable Codex SessionStart activation",
       "status": "completed",
-      "currentLane": "/build auto",
-      "currentPhase": "t-001-through-t-004-final-gate-complete-review-pass",
-      "enteredLaneBecause": "Mase invoked /build auto against the approved revision-4 scope after the exact HEAD, plan hash, clean worktree, and pending task set passed revalidation.",
+      "currentLane": "shipping-and-launch",
+      "currentPhase": "active-install-and-pi-agent-skills-semantic-closeout-complete",
+      "enteredLaneBecause": "The approved portability implementation is committed and validated, the active Graphify CLI and global Pi skill are source-verified, and the authorized pi-agent-skills semantic propagation passed activation and final audit checks.",
       "exitCriteria": [
         "T-001 through T-004 and checkpoints CP-1 and CP-2 are complete with one verified local commit per task.",
         "Focused and full validation, the bounded Pyright comparison, targeted LSP and Pi Lens diagnostics, and the synthetic portability E2E probe satisfy tasks/plan.md.",
         "A fresh-context code review reports no blocker and the final scope audit finds only approved task files and status updates.",
-        "The worktree is clean and no active-CLI reinstall, global-skill refresh, downstream mutation, upstream reconciliation, push, publish, or PR occurred."
+        "The active Graphify 0.9.26 CLI core files and global Pi skill match this checkout, and graphify doctor verifies the install source.",
+        "pi-agent-skills remains tracked-clean and is full in the final 9 full, 2 refresh-needed, 27 candidate, 16 skipped adoption audit."
       ],
-      "nextAction": "Brief Mase on the four verified local unpushed task commits and await separate authority before any active-CLI reinstall, global-skill refresh, downstream rollout, upstream mutation, push, publish, or PR.",
+      "nextAction": "Brief Mase on the verified local seven-path closeout commit. my-second-brain-build and Personal AI remain dirty and refresh-blocked; do not propagate another target, create another commit, or push without separate authority.",
       "nextRecommendedLane": "shipping-and-launch",
       "artifacts": [
         "tasks/plan.md",
         "tasks/todo.md",
+        "docs/mase-fork-operating-model.md",
+        "docs/plans/graphify-extraction-contract-and-harness-calibration-plan.md",
+        "docs/plans/graphify-hyperedge-id-normalization-plan.md",
+        "docs/plans/_doc-reviews/graphify-extraction-contract-and-harness-calibration-plan-peer-review.json",
+        "docs/plans/_doc-reviews/graphify-hyperedge-id-normalization-plan-peer-review.json",
         "docs/plans/_peer-reviews/plan-peer-review.json",
         "docs/plans/_peer-reviews/plan-gpt-5.6-sol-xhigh-review.md"
       ],
       "approvalGates": [
         "Drafting and peer review do not authorize implementation or commits.",
         "Mase explicitly selected GPT-5.6-Sol X-HIGH as the same-model substitute after the preferred opposite-model review failed from a Claude session limit; do not claim opposite-model provenance.",
-        "Normal /build auto requires approved revision metadata whose approval_scope exactly matches T-001 through T-004.",
-        "The AST-identical pre-existing tests/test_hooks.py formatting diff was isolated in preparatory commit 0e210b2 and must not be mixed into later implementation commits.",
-        "Do not reinstall the active CLI, refresh global skills, modify my-second-brain-build, propagate, push, or create a PR without separate authority."
+        "Normal /build auto required approved revision metadata whose approval_scope exactly matched T-001 through T-004.",
+        "The AST-identical pre-existing tests/test_hooks.py formatting diff was isolated in preparatory commit 0e210b2; later recurring formatter churn was verified AST-identical and restored without staging.",
+        "The completed active-CLI/global-Pi-skill refresh and pi-agent-skills-only semantic propagation had separate authority; they do not authorize another target, reinstall, package change, or global mutation.",
+        "Mase authorized this one local commit for the reviewed seven-path closeout packet; that authority is consumed by this packet and does not cover another commit.",
+        "Do not modify my-second-brain-build or Personal AI, push, publish, create a PR, or mutate upstream Git without separate authority."
       ],
-      "lastUpdated": "2026-07-26T13:02:47Z"
+      "lastUpdated": "2026-07-26T15:52:44Z"
     }
   }
 }

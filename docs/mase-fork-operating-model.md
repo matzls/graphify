@@ -10,7 +10,7 @@ owners:
 created: 2026-05-02
 updated: 2026-07-26
 last_verified: 2026-07-26
-reconciliation_status: "v0.9.26 source fork now includes validated opt-in portable Codex SessionStart activation; active-CLI reinstall, global-skill refresh, downstream rollout, and push remain gated"
+reconciliation_status: "v0.9.26 portable Codex SessionStart is installed and source-verified; pi-agent-skills semantic propagation is complete; dirty Second Brain/Personal AI refreshes and push remain gated"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -226,14 +226,15 @@ The promoted local branch `mase/local-fixes` descends from the immutable
 v0.9.26 target `66d8110a534b52df3d660b5fda5aa5461a6b667a` and preserves
 all 71 pre-v0.9.26 local commits after a clean rebase. The validated temporary
 branch `mase/reconcile/graphify-v0.9.26` remains at the same stage-one commit,
-`6228b3c18c2f92d7ecf4f4d16b0174da07e999a6`. The active CLI and global
-Pi/Codex Graphify skills are source-verified at v0.9.26. A cache-only stale
-marker bug found by the Personal AI canary was repaired in the local CLI,
-reinstalled, and verified by a successful semantic retry plus query smoke. The
-source checkout now also carries the validated opt-in portable Codex
-SessionStart implementation; it has not been reinstalled into the active CLI or
-propagated downstream. `my-second-brain-build`, broader propagation, and push
-remain separate approval gates.
+`6228b3c18c2f92d7ecf4f4d16b0174da07e999a6`. The active Graphify 0.9.26 CLI
+now includes the validated opt-in portable Codex SessionStart implementation.
+`graphify doctor --require-source` passes, the installed `__main__.py`,
+`install.py`, `cli.py`, and `hooks.py` match this checkout, and the global Pi
+skill is byte-identical to `graphify/skill-pi.md`. A cache-only stale-marker bug
+found by the Personal AI canary was repaired and previously verified by a
+successful semantic retry plus query smoke. Bounded semantic propagation has
+also completed for `pi-agent-skills`; `my-second-brain-build`, `Personal AI`,
+every other downstream target, and push remain separate approval gates.
 
 As last verified on 2026-07-25 against `upstream/v8` at the v0.9.26 base, the
 local fork carries Mase-specific or recently upstream-oriented changes in these
@@ -455,9 +456,17 @@ changes the maintained repo set.
 The initial post-v0.9.26 audit on 2026-07-25 scanned 60 repositories: 9 full,
 2 refresh-needed, 27 candidates, and 22 skipped. A bounded Personal AI semantic
 canary then exposed and verified the cache-aware pending-marker fix without
-changing its pre-existing dirty source/config state. The post-canary audit was
-10 full, 1 refresh-needed, 27 candidates, and 22 skipped;
-`my-second-brain-build` is the sole remaining refresh-needed repository.
+changing its pre-existing dirty source/config state. That post-canary snapshot
+was 10 full, 1 refresh-needed, 27 candidates, and 22 skipped.
+
+The repository set and dirty states later changed. The 2026-07-26 pre-closeout
+audit reported 8 full, 3 refresh-needed, 27 candidates, and 16 skipped. Only
+`pi-agent-skills` was clean and unblocked, so the authorized propagation wrapper
+refreshed that repository alone. The final audit is 9 full, 2 refresh-needed,
+27 candidates, and 16 skipped. `pi-agent-skills` is full with no tracked graph
+output or stale/partial marker. The remaining refresh-needed repositories are
+`my-second-brain-build` and `Personal AI`; both have dirty source/config blockers
+and were not mutated by this closeout.
 
 Apply remains explicit and re-runs the audit before mutating selected repos:
 
@@ -667,8 +676,8 @@ This document is derived from:
 - `git diff upstream/v8`, `git merge-base --is-ancestor upstream/v8 HEAD`, and
   `git rev-list --left-right --count upstream/v8...HEAD` on the promoted
   `mase/local-fixes` branch as of 2026-07-25
-- `graphify doctor --require-source` plus the post-install and post-Personal AI
-  canary Graphify adoption audits on 2026-07-25
+- `graphify doctor --require-source`, installed-file and global-Pi-skill hash
+  comparisons, and the post-`pi-agent-skills` adoption audit on 2026-07-26
 - `/Users/mase/.codex/docs/reference/graphify.md`
 - local inspection of `graphify/__main__.py`, `watch.py`, `transcribe.py`, and
   related tests

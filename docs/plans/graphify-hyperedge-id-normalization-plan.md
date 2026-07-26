@@ -1,11 +1,11 @@
 ---
 title: "Graphify Hyperedge ID Normalization Patch Plan"
 kind: plan
-status: review
+status: complete
 audience: "agents-operators"
 canonicality: canonical
 created: 2026-07-01
-updated: 2026-07-01
+updated: 2026-07-26
 source_of_truth: "./graphify-hyperedge-id-normalization-plan.md"
 related:
   - "../../AGENTS.md"
@@ -20,9 +20,10 @@ tags:
 
 ## Summary
 
-Fix a reproducible Graphify semantic-refresh crash where incremental graph
-merge fails with `KeyError: 'id'` when an existing graph or semantic cache
-contains otherwise-valid hyperedges missing an `id` field.
+Status as of 2026-07-26: complete with the operational deviation recorded
+below. The shipped patch prevents the reproducible `KeyError: 'id'` failure when
+an existing graph or semantic cache contains otherwise-valid hyperedges missing
+an `id` field.
 
 The local target that exposed this is:
 
@@ -43,6 +44,54 @@ Current upstream `safishamsi/graphify` `v8` still contains the same unsafe
 `attach_hyperedges()` implementation as of a 2026-07-01 raw-source check, so
 this should be maintained as a small local fork delta until upstream lands an
 equivalent fix.
+
+## Completion Record (2026-07-26)
+
+The task and checkpoint checkboxes below are retained as the original execution
+contract rather than retroactively checked without contemporaneous evidence.
+This completion record is the authoritative disposition.
+
+### Accepted Evidence
+
+- Commit `651c807` centralizes hyperedge normalization in `graphify/build.py`
+  and applies it at build, merge, attach, and export boundaries. It preserves
+  existing non-empty IDs, synthesizes deterministic IDs for meaningful
+  missing-ID hyperedges, normalizes member aliases and source paths, and drops
+  unusable entries safely.
+- The same commit adds focused regressions in `tests/test_hypergraph.py`,
+  `tests/test_build_merge_hyperedges_and_prune.py`, and
+  `tests/test_extract_cli.py` for existing graph metadata, incremental merge,
+  fresh semantic output, semantic-cache reuse, export normalization, and
+  absolute-source carry-forward. Its recorded validation was 40 passing tests
+  plus a passing Ruff check.
+- Fresh closeout validation included those three files in the prescribed
+  five-file selection and passed with `197 passed` and one existing Hypothesis
+  collection warning.
+- The active Graphify 0.9.26 CLI now passes
+  `graphify doctor --require-source` for this checkout. Installed `build.py` and
+  `export.py` directly match source at SHA-256
+  `5734dd1639b4707fbc7d559d7946b9e911a02855b21835a4579c0b83e3651ecc` and
+  `28dde0d477254875222b83980583cd7e668054249a0fdcc1c3e0547d6be72456`;
+  the installed entry and activation modules also match source. The prior
+  closeout records that installation followed focused validation; the original
+  installer transcript is not retained in this plan.
+- No cache-schema or extraction-prompt change was required for the patch, and
+  no broad consumer refresh was performed as part of its implementation.
+
+### Operational Deviation And Residual Evidence Limits
+
+- Task 5's real-incident `build_merge()` and
+  `cluster-only . --no-label --no-viz` commands are not preserved as durable
+  completion evidence and were not rerun here. The current closeout explicitly
+  forbids touching the dirty `my-second-brain-build` repository. This plan closes
+  the shipped normalization patch; any future Second Brain recovery or semantic
+  refresh remains a separately authorized operational action.
+- The original incident counts and upstream snapshot are historical observations
+  from 2026-07-01 and were not reverified during this closeout.
+- Current source treats missing, blank, and whitespace-only IDs as unusable and
+  synthesizes replacements when at least two valid members remain. The focused
+  suite does not name a separate whitespace-only-ID regression; further schema
+  tightening belongs to a new task if real evidence requires it.
 
 ## Goal
 
@@ -302,6 +351,10 @@ cd /Users/mase/Codebase/Personal-Projects/my-second-brain-build && \
 - [ ] Any remaining semantic-refresh timeout is isolated to Ollama labeling or
       model runtime, not the hyperedge merge crash.
 
+Closure disposition: active CLI provenance is now verified. The two
+incident-repository checks remain the explicit operational deviation above and
+must not be inferred from unit-test success or the adoption audit.
+
 ## Risks And Mitigations
 
 - **Synthesized IDs churn across runs**
@@ -339,7 +392,7 @@ cd /Users/mase/Codebase/Personal-Projects/my-second-brain-build && \
 
 ## Recommended Next Action
 
-After peer review, implement Tasks 1-3 as one small local-fork patch, validate
-with Task 4, then run the Task 5 non-LLM recovery probe against the incident
-repo. Only run a full Ollama semantic refresh if the next Graphify-dependent
-work actually needs fresh semantic relationships.
+No implementation action remains for this patch plan. Preserve commit
+`651c807` through future upstream reconciliations unless upstream ships an
+equivalent fix. Do not run the deferred Second Brain recovery or semantic
+refresh without separate authority and a clean, reviewed target state.

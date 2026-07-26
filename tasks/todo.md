@@ -41,13 +41,18 @@ revision: 4
 
 ## Deferred And Separately Authorized
 
-- [ ] Active Graphify CLI reinstall and global skill refresh.
+- [x] Active Graphify CLI reinstall and global Pi skill refresh; Graphify 0.9.26
+      is source-verified and the installed core files and skill hash match this
+      checkout.
 - [ ] Second Brain regeneration, RQ6/clean-clone validation, and commit.
-- [ ] Any downstream propagation, push, PR, publish, or upstream Git mutation.
+- [ ] Any additional downstream propagation, push, PR, publish, or upstream Git
+      mutation.
 
 ## Next Lane
 
-After the canonical plan is approved and the baseline gates are clean, invoke
-`/build auto` once for the exact pending task set. It may proceed between tasks
-without routine confirmation but must stop on the canonical plan's blockers,
-validation failures requiring judgment, scope changes, or protected actions.
+Portability implementation, active CLI/global Pi skill refresh, and the bounded
+`pi-agent-skills` semantic propagation are complete. The reviewed seven-path
+closeout packet is committed locally. Remain in `shipping-and-launch` for the
+operator briefing. Second Brain regeneration/RQ6
+work, any other propagation, additional commit, push, or PR remains separately
+gated.

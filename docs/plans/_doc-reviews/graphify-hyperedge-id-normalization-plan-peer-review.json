@@ -1,0 +1,211 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-8a7ccb26d7a4",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/graphify-hyperedge-id-normalization-plan.md",
+  "plan_sha256": "f0222638516c4d5d910e7e1f13e1733f00b325ab4bb6f1e51d3b416c9edc3c35",
+  "mode": "artifact-review",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_doc-reviews",
+  "engine": "GPT",
+  "requested_engine": "codex",
+  "origin_runtime": "codex",
+  "engine_policy": "explicit",
+  "resolved_primary_engine": "codex",
+  "preferred_engine": "codex",
+  "fallback_engine": null,
+  "final_engine": "codex",
+  "reviewer_match": "same_model_fallback",
+  "gate_quality": "preferred",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_doc-reviews/graphify-hyperedge-id-normalization-plan-peer-review.json",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "attempt_chain": [
+    {
+      "engine": "codex",
+      "phase": "primary",
+      "result": "completed",
+      "returncode": 0
+    }
+  ],
+  "attempt_failures": [],
+  "primary_failure": null,
+  "fallback_failure": null,
+  "codex_sandbox": "read-only",
+  "review_round": 2,
+  "max_rounds": 3,
+  "prior_review_id": "peer-review-70a00872a58c",
+  "caller_disposition_summary": "Verified installed graphify/build.py and graphify/export.py directly against source and added both exact SHA-256 values to the completion record; preserved the explicit no-touch Task 5 deviation.",
+  "addressed_issues": [
+    "Installed normalization path is not directly proven by the retained file comparisons"
+  ],
+  "deferred_issues": [],
+  "recheck_requests": [
+    "Installed normalization path is not directly proven by the retained file comparisons"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "verdict": "Sound-with-issues",
+  "stance": null,
+  "issues_count": 1,
+  "ran_at": "2026-07-26T15:40:18.414100+00:00",
+  "raw_review_excerpt": "The carried issue is resolved at plan-handoff level. The current artifact records active-CLI provenance plus exact installed-to-source SHA-256 matches for both normalization-owning modules, graphify/build.py and graphify/export.py. Task 5 remains explicitly unproven and separately authorization-gated, so its omission is not misrepresented as patch validation. The handoff is safe with that documented residual limit.\n\nIssues:\n- 1. [NOTE] Task 5 remains operationally unproven by design",
+  "error": null,
+  "closure_verification": "The prior-round issue is resolved against the current artifact. Only a disclosed NOTE-level operational evidence limit remains: Task 5 has not run and must remain separately authorized. No further closeout review cycle is warranted.",
+  "prior_round_closure": [
+    {
+      "title": "Installed normalization path is not directly proven by the retained file comparisons",
+      "severity": "WARN",
+      "caller_claim": "The completion record now includes direct source comparisons and exact SHA-256 values for installed graphify/build.py and graphify/export.py while preserving the Task 5 no-touch deviation.",
+      "verification_status": "resolved",
+      "verification_notes": "The current artifact records exact hashes for both normalization-owning modules, states that each installed file directly matches source, and pairs those comparisons with a successful active-CLI source-verifier result. This resolves the documentary handoff gap, although raw command output was not independently reviewed."
+    }
+  ],
+  "rerun_recommendation": "stop",
+  "review": {
+    "mode": "artifact-review",
+    "summary": "The carried issue is resolved at plan-handoff level. The current artifact records active-CLI provenance plus exact installed-to-source SHA-256 matches for both normalization-owning modules, graphify/build.py and graphify/export.py. Task 5 remains explicitly unproven and separately authorization-gated, so its omission is not misrepresented as patch validation. The handoff is safe with that documented residual limit.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "Completion Record (2026-07-26) > Accepted Evidence, especially bullets 1 and 4",
+        "claim": "The active installation contains the shipped normalization path.",
+        "evidence": "The artifact identifies commit 651c807 as implementing normalization in graphify/build.py and graphify/export.py, records a passing graphify doctor --require-source check, and gives exact installed-to-source SHA-256 matches for both modules.",
+        "disposition": "Resolved for handoff; the evidence chain now covers the modules that own normalization."
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "Artifact evidence, prior-round context, and declared campaign scope",
+        "claim": "Present, partial, and missing evidence are separated across artifact, conversation, and campaign sources.",
+        "evidence": "The matrix distinguishes retained module hashes and provenance from caller claims, missing raw transcripts, and deferred Task 5 execution.",
+        "disposition": "Pass; no evidence category is presented as more complete than it is."
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "Operational Deviation And Residual Evidence Limits; Checkpoint C closure disposition",
+        "claim": "This review covers only the round-2 installed-normalization-path closeout slice.",
+        "evidence": "The artifact explicitly excludes rerunning the dirty Second Brain incident repository and does not infer Task 5 success from unit tests, hashes, or the adoption audit.",
+        "disposition": "Pass; campaign-wide or real-incident validation is not implied."
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "accept module hash chain",
+          "note transcript absence",
+          "no scoped evidence missing"
+        ],
+        [
+          "verify carried issue",
+          "treat caller claims cautiously",
+          "no additional thread evidence"
+        ],
+        [
+          "close install-provenance slice",
+          "limit campaign inference",
+          "defer gated Task 5"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": true,
+      "sources": [
+        "User-supplied PRIOR ROUND CONTEXT for review round 2/3",
+        "User-supplied focus: recheck installed normalization-path evidence while preserving Task 5 as separately gated"
+      ],
+      "summary": "Conversation evidence was used only to identify the carried issue and requested review boundary; it was not treated as proof of resolution.",
+      "gaps": [
+        "No raw installer, doctor, or hashing output was supplied in the conversation.",
+        "No broader implementation or operational campaign history was reviewed."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "Current artifact's installed-CLI provenance claim",
+        "Recorded installed-to-source hashes for graphify/build.py and graphify/export.py",
+        "Separation of the shipped patch from Task 5 operational recovery",
+        "Prior-round carried-issue closure"
+      ],
+      "missing": [
+        "Independent review of commit 651c807 source and tests",
+        "Recomputation of installed/source hashes",
+        "Full implementation campaign and original validation transcripts",
+        "Task 5 real-incident build_merge and cluster-only execution"
+      ],
+      "gaps": [
+        "The review confirms documentary handoff safety, not independent runtime reproduction.",
+        "The historical 2026-07-01 incident counts and upstream snapshot were intentionally not reverified."
+      ]
+    },
+    "issues": [
+      {
+        "title": "Task 5 remains operationally unproven by design",
+        "details": "The real-incident build_merge and cluster-only checks were not retained or rerun. The artifact clearly labels this as a separately authorized operational deviation and does not use patch-level evidence to claim those checks passed.",
+        "suggested_fix": "Do not reopen this patch plan. Run Task 5 only under separate authorization after reviewing the target repository's current dirty state, and retain that evidence in the resulting operational record.",
+        "severity": "NOTE"
+      }
+    ],
+    "verification_gaps": [
+      "Exact hashes and the doctor result were reviewed as statements in the supplied artifact; they were not independently recomputed because this review was constrained to analysis without shell execution.",
+      "The original installer transcript is not retained, so installation ordering is supported by the completion record rather than raw execution output.",
+      "No claim is made that the affected Second Brain artifact has been successfully rewritten by the repaired CLI."
+    ],
+    "recommended_fixes": [
+      "Stop the patch-plan review cycle; the carried installation-path issue is resolved.",
+      "For future reinstalls, retain the invoked executable path, compared file paths, hash output, doctor output, and installation ordering in one provenance record.",
+      "Keep any Second Brain recovery or semantic refresh behind its existing separate authorization gate."
+    ],
+    "evidence_sources": [
+      "Supplied graphify-hyperedge-id-normalization-plan.md: Summary",
+      "Supplied graphify-hyperedge-id-normalization-plan.md: Completion Record (2026-07-26) > Accepted Evidence",
+      "Supplied graphify-hyperedge-id-normalization-plan.md: Operational Deviation And Residual Evidence Limits",
+      "Supplied graphify-hyperedge-id-normalization-plan.md: Checkpoint C closure disposition",
+      "User-supplied PRIOR ROUND CONTEXT"
+    ],
+    "error": null,
+    "verdict": "Sound-with-issues",
+    "core_challenge": "Determine whether the artifact proves that the active CLI installation contains the normalization implementation without falsely converting the separately gated Task 5 recovery checks into completed patch evidence.",
+    "assumptions_to_verify": [
+      "The recorded hashes were calculated from the active uv-tool installation identified by the successful doctor check and from the stated checkout.",
+      "The source files associated with the recorded hashes contain the commit 651c807 normalization behavior described in the completion record.",
+      "The active graphify invocation used for doctor is the same installation intended for subsequent consumer-repository operations."
+    ],
+    "technical_reality": [
+      "Installed-to-source equality for graphify/build.py and graphify/export.py directly addresses the prior gap because those are the documented normalization owners.",
+      "The doctor provenance check and module comparisons together provide a stronger installation chain than either check alone.",
+      "File equality does not prove real-incident behavior; Task 5 remains the appropriate separate runtime check.",
+      "Deferring Task 5 is workflow-compliant because the target repository is dirty and the artifact expressly withholds authority to mutate it."
+    ],
+    "spec_gaps": [
+      "The artifact retains hash values but not the raw comparison commands, resolved installed paths, timestamps, or command output.",
+      "The artifact does not independently bind the recorded source hashes to commit 651c807 through retained Git output.",
+      "These limits reduce audit reproducibility but do not make the current handoff unsafe because they are disclosed and Task 5 success is not claimed."
+    ],
+    "downstream_risks": [
+      "If the recorded hashes came from a different environment than the active CLI, provenance could be overstated; the doctor-plus-hash chain reduces but does not independently eliminate that risk.",
+      "Operators could incorrectly infer consumer-repository recovery from patch installation; the explicit Task 5 deviation and closure wording guard against that inference.",
+      "Future upstream reconciliation could replace the local normalization path, so commit 651c807 must remain classified until equivalent upstream behavior is verified."
+    ],
+    "prior_round_closure": [
+      {
+        "title": "Installed normalization path is not directly proven by the retained file comparisons",
+        "severity": "WARN",
+        "caller_claim": "The completion record now includes direct source comparisons and exact SHA-256 values for installed graphify/build.py and graphify/export.py while preserving the Task 5 no-touch deviation.",
+        "verification_status": "resolved",
+        "verification_notes": "The current artifact records exact hashes for both normalization-owning modules, states that each installed file directly matches source, and pairs those comparisons with a successful active-CLI source-verifier result. This resolves the documentary handoff gap, although raw command output was not independently reviewed."
+      }
+    ],
+    "closure_verification": "The prior-round issue is resolved against the current artifact. Only a disclosed NOTE-level operational evidence limit remains: Task 5 has not run and must remain separately authorized. No further closeout review cycle is warranted.",
+    "rerun_recommendation": "stop"
+  }
+}

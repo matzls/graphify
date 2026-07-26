@@ -1,11 +1,11 @@
 ---
 title: "Graphify Extraction Contract And Harness Calibration Plan"
 kind: plan
-status: active
+status: complete
 audience: "agents-operators"
 canonicality: canonical
 created: 2026-07-06
-updated: 2026-07-06
+updated: 2026-07-26
 source_of_truth: "./graphify-extraction-contract-and-harness-calibration-plan.md"
 related:
   - "../../AGENTS.md"
@@ -21,12 +21,12 @@ tags:
 
 ## Summary
 
-Status as of 2026-07-07: Checkpoints A and B are reached, and Task 7 live A/B
-evidence exists. Scorer v2 is implemented and re-baselined offline; the
-extraction prompt contract is updated and downstream relation rendering paths are
-covered by tests. The prompt-v2 A/B selected `deepseek-v4-pro:cloud` as the
-cleanest full-suite candidate and default/reference model for this cycle. Task 8
-closeout remains operator-gated and not fully done.
+Status as of 2026-07-26: complete. Tasks 1-8 and Checkpoints A-C are
+accepted. Scorer v2, the guided-open extraction contract, downstream relation
+handling, calibrated gates, prompt-v2 A/B evidence, and the DeepSeek V4 Pro
+default are implemented and validated. The active Graphify 0.9.26 CLI is
+source-verified to this checkout, and the global Pi skill is byte-identical to
+`graphify/skill-pi.md`.
 
 The fork-local semantic quality harness previously could not distinguish capable
 models from weak ones, because two of its gate dimensions were structurally
@@ -63,6 +63,84 @@ identical (same 7-relation enum), and upstream has no structured-output,
 gleaning, or harness equivalent. The harness (`graphify/semantic_eval.py`) is
 fork-local. The prompt change is a fork delta and a future upstream PR
 candidate; the harness changes never conflict with upstream.
+
+## Completion Record (2026-07-26)
+
+The task list below is retained as the original execution contract. Completion
+is based on current source and tests, recorded commits, saved local evidence,
+and the explicit deviations here.
+
+### Accepted Evidence
+
+- Task 1 was isolated in commit `9104d20`; its recorded focused validation was
+  21 passing `tests/test_file_slice.py` tests. The plan and scorer/prompt work
+  followed in separate commits.
+- Tasks 2-6 were implemented in `45d4484`. Current source retains scorer-v2
+  normalization, endpoint/relation score separation, payload version stamps,
+  guided-open relation verbs, canonical concept naming, and relation-agnostic
+  downstream handling. The durable parent closeouts are
+  `orchestration/tasks-1-5-parent-closeout.md` and
+  `orchestration/task-6-parent-closeout.md`.
+- Task 7 evidence remains under
+  `.semantic-evals/comparisons/prompt-v2-ab/`. The strong Sonnet reference
+  improved edge coverage from `0.35` to `0.8`; DeepSeek V4 Pro moved from gate
+  failure to pass without forbidden-concept, forbidden-edge, or source-coverage
+  regression.
+- Task 8's model default and durable decision documentation landed in
+  `9c40bfd`. The dated final-verification record below anchors the mutable
+  active-install and test state.
+
+### Final Verification Evidence
+
+This section is the durable Task 8 closeout record. The authoritative handover
+for the active-install operation records that 232 focused portability tests,
+Ruff, and Pyright passed before the managed-checkout reinstall and
+`graphify pi install`. This session did not rerun either installer. It rechecked
+the resulting mutable state and current source after restoring only verified
+formatter churn.
+
+- At `2026-07-26T16:51:26+0200`, the exact closeout command
+  `uv run --frozen pytest tests/test_hypergraph.py
+  tests/test_build_merge_hyperedges_and_prune.py tests/test_extract_cli.py
+  tests/test_semantic_eval.py tests/test_llm_backends.py -q` completed with
+  `197 passed` and one existing Hypothesis collection warning.
+- By `2026-07-26T16:55:07+0200`, the offline command
+  `UV_OFFLINE=1 uv run pytest tests/ -q` completed with `3818 passed`,
+  `7 skipped`, and three warnings: the existing Hypothesis `.hypothesis`
+  collection warning and two expected out-of-scope semantic-cache warnings in
+  `tests/test_chunking.py`.
+- `graphify --version` resolved `/Users/mase/.local/bin/graphify` as Graphify
+  0.9.26. `graphify doctor --require-source` against this checkout reported the
+  installed package directory as
+  `/Users/mase/.local/share/uv/tools/graphifyy/lib/python3.12/site-packages/graphify`
+  with module `__main__.py`, and reported this checkout as the install source.
+- Source and installed SHA-256 pairs matched exactly:
+  `__main__.py` `a9f074f6c2a7f9a9b1277584c50a20392f770f1c08c1020c1ddbe3df23df77d8`,
+  `install.py` `15f011f9fa2e7a053726b8646a7eaa946467f47a3af3e40679a518eb588d523b`,
+  `cli.py` `8a5417c4d197c42c778b97d0bd668be3a8bb346ec7a62db4654cffb314ed294a`,
+  and `hooks.py` `0538a2e946b14867f882f0a6da34666fb1c45d1ee5f522abc88c0cba40818c15`.
+- `graphify/skill-pi.md` and
+  `/Users/mase/.pi/agent/skills/graphify/SKILL.md` were byte-identical at
+  SHA-256 `1fb48cb33b628c9f8f90194098941d8175c74488b1bf830add52878a5d4faa79`;
+  the installed skill stamp was `0.9.26`.
+
+The separately authorized `pi-agent-skills` propagation and fleet audit are not
+part of this plan's completion proof. Their scope and current counts are tracked
+in `docs/mase-fork-operating-model.md` and `.agent-skills/lifecycle-state.json`.
+
+### Deviations And Supersessions
+
+- The Task 7 relation-vocabulary guide was intentionally exceeded: full-suite
+  arms used 30-31 distinct relations and the combined new-arm vocabulary used
+  42. This remains a documented follow-up, not a scorer or gate change.
+- The original content-only cache assumption was superseded by current-HEAD
+  prompt fingerprinting in `0d018b4`. Current prompt versions use separate
+  semantic-cache namespaces; legacy pre-fingerprint entries can still be served
+  with a warning. A forced refresh is therefore reserved for legacy
+  unattributed entries or deliberate rebuilds, not every prompt change.
+- Raw rebaseline and A/B artifacts remain local and ignored. The durable model
+  decision and headline metrics are preserved in
+  `docs/semantic-model-quality-harness.md`.
 
 ## Goal
 
@@ -101,9 +179,10 @@ operator can rank candidate models on evidence.
   (`response_format`/JSON schema), no role-specific model routing, no
   ensemble extraction. These are recorded follow-ups, deliberately out of
   scope to keep this change measurable.
-- No semantic-cache versioning machinery. The semantic cache is deliberately
-  unversioned (`graphify/cache.py` design comment); this plan only documents
-  the operator consequence of a prompt change.
+- At execution time, this plan did not add semantic-cache versioning machinery.
+  Later upstream-derived commit `0d018b4` added prompt-fingerprint namespaces;
+  that supersession is recorded in the completion record rather than attributed
+  to this plan's implementation.
 - No loosening of the fail-closed alias policy for genuine synonyms in
   expected contracts. Only mechanical variant folding moves into the scorer.
 - No dedup pipeline changes (`graphify/dedup.py` already scores 0.88–1.0).
@@ -422,11 +501,10 @@ edge coverage. Relation sprawl is a follow-up, not a scorer/gate change.
 - Set the fork's built-in Ollama default to the selected model
   (`deepseek-v4-pro:cloud`) and update generated guidance/tests that describe
   model resolution.
-- Note the cache consequence in the harness doc and fork operating model
-  doc: the semantic cache is content-keyed, so existing project graphs keep
-  old-vocabulary edges until files change or the operator forces a semantic
-  refresh; recommend a one-time forced refresh only for repos where relation
-  quality matters.
+- Record the cache consequence in the harness doc and fork operating model.
+  The original content-only-cache requirement was later superseded by prompt
+  fingerprinting in `0d018b4`; current guidance should reserve forced refreshes
+  for legacy unattributed cache entries or deliberate rebuilds.
 - Reinstall the active CLI from this checkout after all tests pass.
 - Mark this plan `status: complete` (or record deviations).
 
@@ -447,17 +525,18 @@ from saved-run data. Parent closeout:
 
 ### Checkpoint B: Contract updated (after Task 6)
 
-Reached 2026-07-06. Prompt delta is implemented in the working tree;
-downstream consumers are verified with focused tests. A bounded
-`integration_gateway` live smoke was run after explicit approval, but the full
-Task 7 A/B remains unrun. Parent closeout:
-`orchestration/task-6-parent-closeout.md`.
+Reached 2026-07-06. Prompt delta was implemented and downstream consumers were
+verified with focused tests. A bounded `integration_gateway` live smoke ran
+after explicit approval; the full Task 7 A/B later completed under Checkpoint C.
+Parent closeout: `orchestration/task-6-parent-closeout.md`.
 
 ### Checkpoint C: Evidence in hand (after Tasks 7–8)
 
-Task 7 A/B artifacts are saved and compared; `deepseek-v4-pro:cloud` is selected
-as the prompt-v2 default/reference candidate. Remaining Task 8 closeout work is
-docs/baseline finalization, active-CLI reinstall, and any approved propagation.
+Reached 2026-07-26. Task 7 A/B evidence selected
+`deepseek-v4-pro:cloud`; Task 8 documentation, default-model, active-install,
+and global Pi skill closeout is complete. Relation sprawl and cache-fingerprint
+supersession are recorded above as a follow-up and deviation, not blockers.
+Cross-repository propagation is tracked separately in the operating model.
 
 ## Risks And Mitigations
 
@@ -474,28 +553,31 @@ docs/baseline finalization, active-CLI reinstall, and any approved propagation.
 - **Downstream rendering of unknown relations.** Callflow/report views may
   hide new verbs or render them incorrectly. Mitigation: Task 6 verification
   with a synthetic free-form-relation fragment before any live run.
-- **Stale semantic caches in real repos.** Prompt changes do not invalidate
-  the content-keyed semantic cache; mixed-vocabulary graphs persist.
-  Mitigation: documented operator guidance (Task 8); no cache machinery.
+- **Legacy semantic-cache provenance.** Current prompt-fingerprint namespaces
+  invalidate current-vintage entries when the prompt changes, but older
+  pre-fingerprint entries have unknown provenance and may still be served with
+  a warning. Mitigation: reserve forced refresh for those legacy entries or an
+  explicitly requested rebuild.
 - **Live-run cost/availability.** Ollama Cloud models 503 intermittently
   (DeepSeek Flash history). Mitigation: models chosen from saved-working
   candidates; single-fixture smoke before full suite per harness doc.
 - **Entanglement with in-flight worktree changes.** Mitigation: Task 1
   commits them first; plan diffs stay separable.
 
-## Open Questions
+## Resolved Questions And Follow-Ups
 
-1. Exact gate floor values — decided in Task 5 from Task 4 data, not now.
-2. Shell loop vs `rescore` subcommand for Task 4 — implementer's call;
-   prefer the loop unless label/path resolution gets messy.
-3. Whether `expected_edge_relation_agreement` later joins the weighted
-   overall and/or `critical_dimensions` — revisit after one full A/B cycle.
-4. Upstream PR for the prompt delta — decide after Task 7 evidence exists.
+1. Gate floors were set in Task 5 to `0.70` overall and `0.45` for critical
+   dimensions from the scorer-v2 distribution.
+2. Task 4 used the `rebaseline-saved` subcommand; its deterministic rerun is
+   recorded in the Checkpoint A closeout.
+3. `expected_edge_relation_agreement` remains report-only after this cycle.
+   Reconsider weighting only with new evidence.
+4. Relation sprawl and any future upstream PR remain follow-ups; neither keeps
+   this plan open.
 
 ## Recommended Next Action
 
-Continue from Checkpoint B. First verify the worktree and read the two parent
-closeouts, then decide whether to proceed with the operator-approved Task 7
-full live A/B. Do not rerun Tasks 1–6 unless inspection shows the working tree
-or validation evidence has changed. Task 8 remains after Task 7 and includes
-final docs, baselines, active-CLI reinstall, and marking this plan complete.
+No implementation action remains for this plan. Preserve the calibrated harness
+and DeepSeek V4 Pro default, use forced semantic refresh only where current audit
+or legacy-cache evidence justifies it, and handle any upstream PR or relation
+normalization as a separately scoped task.
