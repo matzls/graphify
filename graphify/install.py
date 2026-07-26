@@ -784,11 +784,24 @@ def install(
 
 def _print_install_usage() -> None:
     platforms = ", ".join([*_PLATFORM_CONFIG, "gemini", "cursor"])
-    print("Usage: graphify install [--project] [--strict] [--platform P|P]")
+    print("Usage: graphify install [--project] [--strict] [--portable] [--platform P|P]")
     print(f"Platforms: {platforms}")
     print(
-        "  --strict  block the first raw file read per session until one "
+        "  --strict    block the first raw file read per session until one "
         "`graphify query` runs (Claude Code project hook only; needs --project)"
+    )
+    print(
+        "  --portable  write exactly `graphify codex-session-start` "
+        "(Codex project install only; graphify must be on the hook process PATH)"
+    )
+
+
+def _print_codex_usage() -> None:
+    print("Usage: graphify codex install [--project] [--portable]")
+    print("       graphify codex uninstall [--project]")
+    print(
+        "  --portable  write exactly `graphify codex-session-start`; "
+        "the Codex hook process must resolve graphify on PATH"
     )
 
 
@@ -1550,11 +1563,15 @@ def _toml_string(value: str) -> str:
     return json.dumps(value)
 
 
-def _codex_session_start_block(project_dir: Path) -> str:
-    graphify_exe = _resolve_graphify_exe()
-    command = (
-        f"{shlex.quote(graphify_exe)} codex-session-start {shlex.quote(str(project_dir.resolve()))}"
-    )
+def _codex_session_start_block(project_dir: Path, *, portable: bool = False) -> str:
+    if portable:
+        command = "graphify codex-session-start"
+    else:
+        graphify_exe = _resolve_graphify_exe()
+        command = (
+            f"{shlex.quote(graphify_exe)} codex-session-start "
+            f"{shlex.quote(str(project_dir.resolve()))}"
+        )
     return "\n".join(
         [
             _CODEX_CONFIG_HOOK_START,
@@ -1711,7 +1728,7 @@ def _codex_hooks_json_has_legacy_hook_check(project_dir: Path) -> bool:
     return changed
 
 
-def _install_codex_hook(project_dir: Path) -> None:
+def _install_codex_hook(project_dir: Path, *, portable: bool = False) -> None:
     """Install graphify Codex SessionStart hook in .codex/config.toml."""
     codex_dir = project_dir / ".codex"
     config_path = codex_dir / "config.toml"
@@ -1719,7 +1736,7 @@ def _install_codex_hook(project_dir: Path) -> None:
     _clean_legacy_codex_hooks_json(project_dir)
     _clean_legacy_codex_config_toml(project_dir)
 
-    block = _codex_session_start_block(project_dir)
+    block = _codex_session_start_block(project_dir, portable=portable)
     existing = config_path.read_text(encoding="utf-8") if config_path.exists() else ""
     pattern = re.compile(
         rf"\n?{re.escape(_CODEX_CONFIG_HOOK_START)}.*?{re.escape(_CODEX_CONFIG_HOOK_END)}\n?",
@@ -1754,7 +1771,7 @@ def _uninstall_codex_hook(project_dir: Path) -> None:
     _clean_legacy_codex_hooks_json(project_dir)
 
 
-def _agents_install(project_dir: Path, platform: str) -> None:
+def _agents_install(project_dir: Path, platform: str, *, portable: bool = False) -> None:
     """Write the graphify section to the local AGENTS.md for always-on platforms."""
     target = (project_dir or Path(".")) / "AGENTS.md"
 
@@ -1772,7 +1789,7 @@ def _agents_install(project_dir: Path, platform: str) -> None:
         print(warning)
 
     if platform == "codex":
-        _install_codex_hook(project_dir or Path("."))
+        _install_codex_hook(project_dir or Path("."), portable=portable)
     elif platform == "opencode":
         _install_opencode_plugin(project_dir or Path("."))
     elif platform == "kilo":
@@ -1842,6 +1859,7 @@ def _project_install(
     platform_name: str,
     project_dir: Path | None = None,
     strict: bool = False,
+    portable: bool = False,
 ) -> None:
     """Install platform skill/config files in the current project."""
     project_dir = project_dir or Path(".")
@@ -1870,7 +1888,7 @@ def _project_install(
         "hermes",
     ):
         skill_dst = _copy_skill_file(platform_name, project=True, project_dir=project_dir)
-        _agents_install(project_dir, platform_name)
+        _agents_install(project_dir, platform_name, portable=portable)
         hint_paths = [_project_scope_root(skill_dst, project_dir), project_dir / "AGENTS.md"]
         if platform_name == "opencode":
             hint_paths.append(project_dir / ".opencode")
@@ -2532,6 +2550,7 @@ def dispatch_install_cli(cmd: str) -> bool:
         selected_platform: str | None = None
         project_scope = False
         strict = False
+        portable = False
         args = sys.argv[2:]
         i = 0
         while i < len(args):
@@ -2541,6 +2560,9 @@ def dispatch_install_cli(cmd: str) -> bool:
                 return True
             if arg == "--project":
                 project_scope = True
+                i += 1
+            elif arg == "--portable":
+                portable = True
                 i += 1
             elif arg == "--strict":
                 strict = True
@@ -2572,8 +2594,14 @@ def dispatch_install_cli(cmd: str) -> bool:
                 selected_platform = arg
                 i += 1
         chosen_platform = selected_platform or default_platform
+        if portable and (not project_scope or _canonical_platform(chosen_platform) != "codex"):
+            print(
+                "error: --portable requires a Codex project install",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         if project_scope:
-            _project_install(chosen_platform, Path("."), strict=strict)
+            _project_install(chosen_platform, Path("."), strict=strict, portable=portable)
         else:
             if strict:
                 print(
@@ -2793,7 +2821,45 @@ def dispatch_install_cli(cmd: str) -> bool:
             print("error: --state must be active, staged, or disabled", file=sys.stderr)
             sys.exit(2)
         sys.exit(_reconcile_codex(target, desired_state=desired_state, apply=apply_changes))
-    elif cmd in ("aider", "codex", "opencode", "claw", "droid", "trae", "trae-cn", "hermes"):
+    elif cmd == "codex":
+        subcmd = sys.argv[2] if len(sys.argv) > 2 else ""
+        args = sys.argv[3:]
+        if subcmd in {"-h", "--help"}:
+            _print_codex_usage()
+            return True
+        if subcmd == "install":
+            if any(arg in {"-h", "--help"} for arg in args):
+                _print_codex_usage()
+                return True
+            invalid = next(
+                (arg for arg in args if arg not in {"--project", "--portable"}),
+                None,
+            )
+            if invalid is not None:
+                print(f"error: unknown Codex install option '{invalid}'", file=sys.stderr)
+                sys.exit(2)
+            portable = "--portable" in args
+            if "--project" in args:
+                _project_install("codex", Path("."), portable=portable)
+            else:
+                _agents_install(Path("."), "codex", portable=portable)
+        elif subcmd == "uninstall":
+            if any(arg in {"-h", "--help"} for arg in args):
+                _print_codex_usage()
+                return True
+            invalid = next((arg for arg in args if arg != "--project"), None)
+            if invalid is not None:
+                print(f"error: unknown Codex uninstall option '{invalid}'", file=sys.stderr)
+                sys.exit(2)
+            if "--project" in args:
+                _project_uninstall("codex", Path("."))
+            else:
+                _agents_uninstall(Path("."), platform="codex")
+                _uninstall_codex_hook(Path("."))
+        else:
+            _print_codex_usage()
+            sys.exit(1)
+    elif cmd in ("aider", "opencode", "claw", "droid", "trae", "trae-cn", "hermes"):
         subcmd = sys.argv[2] if len(sys.argv) > 2 else ""
         if subcmd == "install":
             if "--project" in sys.argv[3:]:
@@ -2805,8 +2871,6 @@ def dispatch_install_cli(cmd: str) -> bool:
                 _project_uninstall(cmd, Path("."))
             else:
                 _agents_uninstall(Path("."), platform=cmd)
-                if cmd == "codex":
-                    _uninstall_codex_hook(Path("."))
         else:
             print(f"Usage: graphify {cmd} [install|uninstall]", file=sys.stderr)
             sys.exit(1)

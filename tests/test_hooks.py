@@ -1057,13 +1057,31 @@ def test_codex_session_start_notice_failure_emits_valid_json(tmp_path, monkeypat
     )
 
 
-def _run_codex_install(repo: Path):
+def _run_codex_install(repo: Path, *args: str):
     return subprocess.run(
-        [sys.executable, "-m", "graphify", "codex", "install"],
+        [sys.executable, "-m", "graphify", "codex", "install", *args],
         cwd=repo,
         capture_output=True,
         text=True,
     )
+
+
+def _run_codex_uninstall(repo: Path, *args: str):
+    return subprocess.run(
+        [sys.executable, "-m", "graphify", "codex", "uninstall", *args],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _managed_codex_session_start_command(repo: Path) -> str:
+    content = (repo / ".codex" / "config.toml").read_text(encoding="utf-8")
+    managed = content.split("# graphify-session-start-hook-start", 1)[1].split(
+        "# graphify-session-start-hook-end", 1
+    )[0]
+    command_line = next(line for line in managed.splitlines() if line.startswith("command = "))
+    return json.loads(command_line.split("=", 1)[1].strip())
 
 
 def test_codex_install_uses_config_toml_not_hooks_json(tmp_path):
@@ -1075,6 +1093,80 @@ def test_codex_install_uses_config_toml_not_hooks_json(tmp_path):
     assert "codex-session-start" in config
     assert "hook-check" not in config
     assert not (tmp_path / ".codex" / "hooks.json").exists()
+
+
+def test_codex_portable_install_is_exact_idempotent_and_preserves_unrelated_toml(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    config_toml = codex_dir / "config.toml"
+    config_toml.write_text("[features]\nkeep = true\n", encoding="utf-8")
+
+    first = _run_codex_install(tmp_path, "--portable")
+    first_content = config_toml.read_bytes()
+    second = _run_codex_install(tmp_path, "--portable")
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert config_toml.read_bytes() == first_content
+    assert _managed_codex_session_start_command(tmp_path) == "graphify codex-session-start"
+    config = config_toml.read_text(encoding="utf-8")
+    assert "[features]\nkeep = true" in config
+    assert config.count("# graphify-session-start-hook-start") == 1
+    assert config.count("# graphify-session-start-hook-end") == 1
+
+
+def test_codex_explicit_install_mode_replaces_only_the_managed_block(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    config_toml = codex_dir / "config.toml"
+    config_toml.write_text("[features]\nkeep = true\n", encoding="utf-8")
+
+    default_install = _run_codex_install(tmp_path)
+    path_bound_command = _managed_codex_session_start_command(tmp_path)
+    portable_install = _run_codex_install(tmp_path, "--portable")
+    portable_command = _managed_codex_session_start_command(tmp_path)
+    restored_default = _run_codex_install(tmp_path)
+
+    assert default_install.returncode == 0, default_install.stderr
+    assert portable_install.returncode == 0, portable_install.stderr
+    assert restored_default.returncode == 0, restored_default.stderr
+    assert path_bound_command.endswith(f"codex-session-start {tmp_path.resolve()}")
+    assert portable_command == "graphify codex-session-start"
+    assert _managed_codex_session_start_command(tmp_path) == path_bound_command
+    config = config_toml.read_text(encoding="utf-8")
+    assert "[features]\nkeep = true" in config
+    assert config.count("# graphify-session-start-hook-start") == 1
+    assert config.count("# graphify-session-start-hook-end") == 1
+
+
+def test_codex_uninstall_removes_portable_block_and_preserves_unrelated_config(tmp_path):
+    codex_dir = tmp_path / ".codex"
+    codex_dir.mkdir()
+    config_toml = codex_dir / "config.toml"
+    hooks_json = codex_dir / "hooks.json"
+    config_toml.write_text("[features]\nkeep = true\n", encoding="utf-8")
+    hooks_json.write_text(
+        json.dumps(
+            {
+                "hooks": {
+                    "PreToolUse": [
+                        {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo user"}]}
+                    ]
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_result = _run_codex_install(tmp_path, "--portable")
+
+    uninstall_result = _run_codex_uninstall(tmp_path)
+
+    assert install_result.returncode == 0, install_result.stderr
+    assert uninstall_result.returncode == 0, uninstall_result.stderr
+    assert config_toml.read_text(encoding="utf-8") == "[features]\nkeep = true\n"
+    hooks = json.loads(hooks_json.read_text(encoding="utf-8"))
+    assert hooks["hooks"]["PreToolUse"][0]["hooks"][0]["command"] == "echo user"
+    assert not (tmp_path / "AGENTS.md").exists()
 
 
 def test_codex_install_removes_legacy_config_toml_hook_check(tmp_path):

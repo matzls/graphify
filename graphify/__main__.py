@@ -579,7 +579,7 @@ def _run_cli() -> None:
         print("Usage: graphify <command>")
         print()
         print("Commands:")
-        print("  install [--platform P]  copy skill to platform config dir (claude|windows|codebuddy|codex|opencode|aider|amp|agents|claw|droid|trae|trae-cn|gemini|cursor|antigravity|hermes|kiro|pi|devin)")
+        print("  install [--project] [--portable] [--platform P]  copy skill or project activation (claude|windows|codebuddy|codex|opencode|aider|amp|agents|claw|droid|trae|trae-cn|gemini|cursor|antigravity|hermes|kiro|pi|devin)")
         print("  uninstall               remove graphify from all detected platforms in one shot")
         print("    --purge                 also delete graphify-out/ directory")
         print("  adoption audit         read-only multi-repo adoption report")
@@ -660,7 +660,7 @@ def _run_cli() -> None:
         print("    --half-life-days N      signal weight halves every N days (default 30)")
         print("    --min-corroboration N   distinct useful results to prefer a node (default 2)")
         print("  check-update <path>     check needs_update flag and notify if semantic re-extraction is pending (cron-safe)")
-        print("  codex-session-start <path>  emit Codex SessionStart JSON for pending semantic refresh")
+        print("  codex-session-start [path]  emit Codex SessionStart JSON for pending semantic refresh")
         print("  tree                    emit a D3 v7 collapsible-tree HTML for graph.json")
         print("    --graph PATH            path to graph.json (default graphify-out/graph.json)")
         print("    --output HTML           output path (default graphify-out/GRAPH_TREE.html)")
@@ -722,8 +722,9 @@ def _run_cli() -> None:
         print("  claude uninstall        remove graphify section from CLAUDE.md + PreToolUse hook")
         print("  codebuddy install       write graphify section to CODEBUDDY.md + PreToolUse hook (CodeBuddy)")
         print("  codebuddy uninstall     remove graphify section from CODEBUDDY.md + PreToolUse hook")
-        print("  codex install           write graphify section to AGENTS.md (Codex)")
-        print("  codex uninstall         remove graphify section from AGENTS.md")
+        print("  codex install [--project] [--portable]  write Codex activation surfaces")
+        print("    --portable             write exactly `graphify codex-session-start`; graphify must be on PATH")
+        print("  codex uninstall [--project]  remove Codex activation surfaces")
         print(
             "  opencode install        write graphify section to AGENTS.md + tool.execute.before plugin (OpenCode)"
         )
@@ -793,6 +794,7 @@ def _run_cli() -> None:
         "save-result",
         "install",
         "uninstall",
+        "codex",
         "doctor",
         "adoption",
     }

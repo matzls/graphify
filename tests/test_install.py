@@ -1,6 +1,8 @@
 """Tests for graphify install --platform routing."""
 
+import json
 import os
+import shlex
 import shutil
 from pathlib import Path
 import sys
@@ -13,6 +15,30 @@ def _rmtree_if_exists(path: Path) -> None:
         shutil.rmtree(path)
     except FileNotFoundError:
         pass
+
+
+def _invoke_main(monkeypatch, argv: list[str], project: Path, home: Path) -> None:
+    from graphify.__main__ import main
+
+    monkeypatch.chdir(project)
+    monkeypatch.setattr(sys, "argv", argv)
+    with patch("graphify.__main__.Path.home", return_value=home):
+        main()
+
+
+def _codex_session_start_command(project: Path) -> str:
+    content = (project / ".codex" / "config.toml").read_text(encoding="utf-8")
+    managed = content.split("# graphify-session-start-hook-start", 1)[1].split(
+        "# graphify-session-start-hook-end", 1
+    )[0]
+    command_line = next(line for line in managed.splitlines() if line.startswith("command = "))
+    return json.loads(command_line.split("=", 1)[1].strip())
+
+
+def _assert_no_codex_install(project: Path, home: Path) -> None:
+    assert not (project / "AGENTS.md").exists()
+    assert not (project / ".codex").exists()
+    assert not (home / ".codex").exists()
 
 
 PLATFORMS = {
@@ -130,6 +156,193 @@ def test_install_project_codex_writes_skill_agents_and_session_start(tmp_path, m
     assert not (project / ".codex" / "hooks.json").exists()
     assert not (home / ".codex" / "skills" / "graphify" / "SKILL.md").exists()
     assert not (home / ".agents" / "skills" / "graphify" / "SKILL.md").exists()
+
+
+def test_codex_default_project_install_keeps_exact_path_bound_command(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+    argv = ["graphify", "install", "--project", "--platform", "codex"]
+
+    with patch(
+        "graphify.install._resolve_graphify_exe", return_value="/opt/Graphify Tool/bin/graphify"
+    ):
+        _invoke_main(monkeypatch, argv, project, home)
+
+    assert _codex_session_start_command(project) == (
+        f"{shlex.quote('/opt/Graphify Tool/bin/graphify')} codex-session-start "
+        f"{shlex.quote(str(project.resolve()))}"
+    )
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["graphify", "codex", "install", "--portable"],
+        ["graphify", "codex", "install", "--project", "--portable"],
+        ["graphify", "codex", "install", "--portable", "--project"],
+        ["graphify", "install", "--project", "codex", "--portable"],
+        ["graphify", "install", "codex", "--project", "--portable"],
+        ["graphify", "install", "--project", "--platform", "codex", "--portable"],
+        ["graphify", "install", "--project", "--platform=codex", "--portable"],
+        ["graphify", "install", "--portable", "--project", "codex"],
+    ],
+    ids=[
+        "direct",
+        "direct-project",
+        "direct-portable-first",
+        "positional-after-project",
+        "positional-before-project",
+        "platform-separate",
+        "platform-equals",
+        "generic-portable-first",
+    ],
+)
+def test_codex_portable_project_install_aliases_emit_exact_command(
+    tmp_path, monkeypatch, argv
+):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+
+    _invoke_main(monkeypatch, argv, project, home)
+
+    assert _codex_session_start_command(project) == "graphify codex-session-start"
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["graphify", "install", "codex", "--portable"],
+        ["graphify", "install", "--platform", "codex", "--portable"],
+        ["graphify", "install", "--platform=codex", "--portable"],
+        ["graphify", "install", "--portable", "codex"],
+    ],
+    ids=["positional", "platform-separate", "platform-equals", "portable-first"],
+)
+def test_codex_portable_generic_user_install_is_rejected_before_writes(
+    tmp_path, monkeypatch, argv
+):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+
+    with pytest.raises(SystemExit) as exc_info:
+        _invoke_main(monkeypatch, argv, project, home)
+
+    assert exc_info.value.code != 0
+    _assert_no_codex_install(project, home)
+
+
+def test_portable_non_codex_project_install_is_rejected_before_writes(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+    argv = ["graphify", "install", "--project", "--platform", "claude", "--portable"]
+
+    with pytest.raises(SystemExit) as exc_info:
+        _invoke_main(monkeypatch, argv, project, home)
+
+    assert exc_info.value.code != 0
+    assert not (project / ".claude").exists()
+    assert not (home / ".claude").exists()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["graphify", "codex", "install", "--strict"],
+        ["graphify", "codex", "install", "--unknown"],
+        ["graphify", "codex", "install", "trailing-value"],
+        ["graphify", "codex", "uninstall", "--portable"],
+        ["graphify", "codex", "uninstall", "--strict"],
+        ["graphify", "codex", "uninstall", "--unknown"],
+        ["graphify", "codex", "uninstall", "trailing-value"],
+    ],
+    ids=[
+        "install-strict",
+        "install-unknown",
+        "install-trailing",
+        "uninstall-portable",
+        "uninstall-strict",
+        "uninstall-unknown",
+        "uninstall-trailing",
+    ],
+)
+def test_codex_direct_invalid_options_fail_before_mutation(tmp_path, monkeypatch, argv):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+    agents = project / "AGENTS.md"
+    config = project / ".codex" / "config.toml"
+    config.parent.mkdir()
+    agents.write_text("# Manual notes\n", encoding="utf-8")
+    config.write_text("[features]\nkeep = true\n", encoding="utf-8")
+    before_agents = agents.read_bytes()
+    before_config = config.read_bytes()
+
+    with pytest.raises(SystemExit) as exc_info:
+        _invoke_main(monkeypatch, argv, project, home)
+
+    assert exc_info.value.code != 0
+    assert agents.read_bytes() == before_agents
+    assert config.read_bytes() == before_config
+    assert not (project / ".codex" / "skills").exists()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["graphify", "codex", "install", "--help"],
+        ["graphify", "codex", "install", "--project", "-h"],
+        ["graphify", "codex", "uninstall", "--help"],
+        ["graphify", "codex", "--help"],
+    ],
+    ids=["install", "install-project", "uninstall", "codex"],
+)
+def test_codex_direct_help_is_specific_and_mutation_free(tmp_path, monkeypatch, capsys, argv):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+
+    _invoke_main(monkeypatch, argv, project, home)
+
+    output = capsys.readouterr().out
+    assert "Usage: graphify codex install [--project] [--portable]" in output
+    assert "graphify codex-session-start" in output
+    assert "PATH" in output
+    _assert_no_codex_install(project, home)
+
+
+def test_generic_claude_project_strict_remains_supported(tmp_path, monkeypatch):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+    argv = ["graphify", "install", "--project", "--platform", "claude", "--strict"]
+
+    _invoke_main(monkeypatch, argv, project, home)
+
+    settings = json.loads((project / ".claude" / "settings.json").read_text(encoding="utf-8"))
+    commands = [
+        hook["command"]
+        for entry in settings["hooks"]["PreToolUse"]
+        for hook in entry["hooks"]
+    ]
+    assert any(command.endswith("hook-guard read --strict") for command in commands)
+
+
+def test_top_level_help_documents_portable_codex_session_start(tmp_path, monkeypatch, capsys):
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+
+    _invoke_main(monkeypatch, ["graphify", "--help"], project, home)
+
+    output = capsys.readouterr().out
+    assert "codex-session-start [path]" in output
+    assert "codex install [--project] [--portable]" in output
+    assert "graphify codex-session-start" in output
+    assert "PATH" in output
 
 
 def _assert_pi_skill_install(skill_dir: Path):

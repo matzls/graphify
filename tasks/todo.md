@@ -32,8 +32,8 @@ revision: 4
 ## Approved Execution Order
 
 - [x] **T-001** — Resolve no-path SessionStart at the current worktree root.
-- [ ] **T-002** — Add opt-in portable installation and strict CLI parsing.
-- [ ] **CP-1** — Verify the runtime and installation contract.
+- [x] **T-002** — Add opt-in portable installation and strict CLI parsing.
+- [x] **CP-1** — Verify the runtime and installation contract.
 - [ ] **T-003** — Preserve portable mode through reconcile and uninstall.
 - [ ] **CP-2** — Verify lifecycle safety and unrelated-config preservation.
 - [ ] **T-004** — Align documentation and prove the real portable path.
