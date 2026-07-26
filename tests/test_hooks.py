@@ -949,6 +949,37 @@ def test_codex_session_start_outputs_pending_context(tmp_path):
     assert "/graphify . --update" not in context
 
 
+def test_codex_session_start_explicit_path_overrides_cwd_git_root(tmp_path):
+    cwd_repo = _make_git_repo(tmp_path / "cwd-repo")
+    cwd_nested = cwd_repo / "nested"
+    cwd_nested.mkdir()
+    cwd_flag = cwd_repo / "graphify-out" / "needs_update"
+    cwd_flag.parent.mkdir()
+    cwd_flag.write_text("1", encoding="utf-8")
+    explicit_target = tmp_path / "explicit-target"
+    explicit_flag = explicit_target / "graphify-out" / "needs_update"
+    explicit_flag.parent.mkdir(parents=True)
+    explicit_flag.write_text("1", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "graphify",
+            "codex-session-start",
+            str(explicit_target),
+        ],
+        cwd=cwd_nested,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert str(explicit_target.resolve()) in context
+    assert str(cwd_repo.resolve()) not in context
+
+
 @pytest.mark.parametrize("relative_cwd", [Path("."), Path("nested")], ids=["root", "nested"])
 def test_codex_session_start_without_path_uses_git_root(tmp_path, relative_cwd):
     repo = _make_git_repo(tmp_path / "repo")

@@ -36,8 +36,8 @@ revision: 4
 - [x] **CP-1** — Verify the runtime and installation contract.
 - [x] **T-003** — Preserve portable mode through reconcile and uninstall.
 - [x] **CP-2** — Verify lifecycle safety and unrelated-config preservation.
-- [ ] **T-004** — Align documentation and prove the real portable path.
-- [ ] **Final gate** — Complete full validation, fresh review, and scope audit.
+- [x] **T-004** — Align documentation and prove the real portable path.
+- [x] **Final gate** — Complete full validation, fresh review, and scope audit.
 
 ## Deferred And Separately Authorized
 

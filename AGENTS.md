@@ -70,11 +70,23 @@ a Graphify repo Git hook.
 
 ## Codex Integration
 
-The active Codex hook surface is `.codex/config.toml` SessionStart:
-`graphify codex install` writes `graphify codex-session-start <repo>` there and
-cleans old `.codex/hooks.json` Graphify `hook-check` entries. `graphify
-hook-check` is retained only as a silent legacy/backcompat no-op for stale
-hook configs. Do not describe it as the active reminder path.
+The active Codex hook surface is `.codex/config.toml` SessionStart. By default,
+`graphify codex install` writes a path-bound command containing the resolved
+Graphify executable and project path. `--portable` instead writes exactly
+`graphify codex-session-start`; use it only when the Codex hook process can
+resolve `graphify` on `PATH`. The supported portable families are direct
+`graphify codex install [--project] --portable` and generic
+`graphify install --project` with positional `codex`, `--platform codex`, or
+`--platform=codex`. Portability is opt-in, existing configs are not migrated
+automatically, and reconciliation preserves either recognized mode.
+
+The runtime command is `graphify codex-session-start [path]`. An explicit path
+remains authoritative; without one, Graphify resolves the current Git worktree
+root from root, nested, or linked-worktree directories and falls back to the
+resolved current directory outside Git. Installation also cleans old
+`.codex/hooks.json` Graphify `hook-check` entries. `graphify hook-check` is
+retained only as a silent legacy/backcompat no-op for stale hook configs; do not
+describe it as the active reminder path.
 
 For Codex, keep three surfaces distinct: `graphify install --platform codex`
 installs the reusable Codex `/graphify` skill, `graphify codex install` writes

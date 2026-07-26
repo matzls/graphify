@@ -189,7 +189,40 @@ Project-scoped installs write under the current directory, for example
 `.pi/skills/graphify/SKILL.md` (plus a `references/` sidecar the skill loads on
 demand), and print a `git add` hint for files that can be committed.
 Per-platform commands that support project-scoped installs accept the same flag,
-for example `graphify claude install --project` or `graphify codex install --project`.
+for example `graphify claude install --project` or
+`graphify codex install --project`.
+
+### Portable Codex SessionStart activation
+
+Codex activation is path-bound by default. The managed `.codex/config.toml`
+command contains the resolved Graphify executable, `codex-session-start`, and
+the resolved absolute project path. This remains the reliable default for GUI
+or extension processes whose `PATH` may omit Graphify.
+
+Add `--portable` only when the config must be shareable across clone or worktree
+paths. Portable mode writes exactly:
+
+```text
+graphify codex-session-start
+```
+
+The Codex hook process must therefore resolve `graphify` on `PATH`. These direct
+and generic activation forms all emit that same managed command:
+
+```bash
+graphify codex install --portable
+graphify codex install --project --portable
+graphify install --project codex --portable
+graphify install codex --project --portable
+graphify install --project --platform codex --portable
+graphify install --project --platform=codex --portable
+```
+
+Portable mode is opt-in: existing path-bound configs are not migrated
+automatically, and reconciliation preserves either recognized mode. At runtime,
+`graphify codex-session-start [path]` honors an explicit path; without one, it
+uses the current Git worktree root from root, nested, or linked-worktree
+directories and falls back to the resolved current directory outside Git.
 
 > **PowerShell note:** Use `graphify .` not `/graphify .` — the leading slash is a path separator in PowerShell.
 
@@ -310,7 +343,11 @@ This writes a small config file that tells your assistant to consult the knowled
 
 **CodeBuddy** does the same two things as Claude Code: writes a `CODEBUDDY.md` section telling CodeBuddy to read `graphify-out/GRAPH_REPORT.md` before answering architecture questions, and installs `PreToolUse` hooks (`.codebuddy/settings.json`) that fire before Bash search commands and file reads, nudging toward `graphify query` instead.
 
-**Codex** writes to `AGENTS.md` and also installs a `PreToolUse` hook in `.codex/hooks.json` that fires before every Bash tool call, same always-on mechanism as Claude Code.
+**Codex** writes query-first guidance to `AGENTS.md` and a startup freshness
+check to `.codex/config.toml`. The active hook is SessionStart, not the legacy
+`.codex/hooks.json` `PreToolUse` path. Its default command is path-bound;
+`--portable` emits exactly `graphify codex-session-start` and requires Graphify
+on the Codex hook process `PATH`.
 
 **Kilo Code** installs the Graphify skill to `~/.config/kilo/skills/graphify/SKILL.md` and a native `/graphify` command to `~/.config/kilo/command/graphify.md`. `graphify kilo install` also writes `AGENTS.md` plus a native `tool.execute.before` plugin (`.kilo/plugins/graphify.js` + `.kilo/kilo.json` or `.kilo/kilo.jsonc` registration) so Kilo gets the same always-on graph reminder behavior through native `.kilo` config.
 
@@ -566,10 +603,13 @@ The PyPI package is `graphifyy`; `graphify` is only the command it provides. `uv
 
 **`uv run --with graphifyy python -m graphify` silently runs an older install**
 `uv run` uses your *system* Python, so if an older `graphifyy` also lives there (e.g. a past `pip install graphifyy`), Python can find that copy first on `sys.path` and `--with graphifyy` won't override it. It runs with no error, but you get the *old* version's behavior — e.g. env overrides like `OPENAI_BASE_URL` are silently ignored, so requests hit the default endpoint and fail with a 401 that looks like a bad key. The fingerprint is a `warning: skill is from graphify <newer>, package is <older>` line — that means a different install was loaded, not just a stale skill. Check which copy actually loaded:
+
 ```bash
 python -c "import graphify; print(graphify.__file__)"
 ```
+
 Then run the installed command directly (it uses the uv-managed copy), or drop the stale system copy:
+
 ```bash
 uvx --from graphifyy graphify extract . --backend openai   # names the package explicitly
 pip uninstall graphifyy                                    # or remove the old system install
@@ -702,7 +742,9 @@ graphify claude uninstall
 graphify codebuddy install         # CODEBUDDY.md + PreToolUse hook (CodeBuddy)
 graphify codebuddy uninstall
 graphify install --platform codex  # Codex skill file under ~/.codex/skills/
-graphify codex install             # AGENTS.md + SessionStart hook in .codex/config.toml (Codex)
+graphify codex install             # path-bound AGENTS.md + SessionStart activation (default)
+graphify codex install --portable  # exact bare command; requires graphify on the hook process PATH
+graphify codex-session-start [path]  # explicit path, or current Git worktree root when omitted
 graphify codex reconcile           # dry-run audit of Codex activation surfaces, not upstream Git sync
 graphify codex reconcile --state staged --apply  # remove active triggers, keep artifacts
 graphify opencode install          # AGENTS.md + tool.execute.before plugin (OpenCode)

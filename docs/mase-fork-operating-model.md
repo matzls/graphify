@@ -8,9 +8,9 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-07-25
-last_verified: 2026-07-25
-reconciliation_status: "v0.9.26 promoted and source-verified; the cache-aware marker fix is installed and the Personal AI semantic canary passed; my-second-brain-build, broader propagation, and push remain gated"
+updated: 2026-07-26
+last_verified: 2026-07-26
+reconciliation_status: "v0.9.26 source fork now includes validated opt-in portable Codex SessionStart activation; active-CLI reinstall, global-skill refresh, downstream rollout, and push remain gated"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
@@ -229,18 +229,22 @@ branch `mase/reconcile/graphify-v0.9.26` remains at the same stage-one commit,
 `6228b3c18c2f92d7ecf4f4d16b0174da07e999a6`. The active CLI and global
 Pi/Codex Graphify skills are source-verified at v0.9.26. A cache-only stale
 marker bug found by the Personal AI canary was repaired in the local CLI,
-reinstalled, and verified by a successful semantic retry plus query smoke.
-`my-second-brain-build`, broader propagation, and push remain separate approval
-gates.
+reinstalled, and verified by a successful semantic retry plus query smoke. The
+source checkout now also carries the validated opt-in portable Codex
+SessionStart implementation; it has not been reinstalled into the active CLI or
+propagated downstream. `my-second-brain-build`, broader propagation, and push
+remain separate approval gates.
 
 As last verified on 2026-07-25 against `upstream/v8` at the v0.9.26 base, the
 local fork carries Mase-specific or recently upstream-oriented changes in these
 areas:
 
 - `AGENTS.md`: fork operating notes for Mase's local setup.
-- `graphify/__main__.py`: install-source diagnostics via
-  `graphify doctor --require-source`, Codex/agent install guidance, and related
-  platform install behavior.
+- `graphify/install.py`, `graphify/cli.py`, and `graphify/__main__.py`:
+  install-source diagnostics via `graphify doctor --require-source`, strict
+  Codex project-install parsing, an opt-in portable SessionStart command, and
+  Git-root-aware no-path startup resolution while preserving the path-bound
+  default.
 - `graphify/skill-pi.md`, `graphify/skill-codex.md`, and skill-generation
   sources: package the fork's Pi/Codex workflows without colliding across
   harness-specific install destinations.
@@ -347,13 +351,37 @@ workflow is:
 
 ## Codex Integration Reality
 
-`graphify codex install` writes three repo-local surfaces:
+`graphify codex install` writes two repo-local activation surfaces:
 
 - an `AGENTS.md` `## graphify` section
 - `.codex/config.toml` with a SessionStart hook that reports pending semantic
   refresh work
-- `.git/hooks/post-commit` and `.git/hooks/post-checkout` Graphify refresh
-  hooks
+
+Graphify Git refresh hooks remain a separate `graphify hook install` surface;
+`graphify codex reconcile --state active --apply` can install them when they are
+missing.
+
+Codex activation is path-bound by default. The managed command contains the
+resolved Graphify executable, `codex-session-start`, and the resolved absolute
+project path. Portable mode is explicit and writes exactly
+`graphify codex-session-start`; it requires the Codex hook process to resolve
+`graphify` on `PATH`. The supported portable activation forms are:
+
+```bash
+graphify codex install --portable
+graphify codex install --project --portable
+graphify install --project codex --portable
+graphify install codex --project --portable
+graphify install --project --platform codex --portable
+graphify install --project --platform=codex --portable
+```
+
+Portable mode does not migrate existing configs automatically. Reconciliation
+preserves recognized portable and path-bound modes. The runtime command is
+`graphify codex-session-start [path]`: an explicit path remains authoritative;
+without one, Graphify uses the current Git worktree root from root, nested, or
+linked-worktree directories and falls back to the resolved current directory
+outside Git.
 
 Important current limitation:
 
@@ -368,8 +396,8 @@ Practical compensation:
 - Repo-local `AGENTS.md` is the reliable always-loaded guidance surface.
 - Mase's global guide at `/Users/mase/.codex/docs/reference/graphify.md` is the
   operator policy surface.
-- There is no separate installed Codex Graphify skill; semantic refreshes use
-  the backend CLI pipeline.
+- The reusable Codex Graphify skill remains separate from activation; semantic
+  refreshes use the backend CLI pipeline.
 
 Do not tell Mase that Codex is actively reminded by `hook-check`; the active
 Codex hook surface is `graphify codex-session-start` in `.codex/config.toml`.
@@ -521,9 +549,12 @@ hooks, and graph artifacts in dry-run mode by default. It is not an upstream
 fork reconciliation command; upstream reconciliation means Git fetch/release
 review/rebase/merge work. Use `--state active`, `--state staged`, or
 `--state disabled` to declare the target state, and add `--apply` only after
-reviewing the planned changes. Reconciliation removes active triggers for
-staged/disabled repos but leaves `graphify-out/`, `.graphifyignore`,
-`GRAPHIFY.md`, and historical review artifacts alone.
+reviewing the planned changes. Reconciliation classifies a managed SessionStart
+block as `missing`, `portable`, `path-bound`, or `unrecognized`; it preserves
+recognized modes and refuses apply-time mutation for an unrecognized block
+until manual review. It removes active triggers for staged/disabled repos but
+leaves `graphify-out/`, `.graphifyignore`, `GRAPHIFY.md`, and historical review
+artifacts alone.
 
 The SessionStart hook only reports pending semantic refresh work. It does not
 extract semantic graph content. Semantic refreshes must run through the backend
