@@ -3670,7 +3670,13 @@ def dispatch_command(cmd: str) -> None:
     elif cmd == "codex-session-start":
         from graphify.watch import codex_session_start_notice
 
-        watch_path = Path(sys.argv[2]).resolve() if len(sys.argv) >= 3 else Path(".").resolve()
+        if len(sys.argv) >= 3:
+            watch_path = Path(sys.argv[2]).resolve()
+        else:
+            from graphify.hooks import _git_root
+
+            cwd = Path(".").resolve()
+            watch_path = _git_root(cwd) or cwd
         try:
             additional_context = codex_session_start_notice(watch_path)
         except Exception as exc:

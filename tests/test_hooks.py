@@ -949,6 +949,114 @@ def test_codex_session_start_outputs_pending_context(tmp_path):
     assert "/graphify . --update" not in context
 
 
+@pytest.mark.parametrize("relative_cwd", [Path("."), Path("nested")], ids=["root", "nested"])
+def test_codex_session_start_without_path_uses_git_root(tmp_path, relative_cwd):
+    repo = _make_git_repo(tmp_path / "repo")
+    cwd = repo / relative_cwd
+    cwd.mkdir(parents=True, exist_ok=True)
+    flag = repo / "graphify-out" / "needs_update"
+    flag.parent.mkdir()
+    flag.write_text("1", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex-session-start"],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert "Graphify graph refresh is pending" in context
+    assert str(repo.resolve()) in context
+
+
+def test_codex_session_start_without_path_falls_back_to_cwd_outside_git(tmp_path):
+    outside_repo = tmp_path / "outside"
+    flag = outside_repo / "graphify-out" / "needs_update"
+    flag.parent.mkdir(parents=True)
+    flag.write_text("1", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex-session-start"],
+        cwd=outside_repo,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert "Graphify graph refresh is pending" in context
+    assert str(outside_repo.resolve()) in context
+
+
+def test_codex_session_start_without_path_uses_linked_worktree_root(tmp_path):
+    repo = _make_git_repo(tmp_path / "repo")
+    linked = tmp_path / "linked"
+    (repo / "tracked.txt").write_text("tracked\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Graphify Tests",
+            "-c",
+            "user.email=graphify@example.invalid",
+            "commit",
+            "-m",
+            "initial",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(repo), "worktree", "add", "-b", "linked-test", str(linked)],
+        check=True,
+        capture_output=True,
+    )
+    nested = linked / "nested"
+    nested.mkdir()
+    flag = linked / "graphify-out" / "needs_update"
+    flag.parent.mkdir()
+    flag.write_text("1", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "graphify", "codex-session-start"],
+        cwd=nested,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+    assert "Graphify graph refresh is pending" in context
+    assert str(linked.resolve()) in context
+    assert str(repo.resolve()) not in context
+
+
+def test_codex_session_start_notice_failure_emits_valid_json(tmp_path, monkeypatch, capsys):
+    from graphify.cli import dispatch_command
+    import graphify.watch
+
+    def raise_notice_error(_watch_path):
+        raise RuntimeError("notice failed")
+
+    monkeypatch.setattr(graphify.watch, "codex_session_start_notice", raise_notice_error)
+    monkeypatch.setattr(sys, "argv", ["graphify", "codex-session-start", str(tmp_path)])
+
+    with pytest.raises(SystemExit) as exc_info:
+        dispatch_command("codex-session-start")
+
+    assert exc_info.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["hookSpecificOutput"]["hookEventName"] == "SessionStart"
+    assert payload["hookSpecificOutput"]["additionalContext"] == (
+        "Graphify startup check skipped: notice failed"
+    )
+
+
 def _run_codex_install(repo: Path):
     return subprocess.run(
         [sys.executable, "-m", "graphify", "codex", "install"],

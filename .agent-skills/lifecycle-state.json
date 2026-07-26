@@ -64,17 +64,17 @@
     },
     "graphify-codex-session-start-portability-2026-07-26": {
       "title": "Add opt-in portable Codex SessionStart activation",
-      "status": "approved",
-      "currentLane": "planning-and-task-breakdown",
-      "currentPhase": "approved-revision-4-clean-baseline-ready-for-build-auto",
-      "enteredLaneBecause": "Mase approved formal planning for the reviewed Codex SessionStart portability design with /build auto intended as the next execution lane.",
+      "status": "in-progress",
+      "currentLane": "/build auto",
+      "currentPhase": "t-001-complete-t-002-next",
+      "enteredLaneBecause": "Mase invoked /build auto against the approved revision-4 scope after the exact HEAD, plan hash, clean worktree, and pending task set passed revalidation.",
       "exitCriteria": [
-        "tasks/plan.md and tasks/todo.md carry the complete behavior, task, validation, and authority contract.",
-        "The operator-selected GPT-5.6-Sol X-HIGH review artifact is hash-fresh for approved revision 4 and has no blocking issue.",
-        "Mase explicitly approved revision 4 and exact scope T-001 through T-004 at 2026-07-26T11:22:38Z.",
-        "The pre-existing tests/test_hooks.py formatting diff is preserved in separate local commit 0e210b2 and the approved planning artifacts are assigned to their own preparatory commit before /build auto."
+        "T-001 through T-004 and checkpoints CP-1 and CP-2 are complete with one verified local commit per task.",
+        "Focused and full validation, the bounded Pyright comparison, targeted LSP and Pi Lens diagnostics, and the synthetic portability E2E probe satisfy tasks/plan.md.",
+        "A fresh-context code review reports no blocker and the final scope audit finds only approved task files and status updates.",
+        "The worktree is clean and no active-CLI reinstall, global-skill refresh, downstream mutation, upstream reconciliation, push, publish, or PR occurred."
       ],
-      "nextAction": "After the planning/governance commit and final clean-status verification, await an explicit /build auto invocation for T-001 through T-004; do not reinstall, roll out downstream, push, or create a PR.",
+      "nextAction": "Execute T-002 with RED-to-GREEN coverage for portable installation, strict Codex parsing, help, idempotency, and unrelated-config preservation, then run checkpoint CP-1.",
       "nextRecommendedLane": "/build auto",
       "artifacts": [
         "tasks/plan.md",
@@ -89,7 +89,7 @@
         "The AST-identical pre-existing tests/test_hooks.py formatting diff was isolated in preparatory commit 0e210b2 and must not be mixed into later implementation commits.",
         "Do not reinstall the active CLI, refresh global skills, modify my-second-brain-build, propagate, push, or create a PR without separate authority."
       ],
-      "lastUpdated": "2026-07-26"
+      "lastUpdated": "2026-07-26T12:21:28Z"
     }
   }
 }
