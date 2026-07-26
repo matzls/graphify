@@ -573,6 +573,7 @@ def test_installed_hooks_contain_no_nohup(tmp_path):
 
 # ── #1385: reject Windows-style hooks paths instead of creating a junk dir ───
 
+
 def _set_hookspath(repo: Path, value: str) -> None:
     subprocess.run(
         ["git", "-C", str(repo), "config", "--local", "core.hooksPath", value],
@@ -662,6 +663,7 @@ def _extract_case_pattern(marker: str) -> str:
     """Pull the `*[!...]*` glob portion of a real case arm out of _PYTHON_DETECT
     by a unique anchor, so tests run against the emitted text, not a copy."""
     from graphify.hooks import _PYTHON_DETECT
+
     for line in _PYTHON_DETECT.splitlines():
         if marker in line:
             return line.strip().split(")")[0]
@@ -670,8 +672,15 @@ def _extract_case_pattern(marker: str) -> str:
 
 def _shell_verdict(pattern: str, candidate: str) -> str:
     result = subprocess.run(
-        ["bash", "-c", f'case "$1" in\n{pattern}) echo REJECTED ;;\n*) echo ACCEPTED ;;\nesac', "_", candidate],
-        capture_output=True, text=True,
+        [
+            "bash",
+            "-c",
+            f'case "$1" in\n{pattern}) echo REJECTED ;;\n*) echo ACCEPTED ;;\nesac',
+            "_",
+            candidate,
+        ],
+        capture_output=True,
+        text=True,
     )
     # Fail loudly on a malformed case snippet instead of returning "" and
     # producing a confusing ACCEPTED/REJECTED mismatch downstream.
@@ -682,10 +691,13 @@ def _shell_verdict(pattern: str, candidate: str) -> str:
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash required to exercise emitted glob")
-@pytest.mark.parametrize("winpath", [
-    r"C:\Users\u\.venv\Scripts\python.exe",
-    r"C:\Python311\python.exe",
-])
+@pytest.mark.parametrize(
+    "winpath",
+    [
+        r"C:\Users\u\.venv\Scripts\python.exe",
+        r"C:\Python311\python.exe",
+    ],
+)
 def test_file_path_allowlist_accepts_windows_backslash_path(winpath):
     """#2126: the .graphify_python FILE allowlist must accept real Windows paths
     at actual shell runtime. Old pattern rejected them due to bash bracket-escape."""
@@ -696,9 +708,12 @@ def test_file_path_allowlist_accepts_windows_backslash_path(winpath):
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash required to exercise emitted glob")
-@pytest.mark.parametrize("shebang_path", [
-    r"C:\Users\u\.venv\Scripts\python.exe",
-])
+@pytest.mark.parametrize(
+    "shebang_path",
+    [
+        r"C:\Users\u\.venv\Scripts\python.exe",
+    ],
+)
 def test_shebang_allowlist_accepts_windows_backslash_path(shebang_path):
     """#2126: the shebang-parsed launcher allowlist had no `:` or `\\` at all, so
     any Windows-style shebang path was unconditionally emptied. Must ACCEPT now."""
@@ -752,6 +767,7 @@ def test_hooks_skip_linked_worktrees(name, script):
 
 def _worktree_guard_snippet() -> str:
     from graphify.hooks import _WORKTREE_GUARD
+
     return _WORKTREE_GUARD + "echo RAN\n"
 
 
@@ -764,8 +780,7 @@ def test_worktree_guard_runs_on_primary_skips_linked(tmp_path):
     primary.mkdir()
 
     def _git(*args, cwd):
-        subprocess.run(["git", *args], cwd=cwd, check=True,
-                       capture_output=True, text=True)
+        subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
     _git("init", "-q", ".", cwd=primary)
     _git("config", "user.email", "t@t.co", cwd=primary)
@@ -777,15 +792,14 @@ def test_worktree_guard_runs_on_primary_skips_linked(tmp_path):
     _git("worktree", "add", "-q", str(linked), "-b", "feature", cwd=primary)
 
     snippet = _worktree_guard_snippet()
-    r_primary = subprocess.run(["sh", "-c", snippet], cwd=primary,
-                               capture_output=True, text=True)
-    r_linked = subprocess.run(["sh", "-c", snippet], cwd=linked,
-                              capture_output=True, text=True)
+    r_primary = subprocess.run(["sh", "-c", snippet], cwd=primary, capture_output=True, text=True)
+    r_linked = subprocess.run(["sh", "-c", snippet], cwd=linked, capture_output=True, text=True)
     assert "RAN" in r_primary.stdout, "guard wrongly skipped the primary checkout"
     assert "RAN" not in r_linked.stdout, "guard failed to skip the linked worktree"
 
 
 # ── #1907: duplicate keys in .git/config must not trigger spurious warnings ──
+
 
 def _append_duplicate_config_entries(repo: Path) -> None:
     """Append git-legal duplicate keys/sections (as VS Code writes them)."""
@@ -828,6 +842,7 @@ def test_hooks_dir_duplicate_config_keys_honor_custom_hookspath(tmp_path, capsys
 
 # ── #1902: hook install must register the graph.json union merge driver ─────
 
+
 def test_install_registers_merge_driver(tmp_path):
     """install() must set merge.graphify.* via git config and add the
     .gitattributes line that README/CHANGELOG 0.7.0 document (#1902)."""
@@ -835,17 +850,15 @@ def test_install_registers_merge_driver(tmp_path):
     result = install(repo)
     res = subprocess.run(
         ["git", "-C", str(repo), "config", "--get", "merge.graphify.driver"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert res.returncode == 0
     driver = res.stdout.strip()
     assert driver
     assert "merge-driver %O %A %B" in driver
     attrs = (repo / ".gitattributes").read_text(encoding="utf-8")
-    assert any(
-        "graph.json" in line and "merge=graphify" in line
-        for line in attrs.splitlines()
-    )
+    assert any("graph.json" in line and "merge=graphify" in line for line in attrs.splitlines())
     assert "merge driver" in result
 
 
@@ -878,7 +891,8 @@ def test_uninstall_removes_merge_driver_keeps_other_attrs(tmp_path):
     uninstall(repo)
     res = subprocess.run(
         ["git", "-C", str(repo), "config", "--get", "merge.graphify.driver"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     assert res.returncode != 0
     content = (repo / ".gitattributes").read_text(encoding="utf-8")
