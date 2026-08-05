@@ -129,7 +129,12 @@ def generate(
         + (f" ({shown_count} shown, {thin_count_summary} thin omitted)" if thin_count_summary else ""),
         f"- Extraction: {ext_pct}% EXTRACTED · {inf_pct}% INFERRED · {amb_pct}% AMBIGUOUS"
         + (f" · INFERRED: {len(inf_edges)} edges (avg confidence: {inf_avg})" if inf_avg is not None else ""),
-        f"- Token cost: {token_cost.get('input', 0):,} input · {token_cost.get('output', 0):,} output",
+        (
+            f"- Token cost: {token_cost.get('input', 0):,} input · "
+            f"{token_cost.get('output', 0):,} output"
+            if token_cost.get("usage_available", True) is not False
+            else "- Token usage: unavailable (Pi --print does not expose response metadata)"
+        ),
     ]
 
     if built_at_commit:

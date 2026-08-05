@@ -1,13 +1,20 @@
 ---
-title: "Semantic Model Comparison"
-kind: "validation-note"
-status: "active"
+title: "Semantic Model Comparison — 2026-06-02"
+kind: investigation
+status: done
+audience: agents-maintainers
+canonicality: historical
 created: 2026-06-02
-updated: 2026-06-02
-audience: "maintainers"
+updated: 2026-08-05
+source_of_truth: "./semantic-model-comparison-2026-06-02.md"
+superseded_by: "./semantic-model-quality-harness.md"
+related:
+  - "./semantic-model-quality-harness.md"
 ---
 
-# Semantic Model Comparison
+> Historical smoke comparison only. Its model-default conclusion is superseded.
+> Keep `deepseek-v4-pro:cloud` automatic and use the living harness document for
+> current diagnostic policy and the plan-only evaluation-redesign handoff.
 
 ## Scope
 

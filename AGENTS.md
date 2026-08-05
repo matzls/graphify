@@ -18,6 +18,28 @@ For any non-trivial Graphify work, first read:
 - `/Users/mase/.codex/docs/reference/graphify.md` for Mase's global Graphify
   operating guide.
 
+## Current Semantic Backend Status
+
+As of 2026-08-05:
+
+- `deepseek-v4-pro:cloud` remains the automatic Ollama text default.
+- `deepseek-v4-flash:0731-cloud` was blind-tested and rejected as the default:
+  it recovered broader architecture but regressed privacy-contract fidelity and
+  was slower on the bounded comparison.
+- This checkout contains a reviewed final-`pi --print` backend, but the active
+  CLI has not been reinstalled from these source changes. Pi remains explicit,
+  unpromoted, and must never replace Ollama automatically.
+- Explicit Pi image runs require command-local upload consent and human review
+  of semantic output.
+- `graphify/semantic_eval.py` remains useful for deterministic diagnostics, but
+  the current scorer and gates are not authoritative for prompt, model, image,
+  or promotion decisions.
+- The next project iteration is **plan-only evaluation-harness redesign**. Resume
+  from `.agent-skills/lifecycle-state.json`, `tasks/todo.md`, and
+  `docs/semantic-model-quality-harness.md`. Do not implement the redesign, tune
+  prompts, spend provider calls, change defaults, install, or promote without a
+  newly reviewed and approved plan.
+
 ## Remotes
 
 - `origin`: `https://github.com/matzls/graphify.git`

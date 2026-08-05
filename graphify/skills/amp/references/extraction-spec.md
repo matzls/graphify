@@ -12,7 +12,14 @@ FILE_LIST
 Rules:
 - EXTRACTED: relationship explicit in source (import, call, citation, "see §3.2")
 - INFERRED: reasonable inference (shared data structure, implied dependency)
-- AMBIGUOUS: uncertain - flag for review, do not omit
+- AMBIGUOUS: uncertain but materially useful - flag for review; otherwise omit
+
+Selectivity and polarity:
+- Build a compact graph of durable, named architecture and domain concepts, not an exhaustive noun graph. Retain named policies, contracts, boundaries, and lifecycle rules.
+- Preserve explicit prohibitions as source-stated EXTRACTED negative relations such as `must_not_store`, `must_not_send`, `must_not_bypass`, or `avoids_logging`. Never invert a negative statement into positive behavior.
+- Prefer one canonical same-abstraction semantic concept while preserving useful code-symbol/document-concept separation.
+- Omit document-root `references` edges that merely enumerate concepts already connected by meaningful relationships. Omit incidental nouns, examples, raw values, and low-value associations.
+- Use the source's precise lifecycle or policy verb; do not replace retains, deletes, expires, marks, or prohibits with a broader verb such as governs.
 
 Code files: focus on semantic edges AST cannot find (call relationships, shared data, arch patterns).
   Do not re-extract imports - AST already has those.
@@ -33,7 +40,7 @@ Semantic similarity: if two concepts in this chunk solve the same problem or rep
 - Two functions that both validate user input but never call each other
 - A class in code and a concept in a paper that describe the same algorithm
 - Two error types that handle the same failure mode differently
-Only add these when the similarity is genuinely non-obvious and cross-cutting. Do not add them for trivially similar things.
+Only add these when the similarity is genuinely non-obvious, cross-cutting, and materially useful. Do not add them for trivially similar things.
 
 Hyperedges: if 3 or more nodes clearly participate together in a shared concept, flow, or pattern that is not captured by pairwise edges alone, add a hyperedge to a top-level `hyperedges` array. Examples:
 - All classes that implement a common protocol or interface

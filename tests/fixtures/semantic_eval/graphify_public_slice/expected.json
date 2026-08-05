@@ -1,13 +1,14 @@
 {
+  "expected_edges_directed": true,
   "required_concepts": [
-    {"name": "Detect Stage", "aliases": ["Detect Files"], "weight": 1.5},
-    {"name": "Extract Stage", "aliases": ["Extract Nodes And Edges"], "weight": 1.5},
-    {"name": "NetworkX Graph", "aliases": ["Build Graph", "NetworkX Graph Build"]},
+    {"name": "Detect Stage", "aliases": ["Detect Files", "File Detection Stage"], "weight": 1.5},
+    {"name": "Extract Stage", "aliases": ["Extract Nodes And Edges", "Node and Edge Extraction"], "weight": 1.5},
+    {"name": "NetworkX Graph", "aliases": ["Build Graph", "NetworkX Graph Build", "NetworkX Graph Construction"]},
     {"name": "Cluster Communities", "aliases": ["Community Labels", "Community Clustering"]},
     {"name": "God Nodes", "aliases": ["God Nodes Analysis"]},
     {"name": "Graph Outputs", "aliases": ["graphify-out", "Reports and Exports"]},
     {"name": "Semantic Extraction", "aliases": ["Semantic Extraction LLM Backend"], "weight": 1.5},
-    {"name": "LLM Backend", "aliases": ["Direct Semantic Backend"], "weight": 1.5},
+    {"name": "LLM Backend", "aliases": ["Direct Semantic Backend", "Direct Semantic Backend Path"], "weight": 1.5},
     {"name": "Ollama Backend", "aliases": ["Ollama"]},
     {
       "name": "deepseek-v4-pro:cloud",
@@ -27,8 +28,7 @@
     {"source": "Extract Stage", "target": "NetworkX Graph", "relation_terms": ["build", "feeds", "then"], "weight": 1.5},
     {"source": "NetworkX Graph", "target": "Cluster Communities", "relation_terms": ["cluster", "communities"]},
     {"source": "Semantic Extraction", "target": "LLM Backend", "relation_terms": ["through", "uses", "handles"], "weight": 1.5},
-    {"source": "Ollama Backend", "target": "deepseek-v4-pro:cloud", "relation_terms": ["default", "model"], "weight": 1.5},
-    {"source": "Trace Mode", "target": "LLM Backend", "relation_terms": ["prints", "reports", "logs"]},
+    {"source": "Ollama Backend", "target": "deepseek-v4-pro:cloud", "relation_terms": ["default", "model", "uses"], "weight": 1.5},
     {"source": "Semantic Cache", "target": "Semantic Extraction", "relation_terms": ["prevents", "cache", "re-extracted"]}
   ],
   "forbidden_concepts": [

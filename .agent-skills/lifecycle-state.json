@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "activeTaskId": "graphify-codex-session-start-portability-2026-07-26",
+  "activeTaskId": "graphify-evaluation-foundation-redesign-2026-08-05",
   "tasks": {
     "graphify-reconciliation-recovery-and-readiness-2026-07": {
       "title": "Repair rebased semantic CLI compatibility, then harden upstream intake",
@@ -98,6 +98,892 @@
         "Do not modify my-second-brain-build or Personal AI, push, publish, create a PR, or mutate upstream Git without separate authority."
       ],
       "lastUpdated": "2026-07-26T15:52:44Z"
+    },
+    "graphify-luna-semantic-evaluation-2026-07-31": {
+      "title": "Calibrate Luna semantic quality and scorer v3",
+      "status": "completed",
+      "currentLane": "test-driven-development",
+      "currentPhase": "scorer-v3-and-frozen-comparison-complete",
+      "enteredLaneBecause": "The initial Luna smoke exposed polarity-blind scoring and prompt-density problems, so the investigation moved through test-first harness correction before any backend planning.",
+      "exitCriteria": [
+        "Scorer v3 handles unambiguous aliases, token-boundary relations, explicit negative polarity, directed fixture flows, and multimodal profile gating with regression tests.",
+        "Native and generated extraction contracts share the selective, polarity-preserving prompt and skillgen drift checks pass.",
+        "Frozen Luna and DeepSeek runs carry matching suite-contract, corpus, and prompt hashes plus operational and Git evidence.",
+        "Full offline tests pass and fresh review confirms Luna as the qualitative text winner while retaining the multimodal blocker."
+      ],
+      "nextAction": "Use planning-and-task-breakdown for a first-class Pi CLI text backend. Keep Ollama and image routing unchanged until the adapter, real skill path, output bounds, and vision/fallback gates are separately approved and validated.",
+      "nextRecommendedLane": "planning-and-task-breakdown",
+      "artifacts": [
+        "docs/luna-cli-semantic-evaluation-2026-07-31.md",
+        "docs/semantic-model-quality-harness.md",
+        "graphify/semantic_eval.py",
+        "graphify/llm.py",
+        "tests/fixtures/semantic_eval/suite.json",
+        ".semantic-evals/prompt-v3-final-luna-high-suite-20260731-122011/suite-run.json",
+        ".semantic-evals/prompt-v3-final-deepseek-v4-pro-cloud-suite-20260731-123235/suite-run.json"
+      ],
+      "approvalGates": [
+        "Mase approved scorer/prompt correction and the bounded matched/repeated live quality investigation against committed privacy-safe fixtures.",
+        "This investigation does not authorize Pi CLI backend implementation, Ollama removal, active CLI or skill reinstall, propagation, commit, push, or release.",
+        "Complete backend replacement remains blocked by the multimodal profile failure and requires an explicit image fallback or replacement decision."
+      ],
+      "lastUpdated": "2026-07-31T12:46:00Z"
+    },
+    "graphify-pi-cli-backend-2026-07-31": {
+      "title": "Implement and evaluate the explicit Pi CLI print backend",
+      "status": "completed",
+      "currentLane": "incremental-implementation",
+      "currentPhase": "source-complete-live-reviewed-explicit-uninstalled-unpromoted",
+      "enteredLaneBecause": "Revision 8/12 implementation, offline validation, live transport validation, prompt experiments, evaluator audit, and bounded Ollama candidate comparison are complete. The Pi adapter is operationally safe but image semantics and the evaluator are not promotion-grade. Ollama Pro remains automatic; Pi remains explicit and the active CLI has not been reinstalled for this source commit.",
+      "exitCriteria": [
+        "The final print-only Pi adapter, consent boundary, truthful metadata contract, call ledger, cleanup, and fail-closed behavior pass focused and broader offline validation plus fresh implementation review.",
+        "The bounded live campaign verifies transport/privacy and stops without retry or promotion when image semantics miss the gate.",
+        "Blind prompt and model comparisons are interpreted qualitatively; no current/upstream prompt, Flash default, or Pi promotion is adopted.",
+        "Project docs close the implementation authority and route the next session to plan-only evaluation-harness redesign."
+      ],
+      "nextAction": "Use the separate graphify-evaluation-foundation-redesign-2026-08-05 lifecycle task. Do not reopen Pi implementation, prompt tuning, model/default changes, provider calls, installation, or promotion without new reviewed authority.",
+      "nextRecommendedLane": "planning-and-task-breakdown",
+      "revision8Planning": {
+        "status": "evaluation-audit-and-blind-prompt-ab-complete-no-adoption",
+        "planningWriteAuthority": "current 2026-08-04 user instruction authorizes only the named planning artifacts and lifecycle status",
+        "specSha256": "c5ff59f8b6ae2aeead74f8a65707cf9f4b1c35eb90784d473a69908f765d742c",
+        "planRevision": 8,
+        "planSha256": "1103e612c6968586551eccbf074c6a230b3fa2b7750254612ed13abac9f70f22",
+        "todoSha256": "2230eb6576bbb8e6a25111757f4c16292bb2fb7821c7e17a4bf8bb1068b71b98",
+        "packetRevision": 12,
+        "packetSha256": "32bd60ea5a349f7ae00d4c1f03490fb23f28da5a20bccc46721f043c2b7ec68a",
+        "approvedPlanSha256": "c55458d866da47668ce34e22ad8b28d365748a669de861e3c678e4b5331147df",
+        "approvedPacketSha256": "14c838ea27aa7e63da9030759c3a9abaf759a3fe2ff6213dcf9e2cf7b6f9f5b3",
+        "currentTodoSha256": "214ad2c3faf5f8be1c0039b110011451eed65319d1583c6d55a94f30b239af9f",
+        "linkedReview": "Codex recovery attempt 2 is hash-current for the reviewed draft and Sound with zero issues; same-model fallback provenance is explicit",
+        "peerReviewCalls": {
+          "authorized": 5,
+          "used": 5,
+          "remaining": 0,
+          "scope": "original shared planning-package review budget; exhausted; completed, failed, and timed-out attempts count; lifecycle is authoritative",
+          "attempts": [
+            {
+              "number": 1,
+              "engine": "Claude",
+              "model": "claude-opus-5",
+              "effort": "max",
+              "outcome": "timeout",
+              "timeoutSeconds": 300
+            },
+            {
+              "number": 2,
+              "engine": "Claude",
+              "model": "claude-opus-5",
+              "effort": "max",
+              "outcome": "completed-needs-revision",
+              "timeoutSeconds": 600
+            },
+            {
+              "number": 3,
+              "engine": "Claude",
+              "model": "claude-sonnet-5",
+              "effort": "high",
+              "outcome": "completed-sound-with-issues-no-blocker",
+              "timeoutSeconds": 600
+            },
+            {
+              "number": 4,
+              "engine": "Claude",
+              "model": "claude-sonnet-5",
+              "effort": "high",
+              "outcome": "timeout",
+              "timeoutSeconds": 600
+            },
+            {
+              "number": 5,
+              "engine": "GPT fallback",
+              "model": "gpt-5.6-sol",
+              "effort": "xhigh",
+              "outcome": "started-then-wrapper-timeout-no-sidecar",
+              "timeoutSeconds": 600
+            }
+          ]
+        },
+        "budgetAmendmentReviewCalls": {
+          "authorized": 1,
+          "used": 1,
+          "remaining": 0,
+          "authorizedAt": "2026-08-04T15:47:40Z",
+          "scope": "exact current budget-only linked amendment review; explicit Claude; no fallback, retry, implementation review, or other use",
+          "activationEffect": "none; this budget does not approve or activate r12",
+          "attempts": [
+            {
+              "number": 1,
+              "engine": "Claude",
+              "model": "claude-sonnet-5",
+              "effort": "high",
+              "outcome": "failed-to-run-claude-session-limit",
+              "timeoutSeconds": 900,
+              "elapsedSeconds": 3.383,
+              "fallback": "not attempted"
+            }
+          ]
+        },
+        "codexBudgetAmendmentRecoveryCalls": {
+          "authorized": 3,
+          "used": 2,
+          "remaining": 1,
+          "closed": true,
+          "closureReason": "attempt 2 produced the first proceedable hash-current sidecar; nominal unused capacity is not callable",
+          "authorizedAt": "2026-08-04T15:59:31Z",
+          "scope": "exact current budget-only linked amendment recovery; explicit Codex; stop after first proceedable current sidecar; no Claude fallback, implementation review, or other use",
+          "activationEffect": "none; this budget does not approve or activate r12",
+          "attempts": [
+            {
+              "number": 1,
+              "engine": "Codex",
+              "model": "gpt-5.6-sol",
+              "effort": "xhigh",
+              "outcome": "failed-to-run-structured-output-quality-invalid",
+              "error": "insubstantial rubric dispositions and missing addressed-issue closure",
+              "timeoutSeconds": 900,
+              "elapsedSeconds": 395.731,
+              "fallback": "not attempted"
+            },
+            {
+              "number": 2,
+              "engine": "Codex",
+              "model": "gpt-5.6-sol",
+              "effort": "xhigh",
+              "outcome": "completed-sound-zero-issues",
+              "timeoutSeconds": 900,
+              "elapsedSeconds": 342.760,
+              "fallback": "not attempted"
+            }
+          ]
+        },
+        "implementationReviewCalls": {
+          "authorized": 5,
+          "used": 4,
+          "remaining": 1,
+          "closed": true,
+          "closureReason": "attempt 4 produced the first proceedable final implementation review; nominal unused capacity is not callable",
+          "authorizedAt": "2026-08-04T15:34:40Z",
+          "scope": "read-only implementation reviews after separate r12 approval and offline activation; not available for planning-package or budget-amendment review",
+          "activationEffect": "none; this budget does not approve or activate r12",
+          "attempts": [
+            {
+              "number": 1,
+              "engine": "subagent reviewer",
+              "model": "gpt-5.6-sol",
+              "effort": "xhigh",
+              "outcome": "completed-3-block-1-warn",
+              "session": "/Users/mase/.pi/agent/sessions/--Users-mase-Codebase-Personal-Projects-graphify--/2026-08-04T13-05-09-514Z_019fcce0-c18a-7515-97d2-c927ecb282ad/f80bf3b0/run-0/session.jsonl"
+            },
+            {
+              "number": 2,
+              "engine": "subagent reviewer",
+              "model": "gpt-5.6-sol",
+              "effort": "xhigh",
+              "outcome": "completed-1-block",
+              "session": "/Users/mase/.pi/agent/sessions/--Users-mase-Codebase-Personal-Projects-graphify--/2026-08-04T13-05-09-514Z_019fcce0-c18a-7515-97d2-c927ecb282ad/0ee937a1/run-0/session.jsonl"
+            },
+            {
+              "number": 3,
+              "engine": "subagent reviewer",
+              "model": "gpt-5.6-sol",
+              "effort": "xhigh",
+              "outcome": "completed-1-block",
+              "session": "/Users/mase/.pi/agent/sessions/--Users-mase-Codebase-Personal-Projects-graphify--/2026-08-04T13-05-09-514Z_019fcce0-c18a-7515-97d2-c927ecb282ad/cacbd065/run-0/session.jsonl"
+            },
+            {
+              "number": 4,
+              "engine": "subagent reviewer",
+              "model": "gpt-5.6-sol",
+              "effort": "xhigh",
+              "outcome": "completed-no-blockers-no-warnings",
+              "session": "/Users/mase/.pi/agent/sessions/--Users-mase-Codebase-Personal-Projects-graphify--/2026-08-04T13-05-09-514Z_019fcce0-c18a-7515-97d2-c927ecb282ad/14ffdfa4/run-0/session.jsonl"
+            }
+          ]
+        },
+        "planningReviewCodexRecoveryAttempt2": {
+          "reviewedPacketSha256": "32bd60ea5a349f7ae00d4c1f03490fb23f28da5a20bccc46721f043c2b7ec68a",
+          "sidecarPath": "docs/plans/_peer-reviews/graphify-pi-cli-backend-autonomous-build-packet-peer-review.json",
+          "sidecarSha256": "b936ca6bc0329d5a3f23d148108cae6171d99584d4a8c263390ec3e447a76141",
+          "reviewer": "Codex gpt-5.6-sol xhigh",
+          "reviewerMatch": "same_model_fallback",
+          "gateQuality": "degraded_fallback",
+          "verdict": "Sound",
+          "issues": "0",
+          "rerunRecommendation": "stop",
+          "checkOnly": "passed after lifecycle closeout",
+          "result": "proceedable hash-current linked review; recovery pool closed"
+        },
+        "planningReviewCodexRecoveryAttempt1": {
+          "targetPacketSha256": "32bd60ea5a349f7ae00d4c1f03490fb23f28da5a20bccc46721f043c2b7ec68a",
+          "engine": "Codex gpt-5.6-sol xhigh",
+          "verdict": "Failed-to-run",
+          "error": "structured_output_quality_invalid",
+          "sidecarSha256": "46490bf9f64a1dcb87f249df082cd08d4649fcec1e43a2a8300c5550486976ec",
+          "result": "reviewer output failed semantic-quality validation; no document finding; two recovery attempts remain"
+        },
+        "planningReviewBudgetAmendmentAttempt": {
+          "targetPacketSha256": "2c9f6ac05fcdffcb5a1ea47befce56dae1f70c46587896cb7326e945ae3d6fcb",
+          "engine": "Claude claude-sonnet-5 high",
+          "verdict": "Failed-to-run",
+          "error": "claude_session_limit",
+          "canonicalSidecar": "hash-current Failed-to-run sidecar",
+          "sidecarSha256": "697a85193ee881b642bf328c6b149d80b1fba6581754033d9ce6bcbc23284001",
+          "result": "no proceedable current linked review; stop for Mase"
+        },
+        "planningReviewRound1": {
+          "reviewedPacketSha256": "124e53cd12728b6acf820f96b595ee8686c4c7268921477ec5023be0de0015d7",
+          "sidecarPath": "docs/plans/_peer-reviews/graphify-pi-cli-backend-autonomous-build-packet-peer-review.json",
+          "sidecarSha256": "4035f5087ccbd45c97801b16a6cc4f9093a3ac0aba058f63d1df178634d7192e",
+          "reviewer": "Claude claude-opus-5 max",
+          "verdict": "Needs-revision",
+          "issues": "1 BLOCK, 1 WARN, 2 NOTE",
+          "disposition": "BLOCK simplified by adding outside tracked/status sentinels to the same single-digest archive and narrowing untracked claims; WARN completed by aligning five-task plan/packet scope and empty live scope; NOTES completed by pre-writer full-suite baseline and lifecycle-only review-call counter"
+        },
+        "planningReviewRound2": {
+          "reviewedPacketSha256": "7338a14f73ef600e7b19687db5c69c46778b5dc671dd70794e93f0b26cfedcfa",
+          "sidecarPath": "docs/plans/_peer-reviews/graphify-pi-cli-backend-autonomous-build-packet-peer-review.json",
+          "sidecarSha256": "e3aeb88733fd5f5f22ba8ee875e2c4944bc2770d76f0c9d19a8a3eea498bd8e6",
+          "reviewer": "Claude claude-sonnet-5 high",
+          "verdict": "Sound-with-issues",
+          "issues": "0 BLOCK, 0 WARN, 2 NOTE",
+          "checkOnly": "passed; exact reviewed bytes restored after the failed status-only freshness run",
+          "disposition": "All round-1 material findings closed. Remaining notes were controller hash/sidecar freshness checks; hashes were recomputed and the sidecar matched the repaired packet."
+        },
+        "planningReviewStatusFreshnessAttempt": {
+          "purpose": "status-only metadata freshness; no contract or authority change",
+          "targetPacketSha256": "7292b61305f138f2c89c454a159946b275b7efbf6abebe15c1b30122f9aa23b8",
+          "claudeAttempt": "timed out after 600 seconds",
+          "gptFallbackAttempt": "started but the wrapper command timed out before completion; no sidecar written",
+          "result": "unreviewed status-only bytes discarded; exact round-2 reviewed bytes restored",
+          "budget": "five of five attempts consumed"
+        },
+        "implementationRepairRoundLimit": 5,
+        "approval": {
+          "status": "approved",
+          "approvedBy": "Mase",
+          "approvedAt": "2026-08-04T16:25:35Z",
+          "approvalScope": [
+            "T-001",
+            "T-002",
+            "T-003",
+            "T-005",
+            "T-006"
+          ],
+          "liveScope": [],
+          "t004": "preservation-only",
+          "reviewedSpecSha256": "c5ff59f8b6ae2aeead74f8a65707cf9f4b1c35eb90784d473a69908f765d742c",
+          "reviewedPlanSha256": "1103e612c6968586551eccbf074c6a230b3fa2b7750254612ed13abac9f70f22",
+          "reviewedTodoSha256": "2230eb6576bbb8e6a25111757f4c16292bb2fb7821c7e17a4bf8bb1068b71b98",
+          "reviewedPacketSha256": "32bd60ea5a349f7ae00d4c1f03490fb23f28da5a20bccc46721f043c2b7ec68a",
+          "approvedPlanSha256": "c55458d866da47668ce34e22ad8b28d365748a669de861e3c678e4b5331147df",
+          "approvedPacketSha256": "14c838ea27aa7e63da9030759c3a9abaf759a3fe2ff6213dcf9e2cf7b6f9f5b3",
+          "sidecarPath": "docs/plans/_peer-reviews/graphify-pi-cli-backend-autonomous-build-packet-peer-review.json",
+          "sidecarSha256": "b936ca6bc0329d5a3f23d148108cae6171d99584d4a8c263390ec3e447a76141",
+          "reviewer": "Codex gpt-5.6-sol xhigh; same-model degraded fallback; Sound; 0 issues"
+        },
+        "implementationActivation": {
+          "status": "active",
+          "activatedBy": "Mase",
+          "activatedAt": "2026-08-04T16:25:35Z",
+          "scope": [
+            "T-001",
+            "T-002",
+            "T-003",
+            "T-005",
+            "T-006"
+          ],
+          "t004": "preservation validation only",
+          "liveScope": [],
+          "stopAfter": "CP-2 before T-007"
+        },
+        "preWriterBaseline": {
+          "command": "uv run --frozen pytest tests/ -q -k 'not windows'",
+          "exitStatus": 0,
+          "summary": "3912 passed, 7 skipped, 62 deselected, 3 warnings in 71.82s",
+          "classification": "passing baseline; only newly failing tests may consume repair authority"
+        },
+        "overlapSnapshot": {
+          "archivePath": "/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-r8-overlap.u7ebGC/pre-r8-overlap.tar",
+          "archiveSha256": "a73e7fe1a3d24779e2cbb961840f79222282b49aab955250a67623b2febb9c11",
+          "mode": "0400",
+          "entryCount": 15,
+          "allowlistVersion": "r12",
+          "branch": "mase/local-fixes",
+          "head": "8cac3a75fb5d13b584dc2c31c673d22140158499",
+          "index": "clean",
+          "activeGitOperation": "none",
+          "sentinels": [
+            "outside-status.txt",
+            "outside-tracked.diff"
+          ]
+        },
+        "implementationRepairPasses": {
+          "limit": 5,
+          "used": 5,
+          "remaining": 0,
+          "passes": [
+            {
+              "number": 1,
+              "checkpoint": "CP-1",
+              "trigger": "exact CP-1 pytest command returned 9 failures and 174 passes",
+              "classification": "in-scope legacy JSON-event test migration gaps plus unrelated report.py formatting churn",
+              "sentinels": "matched before repair",
+              "ruff": "passed",
+              "lsp": "no errors; pre-existing missing-networkx-source warnings only",
+              "status": "completed",
+              "result": "177 passed, 5 deselected; Ruff passed; primary LSP reported 0 errors; archive unchanged; both outside sentinels matched; unrelated report formatting churn removed"
+            },
+            {
+              "number": 2,
+              "checkpoint": "CP-2 related suites",
+              "trigger": "test_probe_backend_returns_safe_summary failed because non-Pi summaries gained usage_available:true",
+              "classification": "in-scope backward-compatibility regression in graphify/llm.py; validation-only test remains unchanged",
+              "focusedSuite": "309 passed, 6 deselected",
+              "relatedSuite": "1 failed, 183 passed, 5 deselected",
+              "ruff": "passed",
+              "status": "completed",
+              "result": "normal backend probe summary shape restored; Pi unavailable branch remains explicit; focused suite 309 passed and related suite 184 passed"
+            },
+            {
+              "number": 3,
+              "checkpoint": "CP-2 fresh implementation review",
+              "trigger": "review found 3 BLOCK and 1 WARN",
+              "classification": "all four findings verified and repairable inside existing cli/llm/canary/script/test owners",
+              "findings": [
+                "Pi-to-Ollama known run can format poisoned None all-time totals",
+                "600-second outer stage timeout lacks margin above 540-second model plus capability checks and cleanup",
+                "canary label stage can exceed one batch and suppress a later reservation failure",
+                "Pi adaptive split results can carry model and fabricated finish_reason"
+              ],
+              "status": "completed",
+              "result": "all four findings repaired; CP-2 focused 314 passed, related 184 passed, broader 3917 passed with 5 new regression tests and no failures; Ruff/LSP/sentinels passed"
+            },
+            {
+              "number": 4,
+              "checkpoint": "CP-2 implementation review 2",
+              "trigger": "review found active-canary malformed/unsubstantive label output can degrade to deterministic hubs and pass with community_labels:0.0",
+              "classification": "verified in existing llm/cli/driver/test owners; normal non-canary hub fallback must remain unchanged",
+              "status": "completed",
+              "result": "active-canary label failures now exit before persistence; score gate requires finite substantive community_labels; CP-2 focused 323, related 184, broader 3926; Ruff/LSP/sentinels passed"
+            },
+            {
+              "number": 5,
+              "checkpoint": "CP-2 implementation review 3",
+              "trigger": "review found outer timeout budget counts two capability commands while real doctor/image paths can execute three",
+              "classification": "verified constant/test correction inside existing canary-driver and test owners; no model timeout or retry change",
+              "status": "completed",
+              "result": "outer timeout is exactly 660 seconds for 540-second model, three 30-second capability commands, and 30-second cleanup margin; real doctor/probe fake-Pi path proves help/help/help/model; retry and model deadlines unchanged"
+            }
+          ]
+        },
+        "cp2FinalValidation": {
+          "t005Focused": "39 passed, 108 deselected",
+          "t006Focused": "50 passed, 58 deselected",
+          "canaryHelp": "exit 0 and inert",
+          "focusedSuite": "323 passed, 6 deselected, 1 warning in 17.48s",
+          "relatedSuite": "184 passed, 5 deselected, 1 warning in 1.35s",
+          "ruff": "passed",
+          "broaderSuite": "3926 passed, 7 skipped, 62 deselected, 3 warnings in 127.36s",
+          "baselineComparison": "fourteen intentional new regression tests; no new failures; skip/deselection counts unchanged",
+          "primaryLsp": "0 errors across 12 touched Python files",
+          "piLens": "no current-turn issues",
+          "detectBackend": "ollama",
+          "eventModeScan": "none in graphify/llm.py",
+          "archiveSha256": "a73e7fe1a3d24779e2cbb961840f79222282b49aab955250a67623b2febb9c11",
+          "outsideSentinels": "matched",
+          "changedPaths": [
+            "graphify/llm.py",
+            "graphify/__main__.py",
+            "graphify/cli.py",
+            "graphify/report.py",
+            "graphify/pi_canary.py",
+            "scripts/pi_backend_canary.py",
+            "tests/test_pi_cli_backend.py",
+            "tests/test_pi_canary.py",
+            "tests/test_labeling.py",
+            "tests/test_cli_semantic_fail_closed.py",
+            "tests/test_extract_cli.py",
+            "tests/test_report.py"
+          ],
+          "implementationReview": "attempt 4 completed with no blockers and no warnings",
+          "providerCalls": 0,
+          "liveScope": "empty",
+          "status": "passed-offline"
+        },
+        "implementationReviewRound4": {
+          "result": "NO BLOCKERS; no warnings; administrative closeout only",
+          "disposition": "CP-2 proceedable; offline scope complete; stop before separately authorized T-007",
+          "reviewSession": "/Users/mase/.pi/agent/sessions/--Users-mase-Codebase-Personal-Projects-graphify--/2026-08-04T13-05-09-514Z_019fcce0-c18a-7515-97d2-c927ecb282ad/14ffdfa4/run-0/session.jsonl",
+          "archiveRelative": true,
+          "readOnly": true
+        },
+        "implementationReviewRound3": {
+          "result": "1 BLOCK; all other findings closed",
+          "disposition": "timeout-call-count blocker accepted after parent verification; final repair pass 5 active",
+          "reviewSession": "/Users/mase/.pi/agent/sessions/--Users-mase-Codebase-Personal-Projects-graphify--/2026-08-04T13-05-09-514Z_019fcce0-c18a-7515-97d2-c927ecb282ad/cacbd065/run-0/session.jsonl",
+          "archiveRelative": true,
+          "readOnly": true
+        },
+        "implementationReviewRound2": {
+          "result": "1 BLOCK; prior four findings closed",
+          "disposition": "blocker accepted after parent control-flow verification; repair pass 4 active",
+          "reviewSession": "/Users/mase/.pi/agent/sessions/--Users-mase-Codebase-Personal-Projects-graphify--/2026-08-04T13-05-09-514Z_019fcce0-c18a-7515-97d2-c927ecb282ad/0ee937a1/run-0/session.jsonl",
+          "archiveRelative": true,
+          "readOnly": true
+        },
+        "implementationReviewRound1": {
+          "result": "3 BLOCK, 1 WARN, 5 NOTE",
+          "disposition": "all material findings accepted after parent source verification; repair pass 3 active",
+          "reviewSession": "/Users/mase/.pi/agent/sessions/--Users-mase-Codebase-Personal-Projects-graphify--/2026-08-04T13-05-09-514Z_019fcce0-c18a-7515-97d2-c927ecb282ad/f80bf3b0/run-0/session.jsonl",
+          "archiveRelative": true,
+          "readOnly": true
+        },
+        "t004Preservation": {
+          "command": "uv run --frozen pytest -q tests/test_cache.py tests/test_extract_cli.py -k 'semantic and (image or provenance or identity or legacy or force or partial)'",
+          "result": "8 passed, 95 deselected, 1 warning in 0.17s",
+          "cacheSourceEdited": false,
+          "status": "passed"
+        },
+        "sliceBWorkerAttempt1": {
+          "result": "partial in-scope edits followed by child fetch failure",
+          "lsp": "0 errors across 7 checked Slice-B files",
+          "t005Focused": "3 failed, 36 passed, 108 deselected",
+          "t006Focused": "14 failed, 35 passed, 58 deselected",
+          "help": "exit 0 and inert",
+          "classification": "active-task implementation incomplete; no repair pass consumed"
+        },
+        "cp1Validation": {
+          "pytest": "177 passed, 5 deselected, 1 warning in 16.24s",
+          "ruff": "passed",
+          "primaryLsp": "0 errors across 9 Slice-A files",
+          "archiveSha256": "a73e7fe1a3d24779e2cbb961840f79222282b49aab955250a67623b2febb9c11",
+          "outsideSentinels": "matched",
+          "changedPaths": [
+            "graphify/llm.py",
+            "graphify/__main__.py",
+            "graphify/cli.py",
+            "graphify/report.py",
+            "tests/test_pi_cli_backend.py",
+            "tests/test_cli_semantic_fail_closed.py",
+            "tests/test_extract_cli.py",
+            "tests/test_report.py"
+          ],
+          "providerCalls": 0,
+          "result": "passed"
+        },
+        "t007Authority": "consumed by the single 2026-08-05 campaign; no retry, tuning, fixture substitution, or second campaign is authorized",
+        "t007Campaign": {
+          "result": "failed",
+          "failure": "image_score_gate_failed",
+          "attemptsReserved": 5,
+          "attemptStatuses": "all completed",
+          "sixthDeniedBeforeDispatch": true,
+          "retryEvents": 0,
+          "responseMetadataAvailable": false,
+          "fixtureHashesVerified": true,
+          "outerPiDetected": true,
+          "receiptMode": "0600",
+          "receiptPath": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-print-canary.9FPzyk/receipt.json",
+          "receiptSha256": "ee91d4b61eb653d00efc92e5ab1e9405b1ccaaf460de6c94da175910c5366987",
+          "textOverall": 0.846,
+          "textCommunityLabels": 0.75,
+          "imageOverall": 0.909,
+          "imageCommunityLabels": 0.25,
+          "committedCommunityLabelMinimum": 0.45,
+          "privacyAssertion": "passed",
+          "rawArtifactsInspected": false,
+          "providerRetry": false,
+          "status": "cp3-reviewed-stopped"
+        },
+        "promptExperimentAuthority": {
+          "authorizedBy": "Mase",
+          "authorizedAt": "2026-08-05T07:44:57Z",
+          "scope": "same authenticated privacy-safe image; Luna/high; in-memory visual-v1 and label-grounding-v1 prompts; image extract plus image label only",
+          "attemptLimit": 2,
+          "attemptsUsed": 2,
+          "thirdReservation": "denied before child dispatch",
+          "permanentEdits": false,
+          "additionalCalls": false,
+          "review": "fresh read-only review reported no blockers",
+          "status": "consumed"
+        },
+        "promptExperimentResult": {
+          "result": "mixed-failed-exact-gate",
+          "safetyEnvelopePassed": true,
+          "trackedSourceUnchanged": true,
+          "baselineCommunityLabels": 0.25,
+          "experimentCommunityLabels": 0.75,
+          "baselineConceptRecall": 0.857,
+          "experimentConceptRecall": 0.75,
+          "baselineOverall": 0.909,
+          "experimentOverall": 0.923,
+          "expectedEdgeCoverage": 1.0,
+          "sourceCoverage": 1.0,
+          "comparisonPath": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-image-prompt-ab.POVbN6/result/comparison.json",
+          "comparisonSha256": "a39190d76db482149532d7ae895c990d1a3b6f41675c97b75e86ad6f09f0634d",
+          "comparisonMode": "0600",
+          "permanentAdoption": false
+        },
+        "evaluationSystemAudit": {
+          "singleModelReview": "material scorer, fixture, gate, variance, and promotion-protocol flaws found",
+          "crossModel": "Codex CLI 0.144.1 read-only ephemeral review",
+          "crossModelResult": "independently corroborated the material flaws",
+          "crossModelReport": "/tmp/graphify-evaluation-audit-codex.md",
+          "crossModelReportSha256": "fe0058601af9e90b114d416ac6a0a94c4c2c4bfcaefe4c22f06b07652ed9e765",
+          "currentDisposition": "useful as a deterministic regression/diagnostic lens, but not authoritative for image prompt superiority or promotion; exact image gate is representation-biased and relation-permissive",
+          "reconciledFindings": [
+            "relationship meaning is report-only and absent from decisive gates",
+            "diagram gold requires detached condition nodes and ignores equivalent edge/hyperedge representations",
+            "community labels are global substring coverage and can be keyword-stuffed",
+            "source coverage is filename presence rather than claim-level provenance",
+            "closed forbidden lists do not measure general hallucination precision",
+            "overall weights can invert semantic regressions",
+            "one public diagram and one stochastic run cannot support promotion",
+            "documented held-out and paired-repeat protocol is not enforced by the canary"
+          ]
+        },
+        "upstreamCurrentPromptComparisonAuthority": {
+          "authorizedBy": "Mase",
+          "authorizedAt": "2026-08-05T09:28:03Z",
+          "scope": "blind prompt-only A/B on exact privacy-safe diagram: current worktree extraction prompt versus pinned local upstream/v8 extraction prompt; unchanged community label prompt",
+          "attemptLimit": 4,
+          "attemptsUsed": 4,
+          "perArmLimit": 2,
+          "imageUploads": 2,
+          "thirdReservationPerArm": "denied before child dispatch",
+          "scorerVerdict": false,
+          "permanentEdits": false,
+          "additionalCalls": false,
+          "review": "fresh read-only dispatch review reported no blockers",
+          "status": "consumed"
+        },
+        "upstreamCurrentPromptComparisonResult": {
+          "safetyEnvelopePassed": true,
+          "trackedSourceUnchanged": true,
+          "blindPreference": "upstream",
+          "confidence": "medium",
+          "upstreamStrength": "preserved normal and manual-review end-to-end paths as hyperedges",
+          "upstreamWeakness": "all pairwise workflow predicates were conceptually_related_to and low-risk remained absent",
+          "currentStrength": "better local predicates and more grounded community labels",
+          "currentWeakness": "lost branch qualifiers and complete path structure; low-risk and manual-review semantics absent",
+          "sharedWeaknesses": "neither output fully preserved branch conditions; both exported directed false",
+          "interpretation": "upstream is not globally better; it exposes a real regression/tradeoff the current scorer cannot see because hyperedges are unscored",
+          "safetyPath": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-blind-current-upstream-ab.z5XMlD/result/blind-safety.json",
+          "safetySha256": "e5eea20464eeb0728ed9bacb53bdecc5a55f2936e39befb03be4e7e6ec7e10e0",
+          "mappingSha256": "15f33058b7f6553eafefb489eef7dcf7ae01d5555befb8e2f94b5eba03e87c47",
+          "permanentAdoption": false
+        },
+        "deepseekFlash0731Comparison": {
+          "candidate": "deepseek-v4-flash:0731-cloud",
+          "baseline": "deepseek-v4-pro:cloud",
+          "providerDispatches": 8,
+          "perModelDispatches": 4,
+          "retries": 0,
+          "allCallsSucceeded": true,
+          "scorerUsedForVerdict": false,
+          "blindQualitativeResult": "no decisive overall winner; Pro won privacy-contract fidelity, Flash won broad architecture recovery, workflow migration was a precision-versus-coverage tradeoff",
+          "elapsedSecondsPro": 59.917,
+          "elapsedSecondsFlash": 165.207,
+          "decision": "retain Pro as automatic Ollama default; Flash remains explicit only",
+          "safetyPath": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-flash0731-pro-blind.QcUlU1/result/safety.json",
+          "safetySha256": "0da01e30c09d9775bd36409f896fe4e30f71641e2d61f58fd7128be094e660c7",
+          "blindVerdictSha256": "cea48dc9fddeb672dfbe526f4ed4c4f090c866fab40fac32567ea40ac2b88371",
+          "mappingSha256": "b8274a0973b29d5601869047bac6cf413ae2f21f5561d51e66089fe0ace9f118",
+          "permanentAdoption": false
+        },
+        "promotion": "blocked after failed T-007 and evaluator audit; Ollama Pro remains automatic and Pi explicit"
+      },
+      "preBuildReceipt": {
+        "capturedHead": "8cac3a75fb5d13b584dc2c31c673d22140158499",
+        "manifestSha256": "57ff4e6abfe672fa9ba4c9a017868b5c9d03acd0e57578faa3bf7bfb233916fb",
+        "receiptPath": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-cp-2-baseline-recovery.RXV92n/receipt.json",
+        "receiptSha256": "07885bafb211a2cd0c7ae63f32661aebe4297af91303a494400789ec81d10817"
+      },
+      "historicalApprovalReceipt": {
+        "approvedAt": "2026-08-03T09:56:35Z",
+        "receiptPath": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-r6-r10-approval.h0QmGm/receipt.json",
+        "receiptSha256": "307ef93766400524272913db7dad97c699c4c7b3cf5c363d7626c9c0dfe74bf2",
+        "planDraftSha256": "61967bf10fbfdedc446f5fa435ede37617e65e09595cf5f51a7fc62e9629bea8",
+        "planApprovedSha256": "471b2bf314fb0549c1d5fc5e70ae385170675271cee2f11319c95850f4f4d0d0",
+        "packetDraftSha256": "05c5bc89db6021242506998f846d0a552245c1677f34d025a54d6dd8cbccc85f",
+        "packetApprovedSha256": "1067cd10cddfed0a7194c9a79280f8e2764ba82e68c43dfeef8193a61e31c376"
+      },
+      "baselineShadowAudit": {
+        "checkpoint": "CP-1-pre-writer-r7-classified",
+        "summaryPath": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-r7-cp1-baseline-shadow-audit-classified.yzu2fyk6/summary.json",
+        "summarySha256": "ac9a4af737a45b3ddc6b5aa81d917f8b2995b463b61d58937452580a384ab6a3",
+        "decision": "pass",
+        "changedPathCount": 21,
+        "allowedPathCount": 21,
+        "unexplainedPaths": []
+      },
+      "cp1RepairRound7": {
+        "scope": "macOS final CLI graph-publication image identity defect only",
+        "changedPaths": [
+          "graphify/cli.py",
+          "tests/test_cli_semantic_fail_closed.py"
+        ],
+        "validation": "124 macOS CP-1 focused tests passed; CP-1 Ruff check passed; fresh review found no blocker",
+        "reviewReport": "tasks/round7-review-report.md",
+        "workerReport": "tasks/round7-worker-report.md",
+        "result": "CP-1 passed; stop before CP-2"
+      },
+      "cp2Validation": {
+        "scope": "offline readiness validation and review only",
+        "focusedSuites": "231 plus 239 macOS-focused tests passed",
+        "fullSuite": "3904 passed, 7 skipped, 62 deselected",
+        "lintAndFormatter": "Ruff check and baseline-aware formatter passed",
+        "scopeAuditSummary": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-r7-cp2-baseline-shadow-audit.fig3wmwh/summary.json",
+        "scopeAuditSha256": "34c48c8892486a9165c52c87598f66de0fc04b3ad886f8198957e66773aef3e1",
+        "reviewReport": "tasks/cp2-review-report.md",
+        "result": "CP-2 passed; stop before T-007"
+      },
+      "t007Authorization": {
+        "grantedAt": "2026-08-04T06:42:39Z",
+        "scope": "exact packet-bounded T-007 live canary only",
+        "limits": "exactly five Pi model attempts, one authorized image upload, and a reservation-only sixth denial",
+        "unexecuted": false,
+        "executedAt": "2026-08-04T07:16:59Z",
+        "outcome": "failed",
+        "campaignId": "dfda5c64896349ee856d48016432784c",
+        "receiptPath": ".semantic-evals/pi-backend-canary/dfda5c64896349ee856d48016432784c/receipt.json",
+        "receiptSha256": "a0612e6f99f79df1245c378c32a38bcdea1e4a104d0ca575b07184e872f6445e",
+        "receiptMode": "0600",
+        "receiptValidation": "metadata-only schema validated; no source prompt, model response, image bytes, credential, auth response, or parent session identifier retained",
+        "failureCode": "text_extract_command_failed",
+        "attemptsReserved": 2,
+        "completedAttempts": 1,
+        "retryEvents": 0,
+        "imageUpload": "not dispatched; image stage was not reached",
+        "sixthDenial": "not run; campaign stopped before exhaustion",
+        "outerPi": "required and detected; end-to-end isolation remains unverified after the early stop",
+        "promotion": "blocked",
+        "furtherLiveWork": "no further dispatch is authorized: the one synthetic public Pi --print feasibility probe passed; no Graphify corpus/campaign or other live work is authorized",
+        "retryAuthorization": {
+          "grantedAt": "2026-08-04T07:41:27Z",
+          "scope": "diagnosis and repair limited to the failed T-007 text-extraction path, then at most one fresh matching campaign",
+          "maxAdditionalPiModelAttempts": 5,
+          "model": "openai-codex/gpt-5.6-luna",
+          "thinking": "high",
+          "fixtures": "only the same packet-hashed public-safe fixtures",
+          "imageUpload": "at most one, only the packet-hashed diagram.png",
+          "apiTimeoutSeconds": 540,
+          "maxOutputTokens": 16384,
+          "attemptsReserved": 2,
+          "remainingAttemptCapacity": 3,
+          "result": "failed with text_extract_output_bound",
+          "stopGate": "stop after the retry failure; no further retry without Mase",
+          "promotion": "not authorized"
+        },
+        "retryRepair": {
+          "scope": "T-007 text-extraction failure only",
+          "changedPaths": [
+            "graphify/pi_canary.py",
+            "graphify/llm.py",
+            "scripts/pi_backend_canary.py",
+            "tests/test_pi_canary.py",
+            "tests/test_pi_cli_backend.py"
+          ],
+          "behavior": "pins timeout/output environment, records fixed payload-free failure codes, and accepts the authorized provider-plus-bare-model terminal identity",
+          "validation": "130 focused macOS tests passed; Ruff, primary LSP, current-turn Pi Lens, and fresh read-only review found no blocker",
+          "reviewerResult": "no blocker",
+          "liveResult": "the retry isolated timeout/model identity but text extraction still failed with output_bound"
+        },
+        "retryCampaign": {
+          "executedAt": "2026-08-04T08:09:44Z",
+          "outcome": "failed",
+          "campaignId": "c94107ef1f2f4fd7b4dab1252bd834d3",
+          "receiptPath": ".semantic-evals/pi-backend-canary/c94107ef1f2f4fd7b4dab1252bd834d3/receipt.json",
+          "receiptSha256": "91407a17760d252b491ea5833e1811f3ae488e26d34537cb3af3c0db4cac2dc9",
+          "receiptMode": "0600",
+          "failureCode": "text_extract_output_bound",
+          "attemptsReserved": 2,
+          "completedAttempts": 1,
+          "failedAttempts": 1,
+          "retryEvents": 0,
+          "apiTimeoutSeconds": 540,
+          "maxOutputTokens": 16384,
+          "imageUpload": "not dispatched; image stage was not reached",
+          "sixthDenial": "not run; campaign stopped before exhaustion",
+          "outerPi": "required and detected; end-to-end isolation remains unverified after the early stop",
+          "receiptValidation": "metadata-only schema validated; no source prompt, model response, image bytes, credential, auth response, or parent session identifier retained"
+        },
+        "outputBoundRetryAuthorization": {
+          "grantedAt": "2026-08-04T09:25:04Z",
+          "scope": "canary-only output-budget adjustment and one fresh exact T-007 campaign",
+          "maxAdditionalPiModelAttempts": 5,
+          "model": "openai-codex/gpt-5.6-luna",
+          "thinking": "high",
+          "fixtures": "only the same packet-hashed public-safe fixtures",
+          "imageUpload": "at most one, only the packet-hashed diagram.png",
+          "apiTimeoutSeconds": 540,
+          "maxOutputTokens": 32768,
+          "attemptsReserved": 2,
+          "remainingAttemptCapacity": 3,
+          "result": "failed with text_extract_output_bound",
+          "stopGate": "stop after the campaign failure; no further retry without Mase",
+          "promotion": "not authorized",
+          "review": "fresh read-only review found no blocker; GO for immediate preflight"
+        },
+        "outputBoundRetryCampaign": {
+          "executedAt": "2026-08-04T09:32:24Z",
+          "outcome": "failed",
+          "campaignId": "03d7e4e8f93b4edc8f09f2e3ff427a69",
+          "receiptPath": ".semantic-evals/pi-backend-canary/03d7e4e8f93b4edc8f09f2e3ff427a69/receipt.json",
+          "receiptSha256": "74c9c8312da5608900edb6e4632698bda4c63918e164d6c77525e940e3bf4cc6",
+          "receiptMode": "0600",
+          "failureCode": "text_extract_output_bound",
+          "attemptsReserved": 2,
+          "completedAttempts": 1,
+          "failedAttempts": 1,
+          "retryEvents": 0,
+          "apiTimeoutSeconds": 540,
+          "maxOutputTokens": 32768,
+          "imageUpload": "not dispatched; image stage was not reached",
+          "sixthDenial": "not run; campaign stopped before exhaustion",
+          "outerPi": "required and detected; end-to-end isolation remains unverified after the early stop",
+          "receiptValidation": "metadata-only schema validated; no source prompt, model response, image bytes, credential, auth response, or parent session identifier retained"
+        },
+        "outputBoundSubtypeDiagnosticAuthorization": {
+          "grantedAt": "2026-08-04T11:02:57Z",
+          "scope": "exactly one public-safe text-only Pi call to classify a fixed output-bound subtype",
+          "maxPiModelAttempts": 1,
+          "model": "openai-codex/gpt-5.6-luna",
+          "thinking": "high",
+          "fixtures": "only the packet-hashed public text fixture; no image fixture or upload",
+          "apiTimeoutSeconds": 540,
+          "maxOutputTokens": 32768,
+          "retainedEvidence": "only a sanitized receipt and fixed ledger failure code; no prompts, model output, byte counts, stderr, credentials, image bytes, or session identifiers",
+          "stopGate": "completed after the one diagnostic call; no retry or full campaign without Mase",
+          "promotion": "not authorized",
+          "review": "fresh read-only review found no blocker; GO for immediate preflight",
+          "result": "failed with text_extract_output_stdout_stream",
+          "campaignId": "7555c27a42934451be3d6fd31fd82e96",
+          "receiptPath": ".semantic-evals/pi-output-bound-diagnostic/7555c27a42934451be3d6fd31fd82e96/receipt.json",
+          "receiptSha256": "454bf65b83f49d3c71e0f3d87768d896b6e785b65243acf0bb388fe7309d1071",
+          "receiptMode": "0600"
+        },
+        "outputBoundSubtypeDiagnostic": {
+          "executedAt": "2026-08-04T11:14:40Z",
+          "outcome": "failed",
+          "campaignId": "7555c27a42934451be3d6fd31fd82e96",
+          "receiptPath": ".semantic-evals/pi-output-bound-diagnostic/7555c27a42934451be3d6fd31fd82e96/receipt.json",
+          "receiptSha256": "454bf65b83f49d3c71e0f3d87768d896b6e785b65243acf0bb388fe7309d1071",
+          "receiptMode": "0600",
+          "failureCode": "text_extract_output_stdout_stream",
+          "attemptsReserved": 1,
+          "retryEvents": 0,
+          "apiTimeoutSeconds": 540,
+          "maxOutputTokens": 32768,
+          "imageUpload": "not dispatched; text-only diagnostic",
+          "terminalAssistantEvent": "not reached before stdout-stream bound",
+          "finding": "Pi JSON mode's documented all-session-events stdout protocol is the relevant adapter surface; the receipt retains no raw event data or byte counts"
+        },
+        "printModeFeasibilityProbeAuthorization": {
+          "grantedAt": "2026-08-04T11:27:15Z",
+          "scope": "exactly one synthetic public Pi --print call to verify final-response transport before any Graphify adapter change",
+          "maxPiModelAttempts": 1,
+          "model": "openai-codex/gpt-5.6-luna",
+          "thinking": "high",
+          "prompt": "synthetic public exact-JSON assertion only; no corpus, fixture, image, or attachment",
+          "apiTimeoutSeconds": 540,
+          "maxFinalResponseBytes": 1048576,
+          "session": "disabled",
+          "toolsExtensionsSkills": "disabled",
+          "retainedEvidence": "only a sanitized receipt with pass/fail; no prompt, response, stderr, byte count, credential, or session identifier",
+          "stopGate": "completed after the one probe; no adapter change or further live work without Mase",
+          "promotion": "not authorized",
+          "result": "passed",
+          "receiptPath": ".semantic-evals/pi-print-mode-probe/02148cc1426367b2/receipt.json",
+          "receiptSha256": "02148cc1426367b20872ba9bbe691de9e0a09db51881aff3bc581a4667f4d64c",
+          "receiptMode": "0600"
+        },
+        "printModeFeasibilityProbe": {
+          "executedAt": "2026-08-04T11:30:07Z",
+          "outcome": "passed",
+          "receiptPath": ".semantic-evals/pi-print-mode-probe/02148cc1426367b2/receipt.json",
+          "receiptSha256": "02148cc1426367b20872ba9bbe691de9e0a09db51881aff3bc581a4667f4d64c",
+          "receiptMode": "0600",
+          "model": "openai-codex/gpt-5.6-luna",
+          "thinking": "high",
+          "finding": "Pi --print returned the exact synthetic final JSON through a bounded in-memory final-response check without session/event-stream retention",
+          "attachments": "none",
+          "retryEvents": 0
+        },
+        "forbidden": [
+          "promotion",
+          "global edit",
+          "commit",
+          "install",
+          "push",
+          "propagation"
+        ]
+      },
+      "approvalReceipt": {
+        "approvedAt": "2026-08-03T16:49:49Z",
+        "receiptPath": "/private/var/folders/g2/hj2hdfj16mv46qstgcyf_zxh0000gn/T/graphify-pi-r7-r11-approval.9sofguv4/receipt.json",
+        "receiptSha256": "1068589f663083aa9888a9b45a495c647553b77c66957565149e5540360c5e39",
+        "planDraftSha256": "75488eb5d53017222175e2f1e01a4d3a0cab6ed2ce6b9d3a3d0b59eee1b458a1",
+        "planApprovedSha256": "e444e8f6637d097e8ed066a629b238ed3f603e7e66cb8799f2df88104b6dc7da",
+        "packetDraftSha256": "7a8bd8991f9edd96cc5c6fce5961e373914b8d1a48d33df09b5c7a1585defd24",
+        "packetApprovedSha256": "2a355f1e3db7ec412be72f9b955f1113e0bf76db1a80a312d0aff1afd59dfa57"
+      },
+      "artifacts": [
+        "AGENTS.md",
+        "README.md",
+        "SPEC.md",
+        "tasks/plan.md",
+        "tasks/todo.md",
+        "docs/luna-cli-semantic-evaluation-2026-07-31.md",
+        "docs/semantic-model-quality-harness.md",
+        "docs/mase-fork-operating-model.md",
+        "docs/plans/_doc-reviews/SPEC-peer-review.json",
+        "docs/plans/_peer-reviews/plan-peer-review.json",
+        "docs/plans/autonomous-build-packets/graphify-pi-cli-backend-autonomous-build-packet.md",
+        "docs/plans/_peer-reviews/graphify-pi-cli-backend-autonomous-build-packet-peer-review.json"
+      ],
+      "approvalGates": [
+        "The reviewed revision 8/12 implementation and all associated repair/review pools are completed or closed; historical sidecars preserve reviewed-draft provenance only.",
+        "The T-007, prompt-experiment, prompt A/B, and Pro-versus-Flash call authorities are consumed. No further provider call or retry is authorized by this task.",
+        "deepseek-v4-pro:cloud remains the automatic Ollama text default; deepseek-v4-flash:0731-cloud and Pi/Luna remain explicit candidates only.",
+        "Pi remains explicit, uninstalled from the current source commit, and unpromoted. Automatic Pi-to-Ollama fallback and fabricated provider/model/usage/stop metadata remain prohibited.",
+        "The current evaluator is diagnostic only and cannot authorize prompt, model, image, or promotion decisions.",
+        "Mase authorized the project documentation closeout and local Smart Commit only. Install, active CLI/global skill refresh, push, release, propagation, and external global-guide edits remain separate."
+      ],
+      "lastUpdated": "2026-08-05T11:42:05Z"
+    },
+    "graphify-evaluation-foundation-redesign-2026-08-05": {
+      "title": "Plan a trustworthy semantic evaluation foundation",
+      "status": "ready-for-planning",
+      "currentLane": "planning-and-task-breakdown",
+      "currentPhase": "plan-only-next-step",
+      "enteredLaneBecause": "The Pi and Ollama model investigations exposed a stable precision-versus-recall tradeoff that the current scorer can rank incorrectly. Relationship meaning, hyperedges, representation equivalence, grounded labels, claim-level provenance, hallucination precision, held-out coverage, and repeatability must be redesigned before more prompt/model work or promotion decisions.",
+      "exitCriteria": [
+        "A reviewable plan separates operational safety gates, semantic-fidelity evaluation, and promotion-readiness evidence.",
+        "The plan defines representation-aware branch/hyperedge semantics, relationship meaning, non-compensating privacy/safety gates, grounded labels, claim-level provenance, and general hallucination precision.",
+        "The fixture strategy includes held-out text, code/document, privacy, workflow, and multiple diagram shapes plus paired repeats and blinded qualitative review.",
+        "The plan names migration/re-baseline steps for Pro, Pi/Luna, current/upstream/revised prompts, and a real Ollama vision model without authorizing implementation or provider calls.",
+        "The plan receives the required review and explicit Mase approval before any implementation starts."
+      ],
+      "nextAction": "In a fresh session, read AGENTS.md, docs/mase-fork-operating-model.md, docs/semantic-model-quality-harness.md, tasks/todo.md, and the completed Pi lifecycle task. Draft the evaluation-harness redesign plan only; stop for review and approval before code or calls.",
+      "nextRecommendedLane": "planning-and-task-breakdown",
+      "artifacts": [
+        "AGENTS.md",
+        "docs/mase-fork-operating-model.md",
+        "docs/semantic-model-quality-harness.md",
+        "docs/luna-cli-semantic-evaluation-2026-07-31.md",
+        "tasks/todo.md",
+        "SPEC.md"
+      ],
+      "approvalGates": [
+        "Current authority is documentation closeout and local commit only; it does not authorize creating the redesign plan in this session.",
+        "The next session may draft a plan, but planning does not authorize implementation, prompt edits, fixture mutations, scorer changes, provider calls, model/default changes, installation, or promotion.",
+        "Keep deepseek-v4-pro:cloud automatic and Pi explicit throughout planning.",
+        "Do not use current scorer totals or gates as authoritative acceptance evidence.",
+        "Require a reviewed plan and explicit Mase approval before implementation or live evaluation."
+      ],
+      "lastUpdated": "2026-08-05T11:42:05Z"
     }
   }
 }

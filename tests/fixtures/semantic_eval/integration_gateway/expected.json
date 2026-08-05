@@ -1,4 +1,5 @@
 {
+  "expected_edges_directed": true,
   "required_concepts": [
     {"name": "Integration Gateway", "aliases": ["Gateway Service"], "weight": 1.5},
     {"name": "Provider Client", "aliases": ["ProviderClient"], "weight": 1.5},
@@ -21,7 +22,7 @@
     {"source": "Integration Gateway", "target": "Provider Client", "relation_terms": ["sends", "calls", "owns", "uses"], "weight": 1.5},
     {"source": "Integration Gateway", "target": "Token Budget", "relation_terms": ["applies", "bounds", "uses"], "weight": 1.5},
     {"source": "Integration Gateway", "target": "Retry Envelope", "relation_terms": ["builds", "uses"], "weight": 1.5},
-    {"source": "Provider Client", "target": "Embedding Job", "relation_terms": ["creates", "submits", "returns"]},
+    {"source": "Integration Gateway", "target": "Embedding Job", "relation_terms": ["creates", "submits", "produces"]},
     {"source": "Embedding Job", "target": "Vector Index", "relation_terms": ["writes", "stores", "upserts"], "weight": 1.5},
     {"source": "Vector Index", "target": "Lookup Id", "relation_terms": ["returns", "stores"]},
     {"source": "Trace Event", "target": "Provider Client", "relation_terms": ["connects", "records"]},

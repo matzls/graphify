@@ -183,11 +183,14 @@ Default backend/model policy:
 1. Pass `--model MODEL` only when the user explicitly supplied one.
 2. Otherwise, let `OLLAMA_MODEL` override the model globally.
 3. Otherwise, Graphify's built-in Ollama default is `deepseek-v4-pro:cloud`.
+4. Use the Pi CLI backend only when the user explicitly supplies `--backend pi`;
+   Pi remains unpromoted and must not replace Ollama automatically.
 
-Do not silently switch to Gemini or host-agent extraction because API keys are
-present. If the backend is unavailable, stop and report the `graphify extract`
-error. Agent/subagent semantic extraction is legacy fallback only when the user
-explicitly asks for an agent-native fallback.
+Do not silently switch to Gemini or host-agent extraction because another
+backend is available, and do not silently switch to Pi. If the selected backend
+is unavailable, stop and report the `graphify extract` error. Agent/subagent
+semantic extraction is legacy fallback only when the user explicitly asks for
+an agent-native fallback.
 
 Build the command from the original invocation:
 
@@ -195,6 +198,9 @@ Build the command from the original invocation:
   backend flag.
 - Include `--model <value>` only when the user supplied `--model <value>`; do
   not hardcode DeepSeek V4 Pro.
+- Pass `--allow-image-upload` with `--backend pi` only after the user explicitly
+  authorizes that command's raster upload. Do not infer consent from earlier
+  runs or from the presence of image files.
 - Pass through `--mode deep`, `--directed`, `--whisper-model <value>`, and
   `--no-cluster` when present.
 - If image files were detected and the backend is Ollama without

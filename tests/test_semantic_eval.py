@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest  # type: ignore[import-not-found]
+
 from graphify import semantic_eval
 from graphify.semantic_eval import (
     compare_suite_runs,
@@ -67,6 +69,30 @@ def test_score_graph_cli_outputs_json(tmp_path):
     assert "overall" in payload["scores"]
 
 
+def test_paths_sha256_supports_contracts_outside_suite_root(tmp_path):
+    suite_root = tmp_path / "suite"
+    suite_root.mkdir()
+    external = tmp_path / "external-expected.json"
+    external.write_text("{}", encoding="utf-8")
+
+    digest = semantic_eval._paths_sha256([external], root=suite_root)
+
+    assert len(digest) == 64
+
+
+def test_evaluation_operational_config_records_output_and_context_controls(monkeypatch):
+    monkeypatch.setenv("GRAPHIFY_MAX_OUTPUT_TOKENS", "4096")
+    monkeypatch.setenv("GRAPHIFY_OLLAMA_NUM_CTX", "32768")
+
+    config = semantic_eval._evaluation_operational_config(
+        backend="ollama", model="model", timeout=30, token_budget=1000
+    )
+
+    assert len(config["endpoint_sha256"]) == 64
+    assert config["environment"]["GRAPHIFY_MAX_OUTPUT_TOKENS"] == "4096"
+    assert config["environment"]["GRAPHIFY_OLLAMA_NUM_CTX"] == "32768"
+
+
 def test_score_graph_supports_aliases_edges_forbidden_and_source_coverage():
     result = score_graph(
         FIXTURES / "router_privacy_graph" / "graph.json",
@@ -82,6 +108,325 @@ def test_score_graph_supports_aliases_edges_forbidden_and_source_coverage():
     assert result["scores"]["source_coverage"] == 1.0
     assert result["details"]["missing_expected_edges"] == []
     assert result["details"]["forbidden_concept_hits"] == {}
+
+
+def test_score_graph_expected_edges_inherit_required_concept_aliases(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "gateway", "label": "GatewayService", "source_file": "a.md"},
+                    {"id": "budget", "label": "Token Budget", "source_file": "a.md"},
+                ],
+                "links": [
+                    {
+                        "source": "gateway",
+                        "target": "budget",
+                        "relation": "applies",
+                        "confidence": "EXTRACTED",
+                        "source_file": "a.md",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "required_concepts": [
+                    {
+                        "name": "Integration Gateway",
+                        "aliases": ["Gateway Service", "Gateway Services"],
+                    },
+                    "Token Budget",
+                ],
+                "expected_edges": [
+                    {
+                        "source": "Integration Gateway",
+                        "target": "Token Budget",
+                        "relation_terms": ["applies"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["expected_edge_coverage"] == 1.0
+    assert result["scores"]["expected_edge_relation_agreement"] == 1.0
+    assert result["details"]["missing_expected_edges"] == []
+
+
+def test_score_graph_does_not_inherit_ambiguous_required_aliases(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "alpha", "label": "Alpha", "source_file": "a.md"},
+                    {"id": "target", "label": "Target", "source_file": "a.md"},
+                ],
+                "links": [
+                    {
+                        "source": "alpha",
+                        "target": "target",
+                        "relation": "uses",
+                        "source_file": "a.md",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "required_concepts": [
+                    {"name": "Alpha", "aliases": ["Shared"]},
+                    {"name": "Beta", "aliases": ["Shared"]},
+                    "Target",
+                ],
+                "expected_edges": [
+                    {"source": "Shared", "target": "Target", "relation_terms": ["uses"]}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["expected_edge_coverage"] == 0.0
+    assert result["details"]["missing_expected_edges"]
+
+
+def test_score_graph_does_not_inherit_alias_owned_by_multiple_required_concepts(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "shared", "label": "Shared", "source_file": "a.md"},
+                    {"id": "target", "label": "Target", "source_file": "a.md"},
+                ],
+                "links": [
+                    {
+                        "source": "shared",
+                        "target": "target",
+                        "relation": "uses",
+                        "source_file": "a.md",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "required_concepts": [
+                    {"name": "Alpha", "aliases": ["Shared"]},
+                    {"name": "Beta", "aliases": ["Shared"]},
+                    "Target",
+                ],
+                "expected_edges": [
+                    {"source": "Alpha", "target": "Target", "relation_terms": ["uses"]}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["expected_edge_coverage"] == 0.0
+    assert result["details"]["missing_expected_edges"]
+
+
+def test_score_graph_forbidden_edges_ignore_explicit_negative_relations(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "router", "label": "Message Router", "source_file": "a.md"},
+                    {"id": "mailbox", "label": "Raw Mailbox Export", "source_file": "a.md"},
+                    {"id": "trace", "label": "Trace Event", "source_file": "a.md"},
+                    {"id": "text", "label": "Raw Document Text", "source_file": "a.md"},
+                ],
+                "links": [
+                    {
+                        "source": "router",
+                        "target": "mailbox",
+                        "relation": "must_not_store",
+                        "confidence": "EXTRACTED",
+                        "source_file": "a.md",
+                    },
+                    {
+                        "source": "router",
+                        "target": "mailbox",
+                        "relation": "does_not_store",
+                        "confidence": "EXTRACTED",
+                        "source_file": "a.md",
+                    },
+                    {
+                        "source": "trace",
+                        "target": "text",
+                        "relation": "avoids_logging",
+                        "confidence": "EXTRACTED",
+                        "source_file": "a.md",
+                    },
+                    {
+                        "source": "router",
+                        "target": "text",
+                        "relation": "cannot_store",
+                        "confidence": "EXTRACTED",
+                        "source_file": "a.md",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "forbidden_edges": [
+                    {
+                        "source": "Message Router",
+                        "target": "Raw Mailbox Export",
+                        "relation_terms": ["stores"],
+                    },
+                    {
+                        "source": "Trace Event",
+                        "target": "Raw Document Text",
+                        "relation_terms": ["logs"],
+                    },
+                    {
+                        "source": "Message Router",
+                        "target": "Raw Document Text",
+                        "relation_terms": ["stores"],
+                    },
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["forbidden_edges_absent"] == 1.0
+    assert result["details"]["forbidden_edge_hits"] == []
+
+
+def test_score_graph_required_negative_polarity_rejects_positive_edge(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "router", "label": "Message Router", "source_file": "a.md"},
+                    {"id": "export", "label": "Raw Export", "source_file": "a.md"},
+                ],
+                "links": [
+                    {
+                        "source": "router",
+                        "target": "export",
+                        "relation": "stores",
+                        "source_file": "a.md",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "expected_edges": [
+                    {
+                        "source": "Message Router",
+                        "target": "Raw Export",
+                        "relation_terms": ["must_not_store", "does_not_store"],
+                        "polarity": "negative",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["expected_edge_coverage"] == 0.0
+    assert (
+        result["details"]["missing_expected_edge_diagnostics"][0]["failure_reason"]
+        == "polarity_mismatch"
+    )
+
+
+@pytest.mark.parametrize(
+    ("relation", "term"),
+    [("restores", "stores"), ("recalls", "calls"), ("refuses_to_store", "uses")],
+)
+def test_edge_relation_matching_respects_token_boundaries(relation, term):
+    assert not semantic_eval._edge_relation_matches({"relation": relation}, [term])
+
+
+def test_edge_relation_matching_preserves_exact_negative_auxiliary():
+    assert semantic_eval._edge_relation_matches(
+        {"relation": "does_not_store"},
+        ["does_not_store"],
+        respect_polarity=True,
+    )
+
+
+def test_score_graph_honors_fixture_default_edge_direction(tmp_path):
+    graph = tmp_path / "graph.json"
+    expected = tmp_path / "expected.json"
+    graph.write_text(
+        json.dumps(
+            {
+                "nodes": [
+                    {"id": "source", "label": "Source", "source_file": "a.md"},
+                    {"id": "target", "label": "Target", "source_file": "a.md"},
+                ],
+                "links": [
+                    {
+                        "source": "target",
+                        "target": "source",
+                        "relation": "feeds",
+                        "source_file": "a.md",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    expected.write_text(
+        json.dumps(
+            {
+                "expected_edges_directed": True,
+                "expected_edges": [
+                    {"source": "Source", "target": "Target", "relation_terms": ["feeds"]}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = score_graph(graph, expected)
+
+    assert result["scores"]["expected_edge_coverage"] == 0.0
 
 
 def test_score_graph_folds_plural_and_camelcase_mechanical_variants(tmp_path):
@@ -360,7 +705,8 @@ def test_score_graph_penalizes_degraded_router_graph():
     assert result["scores"]["deduplication"] < 1.0
     assert result["scores"]["expected_edge_coverage"] < 1.0
     assert result["scores"]["forbidden_concepts_absent"] == 0.0
-    assert result["scores"]["forbidden_edges_absent"] == 0.0
+    assert result["scores"]["forbidden_edges_absent"] == 0.333
+    assert len(result["details"]["forbidden_edge_hits"]) == 2
     assert result["scores"]["inferred_confidence_calibration"] == 0.0
     assert "redaction stage" in result["details"]["duplicate_watchlist_hits"]
     assert result["details"]["forbidden_edge_hits"]
@@ -472,6 +818,12 @@ def test_run_harness_stamps_success_and_failure_run_payloads(tmp_path, monkeypat
         raise AssertionError("run_harness success did not write valid JSON") from exc
     assert success["scorer_version"] == semantic_eval.SCORER_VERSION
     assert success_payload["scorer_version"] == semantic_eval.SCORER_VERSION
+    assert len(success_payload["expected_contract_sha256"]) == 64
+    assert len(success_payload["corpus_sha256"]) == 64
+    assert len(success_payload["extraction_prompt_sha256"]) == 64
+    assert success_payload["operational_config"]["backend"] == "ollama"
+    assert success_payload["operational_config"]["token_budget"] == 100
+    assert "available" in success_payload["git_state"]
 
     def fake_failure_cmd(cmd, *, cwd, env, timeout):
         return {"returncode": 1, "elapsed_seconds": 0.0, "stdout": "", "stderr": "boom"}
@@ -499,6 +851,9 @@ def test_run_harness_stamps_success_and_failure_run_payloads(tmp_path, monkeypat
     except json.JSONDecodeError as exc:
         raise AssertionError("run_harness failure did not write valid JSON") from exc
     assert failure_payload["scorer_version"] == semantic_eval.SCORER_VERSION
+    assert len(failure_payload["expected_contract_sha256"]) == 64
+    assert len(failure_payload["corpus_sha256"]) == 64
+    assert len(failure_payload["extraction_prompt_sha256"]) == 64
 
 
 def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, monkeypatch):
@@ -552,6 +907,11 @@ def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, 
     )
 
     assert summary["scorer_version"] == semantic_eval.SCORER_VERSION
+    assert summary["suite_version"] == 3
+    assert len(summary["suite_contract_sha256"]) == 64
+    assert len(summary["suite_corpus_sha256"]) == 64
+    assert len(summary["extraction_prompt_sha256"]) == 64
+    assert summary["operational_config"]["backend"] == "ollama"
     assert summary["scores"]["overall"] == 0.562
     assert summary["profile_scores"]["public-realistic"] == 0.5
     assert summary["profile_scores"]["multimodal"] == 0.5
@@ -569,6 +929,7 @@ def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, 
         }
     ]
     assert not summary["gate_passed"]
+    assert "multimodal profile 0.5 < minimum_profile_score 0.7" in summary["gate_failures"]
     assert summary["total_elapsed_seconds"] == 15.0
     assert summary["total_input_tokens"] == 60
     assert summary["total_output_tokens"] == 120
@@ -576,6 +937,62 @@ def test_run_suite_aggregates_fixture_scores_without_live_model_calls(tmp_path, 
     assert (tmp_path / "suite-run" / "suite-run.json").exists()
     summary_md = (tmp_path / "suite-run" / "SUMMARY.md").read_text(encoding="utf-8")
     assert "## Expected Edge Diagnostics" in summary_md
+
+
+def test_rebaseline_saved_artifacts_applies_current_profile_gate(tmp_path):
+    suite_root = tmp_path / "fixtures"
+    fixture_root = suite_root / "diagram_workflow"
+    fixture_root.mkdir(parents=True)
+    external_expected = tmp_path / "external-diagram-expected.json"
+    external_expected.write_text(
+        json.dumps({"required_concepts": ["Visible Step"]}), encoding="utf-8"
+    )
+    suite_path = suite_root / "suite.json"
+    suite_path.write_text(
+        json.dumps(
+            {
+                "name": "profile-gate-suite",
+                "version": 3,
+                "quality_gate": {
+                    "minimum_overall": 0.0,
+                    "minimum_profile_scores": {"multimodal": 0.7},
+                },
+                "fixtures": [
+                    {
+                        "id": "diagram_workflow",
+                        "corpus": "diagram_workflow",
+                        "expected": str(external_expected.resolve()),
+                        "profiles": ["multimodal"],
+                        "weight": 1.0,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    graph_root = tmp_path / "saved" / "candidate" / "diagram_workflow" / "corpus" / "graphify-out"
+    graph_root.mkdir(parents=True)
+    (graph_root / "graph.json").write_text(
+        json.dumps(
+            {
+                "nodes": [{"id": "other", "label": "Other", "source_file": "diagram.png"}],
+                "links": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (graph_root / ".graphify_labels.json").write_text("{}", encoding="utf-8")
+
+    payload = semantic_eval.rebaseline_saved_artifacts(
+        tmp_path / "saved", suite_path, tmp_path / "rebaseline"
+    )
+
+    run = next(item for item in payload["runs"] if item["run_id"] == "candidate")
+    assert not run["quality_gate_current"]["passed"]
+    assert run["quality_gate_current"]["failures"] == [
+        "multimodal profile 0.0 < minimum_profile_score 0.7"
+    ]
 
 
 def test_run_suite_passes_calibrated_gate_at_floor(tmp_path, monkeypatch):
@@ -805,6 +1222,48 @@ def test_compare_suite_runs_warns_when_scorer_versions_differ(tmp_path):
     assert comparison["baseline"]["scorer_version"] == 1
     assert comparison["candidate"]["scorer_version"] == 2
     assert comparison["warnings"] == ["scorer_version mismatch: baseline=1, candidate=2"]
+
+
+def test_compare_suite_runs_warns_when_contract_or_prompt_fingerprints_differ(tmp_path):
+    baseline = tmp_path / "baseline.json"
+    candidate = tmp_path / "candidate.json"
+    baseline.write_text(
+        json.dumps(
+            {
+                "scorer_version": 3,
+                "suite_version": 3,
+                "suite_contract_sha256": "a" * 64,
+                "suite_corpus_sha256": "b" * 64,
+                "extraction_prompt_sha256": "c" * 64,
+                "scores": {"overall": 0.5},
+                "fixtures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    candidate.write_text(
+        json.dumps(
+            {
+                "scorer_version": 3,
+                "suite_version": 4,
+                "suite_contract_sha256": "d" * 64,
+                "suite_corpus_sha256": "e" * 64,
+                "extraction_prompt_sha256": "f" * 64,
+                "scores": {"overall": 0.75},
+                "fixtures": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    comparison = compare_suite_runs(baseline, candidate)
+
+    assert comparison["warnings"] == [
+        "suite_version mismatch: baseline=3, candidate=4",
+        f"suite_contract_sha256 mismatch: baseline={'a' * 64!r}, candidate={'d' * 64!r}",
+        f"suite_corpus_sha256 mismatch: baseline={'b' * 64!r}, candidate={'e' * 64!r}",
+        f"extraction_prompt_sha256 mismatch: baseline={'c' * 64!r}, candidate={'f' * 64!r}",
+    ]
 
 
 def test_compare_cli_writes_json_and_markdown(tmp_path):

@@ -1,0 +1,297 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-e8618b716a55",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/autonomous-build-packets/graphify-pi-cli-backend-autonomous-build-packet.md",
+  "plan_sha256": "32bd60ea5a349f7ae00d4c1f03490fb23f28da5a20bccc46721f043c2b7ec68a",
+  "mode": "workflow-plan-gate",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews",
+  "engine": "GPT",
+  "requested_engine": "codex",
+  "origin_runtime": "codex",
+  "engine_policy": "explicit",
+  "resolved_primary_engine": "codex",
+  "preferred_engine": "codex",
+  "fallback_engine": null,
+  "final_engine": "codex",
+  "reviewer_match": "same_model_fallback",
+  "gate_quality": "degraded_fallback",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews/graphify-pi-cli-backend-autonomous-build-packet-peer-review.json",
+  "fallback_used": false,
+  "fallback_reason": null,
+  "attempt_chain": [
+    {
+      "engine": "codex",
+      "phase": "primary",
+      "result": "completed",
+      "returncode": 0
+    }
+  ],
+  "attempt_failures": [],
+  "primary_failure": null,
+  "fallback_failure": null,
+  "codex_sandbox": "read-only",
+  "review_round": 1,
+  "max_rounds": 3,
+  "prior_review_id": "None",
+  "caller_disposition_summary": "Recovery attempt 1 reached Codex but its output failed semantic-quality validation because all rubric dispositions were insubstantial and it omitted explicit addressed-issue closure. No document defect was reported and no planning text changed. Lifecycle now records Codex recovery 1 used/2 remaining while the packet remains byte-identical. This attempt must provide substantial evidence-backed rubric dispositions and explicit prior-round closure while rechecking the budget-only amendment.",
+  "addressed_issues": [
+    "Codex recovery attempt 1 output had insubstantial rubric-card dispositions",
+    "Codex recovery attempt 1 omitted explicit closure for caller-carried budget issues"
+  ],
+  "deferred_issues": [],
+  "recheck_requests": [
+    "For each exact addressed issue, emit explicit complete or rejected closure with concrete evidence",
+    "For each rubric card, give at least two evidence-backed sentences naming files or sections",
+    "Confirm current SPEC plan todo and packet hashes",
+    "Confirm all four pools and lifecycle counts align",
+    "Confirm implementation reserve remains unavailable before approval and activation",
+    "Confirm no non-budget contract or authority changed"
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "verdict": "Sound",
+  "stance": null,
+  "issues_count": 0,
+  "ran_at": "2026-08-04T16:14:54.791479+00:00",
+  "raw_review_excerpt": "complete: The exact current hashes match across the packet, linked artifacts, lifecycle state, and failed attempt-1 sidecar: SPEC c5ff59f8b6ae2aeead74f8a65707cf9f4b1c35eb90784d473a69908f765d742c; plan 1103e612c6968586551eccbf074c6a230b3fa2b7750254612ed13abac9f70f22; todo 2230eb6576bbb8e6a25111757f4c16292bb2fb7821c7e17a4bf8bb1068b71b98; packet 32bd60ea5a349f7ae00d4c1f03490fb23f28da5a20bccc46721f043c2b7ec68a. The four non-borrowable pools align: planning 5/5 consumed; Claude amendment 1/1 consumed with claude_session_limit; Codex recovery 1/3 consumed before this attempt, with a mandatory stop after the first proceedable sidecar; implementation review 0/5 consumed and unavailable until separate pair approval plus offline activation. Current authority remains planning-only: approval is pending, activation is pending, approval/live scopes are empty, and T-007, implementation, promotion, global/install, commit, push, and propagation authority remain inactive. simplify/remove: none. defer: implementation and live verification remain behind their existing gates. reject: borrowing between pools, Claude fallback, spending the implementation reserve now, or using another recovery attempt aft\u2026",
+  "error": null,
+  "closure_verification": "All exact caller-carried issues are resolved. Attempt-1\u2019s two output-quality failures are confirmed by the canonical sidecar and corrected here; the four carried budget/authority claims are independently verified against packet \u00a77, linked plan/SPEC/todo sections, and lifecycle state. No document finding remains open or unproven.",
+  "prior_round_closure": [
+    {
+      "title": "Codex recovery attempt 1 output had insubstantial rubric-card dispositions",
+      "severity": "WARN",
+      "caller_claim": "Codex recovery attempt 1 output had insubstantial rubric-card dispositions",
+      "verification_status": "resolved",
+      "verification_notes": "The canonical attempt-1 sidecar attempt_chain explicitly reports rubric_cards[0..2].disposition:insubstantial. This result resolves that output defect: every rubric disposition contains multiple evidence-backed sentences naming packet \u00a77, lifecycle revision8Planning, and the exact planning 5/5, Claude 1/1 with claude_session_limit, recovery 1/3 pre-attempt, and implementation 0/5 counts."
+    },
+    {
+      "title": "Codex recovery attempt 1 omitted explicit closure for caller-carried budget issues",
+      "severity": "WARN",
+      "caller_claim": "Codex recovery attempt 1 omitted explicit closure for caller-carried budget issues",
+      "verification_status": "resolved",
+      "verification_notes": "The canonical attempt-1 sidecar reports prior_round_closure:missing_addressed_issue. This prior_round_closure explicitly dispositions both exact caller-supplied output issues and the four exact sidecar addressed_issues, with evidence from packet \u00a77 and lifecycle revision8Planning."
+    },
+    {
+      "title": "Recorded the consumed Claude amendment attempt and its session-limit failure",
+      "severity": "NOTE",
+      "caller_claim": "Recorded the consumed Claude amendment attempt and its session-limit failure",
+      "verification_status": "resolved",
+      "verification_notes": "Lifecycle revision8Planning.budgetAmendmentReviewCalls records authorized 1, used 1, remaining 0, outcome failed-to-run-claude-session-limit, and no fallback. Packet \u00a77 independently states that the Claude amendment pool is exhausted at 1/1 with claude_session_limit and no findings."
+    },
+    {
+      "title": "Added a separate three-attempt explicit-Codex recovery pool",
+      "severity": "NOTE",
+      "caller_claim": "Added a separate three-attempt explicit-Codex recovery pool",
+      "verification_status": "resolved",
+      "verification_notes": "Packet \u00a77 defines a separate maximum of three explicit Codex recovery attempts, forbids Claude fallback and borrowing, and requires stopping after the first proceedable sidecar. Lifecycle revision8Planning.codexBudgetAmendmentRecoveryCalls records authorized 3, used 1, remaining 2 before this attempt."
+    },
+    {
+      "title": "Kept the five-attempt implementation-review reserve at zero used and unavailable before approval plus activation",
+      "severity": "NOTE",
+      "caller_claim": "Kept the five-attempt implementation-review reserve at zero used and unavailable before approval plus activation",
+      "verification_status": "resolved",
+      "verification_notes": "Lifecycle revision8Planning.implementationReviewCalls records authorized 5, used 0, remaining 5 and says the pool is unavailable before separate r12 approval and offline activation. Packet \u00a77 and plan \u00a7Linked Review And Approval Handoff repeat that the 0/5 reserve cannot be borrowed for planning or amendment review."
+    },
+    {
+      "title": "Preserved all non-budget contracts and authority gates",
+      "severity": "NOTE",
+      "caller_claim": "Preserved all non-budget contracts and authority gates",
+      "verification_status": "resolved",
+      "verification_notes": "Packet frontmatter remains draft with empty approval_scope and pending activation; plan frontmatter remains draft with empty approval_scope and live_scope_approved; SPEC Approval Boundary grants no implementation or live authority. Packet \u00a7\u00a76, 7, 10, 13, and 14, plan Linked Review And Approval Handoff, todo Authority Boundaries, and lifecycle revision8Planning all preserve separate implementation, T-007, promotion, global/install, commit, push, and propagation gates."
+    }
+  ],
+  "rerun_recommendation": "stop",
+  "review": {
+    "mode": "workflow-plan-gate",
+    "summary": "complete: The exact current hashes match across the packet, linked artifacts, lifecycle state, and failed attempt-1 sidecar: SPEC c5ff59f8b6ae2aeead74f8a65707cf9f4b1c35eb90784d473a69908f765d742c; plan 1103e612c6968586551eccbf074c6a230b3fa2b7750254612ed13abac9f70f22; todo 2230eb6576bbb8e6a25111757f4c16292bb2fb7821c7e17a4bf8bb1068b71b98; packet 32bd60ea5a349f7ae00d4c1f03490fb23f28da5a20bccc46721f043c2b7ec68a. The four non-borrowable pools align: planning 5/5 consumed; Claude amendment 1/1 consumed with claude_session_limit; Codex recovery 1/3 consumed before this attempt, with a mandatory stop after the first proceedable sidecar; implementation review 0/5 consumed and unavailable until separate pair approval plus offline activation. Current authority remains planning-only: approval is pending, activation is pending, approval/live scopes are empty, and T-007, implementation, promotion, global/install, commit, push, and propagation authority remain inactive. simplify/remove: none. defer: implementation and live verification remain behind their existing gates. reject: borrowing between pools, Claude fallback, spending the implementation reserve now, or using another recovery attempt after this proceedable result. escalate: none.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "Packet \u00a72 Governing Linked Package, \u00a77 Peer-Review Call Budgets, and \u00a714 Operative Draft Handoff; lifecycle revision8Planning; plan Linked Review And Approval Handoff; SPEC Revision 8 Transport Amendment Status and Approval Boundary.",
+        "claim": "All load-bearing hash, budget, stop, and authority claims are directly anchored to inspected canonical files, with prior-round conversation claims kept separate.",
+        "evidence": "Read-only SHA-256 checks produced SPEC c5ff59f8\u2026, plan 1103e612\u2026, todo 2230eb65\u2026, and packet 32bd60ea\u2026; lifecycle records those exact values. Packet \u00a77 and lifecycle record planning 5/5, Claude 1/1 with claude_session_limit, Codex recovery 1/3 before attempt 2, and implementation review 0/5.",
+        "disposition": "Complete: Packet \u00a77 Peer-Review Call Budgets and lifecycle revision8Planning agree on planning 5/5 consumed, Claude amendment 1/1 consumed with claude_session_limit, Codex recovery 1/3 consumed before this attempt, and implementation review 0/5 consumed. Complete: plan \u00a7Linked Review And Approval Handoff and packet \u00a714 preserve those exact 5/5, 1/1, 1/3, and 0/5 boundaries while keeping approval, activation, T-007, and every non-budget authority separate."
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "Packet \u00a77 Linked Review Gate and Peer-Review Call Budgets; lifecycle currentPhase, nextAction, and revision8Planning; attempt-1 canonical sidecar attempt_chain.",
+        "claim": "The current artifact state, caller claims, and reviewed campaign slice are explicitly separated and dispositioned without treating the failed prior output as a document defect.",
+        "evidence": "The attempt-1 sidecar reports structured_output_quality_invalid for three insubstantial rubric dispositions and missing addressed-issue closure. Lifecycle classifies that result as a reviewer-output failure, records 1/3 recovery attempts used, and preserves 0/5 implementation-review use.",
+        "disposition": "Complete: Packet \u00a77 and lifecycle revision8Planning support the artifact row with planning 5/5, Claude 1/1 with claude_session_limit, recovery 1/3 before attempt 2, and implementation reserve 0/5. Complete: the sidecar attempt_chain and lifecycle currentPhase support the conversation/campaign rows with the same exact 5/5, 1/1, 1/3, and 0/5 counts, while missing full-campaign evidence is explicitly excluded rather than inferred."
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "Current r8/r12 packet and linked SPEC/plan/todo, lifecycle budget state, attempt-1 sidecar, and directly implicated Pi/Ollama source and tests.",
+        "claim": "This review covers the current budget-only recovery slice and freeze readiness, not the entire historical Pi campaign or future implementation/live execution.",
+        "evidence": "The packet\u2019s current verify commands and referenced paths were inspected; every listed writer/validation path exists. graphify/llm.py currently uses --mode json with --print and event parsing, while detect_backend() returns ollama and corresponding tests assert that default, confirming the planned owner boundary and Ollama-preservation assumption.",
+        "disposition": "Complete for this slice: packet \u00a77 and lifecycle revision8Planning establish planning 5/5 consumed, Claude amendment 1/1 consumed with claude_session_limit, Codex recovery 1/3 consumed before this attempt, and implementation review 0/5 consumed. Slice-only: packet \u00a7\u00a79\u201310 and plan CP-2/T-007 were inspected for gates and verify-command realism, but the exact 5/5, 1/1, 1/3, and 0/5 budget review did not replay historical r7/r11 work, run implementation checks, or enter the separately gated live campaign."
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "accept: hashes, gates, and counts align",
+          "limit: historical delta inferred from current state",
+          "none: no freeze-critical artifact gap"
+        ],
+        [
+          "use: exact caller issues verified",
+          "limit: supplied prior-round slice only",
+          "exclude: unavailable full thread"
+        ],
+        [
+          "accept: recovery-attempt state verified",
+          "scope: budget-amendment slice only",
+          "exclude: implementation and live campaign"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": true,
+      "sources": [
+        "User-supplied PRIOR ROUND CONTEXT, review round 1/3",
+        "User-supplied Caller disposition summary",
+        "User-supplied Caller-claimed addressed issues",
+        "User-supplied Explicit re-check requests"
+      ],
+      "summary": "The caller\u2019s claims were treated as hypotheses. The two attempt-1 output defects were verified against the canonical sidecar, while hashes, budgets, stop behavior, and authority were independently verified against the current packet, linked artifacts, lifecycle state, and source.",
+      "gaps": [
+        "The full earlier conversation and raw provider outputs were not supplied.",
+        "Conversation evidence was not used as authority for current file state."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "Current SPEC r8, plan r8, todo r8, and packet r12 hash alignment",
+        "Recovery attempt-1 failure and attempt-2 pre-state",
+        "All four non-borrowable budget pools",
+        "Stop-after-first-proceedable-sidecar rule",
+        "Approval, activation, implementation-reserve, T-007, and non-budget authority gates",
+        "Verify-command specificity and existence of referenced source/test paths",
+        "Current Pi event-adapter and Ollama-default code reality"
+      ],
+      "missing": [
+        "Full r7/r11 planning and implementation history",
+        "Earlier raw peer-review/provider transcripts",
+        "Execution of CP-1, CP-2, builds, tests, linters, LSP, or Pi Lens",
+        "T-007 live campaign and promotion work"
+      ],
+      "gaps": [
+        "This review establishes freeze readiness for the budget-only linked amendment, not full-campaign completion.",
+        "Historical pre-amendment bytes were not separately available for a direct byte-diff; current authority was instead cross-checked across all authoritative current artifacts."
+      ]
+    },
+    "issues": [],
+    "verification_gaps": [
+      "No builds, tests, linters, package-manager commands, or provider calls were run, as required; implementation verify commands were assessed textually and their referenced paths were checked for existence.",
+      "No full historical-campaign replay was performed.",
+      "Graphify derived artifacts were not needed because the canonical packet, linked artifacts, lifecycle state, sidecar, source, and tests were directly available."
+    ],
+    "recommended_fixes": [],
+    "evidence_sources": [
+      "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/autonomous-build-packets/graphify-pi-cli-backend-autonomous-build-packet.md \u00a7\u00a72, 4, 7, 9, 10, 12, 14",
+      "/Users/mase/Codebase/Personal-Projects/graphify/SPEC.md Revision 8 Transport Amendment Status and Approval Boundary",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tasks/plan.md frontmatter, task verification sections, CP-1, CP-2, and Linked Review And Approval Handoff",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tasks/todo.md Planning And Approval Gates and Authority Boundaries",
+      "/Users/mase/Codebase/Personal-Projects/graphify/.agent-skills/lifecycle-state.json graphify-pi-cli-backend-2026-07-31.revision8Planning",
+      "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews/graphify-pi-cli-backend-autonomous-build-packet-peer-review.json attempt_chain, addressed_issues, and recheck_requests",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/llm.py Pi command construction and detect_backend",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_pi_cli_backend.py and tests/test_llm_backends.py Ollama-default assertions",
+      "Read-only git status, HEAD, index, active-operation checks, SHA-256 calculations, searches, and file reads"
+    ],
+    "error": null,
+    "verdict": "Sound",
+    "workflow_compliance": [
+      "Packet \u00a77 correctly assigns budget ownership to lifecycle state and makes all four pools independent and non-borrowable.",
+      "Lifecycle state records planning 5/5, Claude amendment 1/1 with claude_session_limit, Codex recovery 1/3 before this attempt, and implementation review 0/5.",
+      "Packet \u00a77 requires stopping after the first proceedable current sidecar, forbids Claude fallback and borrowing, and stops for Mase if all three Codex attempts fail.",
+      "Packet, plan, SPEC, todo, and lifecycle all keep pair approval, offline activation, T-007, and promotion as separate gates.",
+      "The current branch is mase/local-fixes at HEAD 8cac3a75fb5d13b584dc2c31c673d22140158499; the index is clean and no active Git operation marker was found.",
+      "The plan supplies focused task checks, CP-1/CP-2 commands, a broader offline macOS gate, diagnostics, review, and dirty-overlap checks; no material Exit Criteria or Verify Command gap was found."
+    ],
+    "technical_reality": [
+      "The computed SPEC, plan, todo, and packet hashes exactly match lifecycle state and the packet\u2019s linked-hash fields; the failed attempt-1 sidecar also targets packet hash 32bd60ea5a349f7ae00d4c1f03490fb23f28da5a20bccc46721f043c2b7ec68a.",
+      "graphify/llm.py currently launches Pi with --mode json and --print and processes JSON events, so the planned print-only transport replacement addresses a verified current owner gap.",
+      "graphify/llm.py detect_backend() currently returns ollama, and tests/test_pi_cli_backend.py plus tests/test_llm_backends.py assert that default, supporting the plan\u2019s Ollama-preservation boundary.",
+      "Every listed implementation-writer and validation-only path exists.",
+      "Current plan and packet approval fields remain null/empty, implementation activation is pending, live scope is empty, and lifecycle explicitly says approval pending, implementation not authorized, and T-007 not authorized.",
+      "No current canonical artifact activates or broadens any non-budget authority. The budget amendment changes review-call accounting only in effect; implementation, repair, live, promotion, global, install, commit, push, and propagation remain gated."
+    ],
+    "assumptions_to_verify": [
+      "Immediately before future activation, recheck branch, HEAD, clean index, Git-operation state, approved hashes, linked sidecar, explicit activation, and allowlist-family stability as packet \u00a74 requires.",
+      "The caller must record this current attempt as the second consumed Codex recovery attempt after accepting the sidecar; the inspected pre-attempt state correctly remains 1/3.",
+      "Implementation-review availability must remain false until both explicit pair approval and separate offline activation occur.",
+      "Implementation-time availability of uv, pytest, ruff, LSP, and Pi Lens remains to be verified when those gated commands are actually run."
+    ],
+    "verification_sufficiency": [
+      "Sufficient for the budget-only workflow-plan gate: authoritative hashes, lifecycle counts, sidecar failure, authority fields, stop rules, verify commands, path existence, and directly implicated code reality were inspected.",
+      "The plan\u2019s implementation verification envelope is proportionate: focused owner tests, CP-1/CP-2, one broader offline suite, diagnostics, combined review, and scoped dirty-work comparison.",
+      "No additional mechanism or review cycle is justified because no BLOCK, WARN, or NOTE-level artifact defect remains."
+    ],
+    "downstream_risks": [
+      "If the controller fails to record attempt 2 as consumed, lifecycle accounting will become stale even though this review is proceedable.",
+      "Using the remaining third recovery attempt after accepting this result would violate the stop-after-first-proceedable-sidecar rule.",
+      "Treating pair approval as implementation activation, or offline activation as T-007 authority, would cross explicit non-budget gates.",
+      "The intentionally dirty worktree still requires the packet\u2019s pre-writer baseline and scoped overlap archive before any activated writer begins."
+    ],
+    "freeze_recommendation": "Safe to freeze. No blocker-level issues were identified.",
+    "prior_round_closure": [
+      {
+        "title": "Codex recovery attempt 1 output had insubstantial rubric-card dispositions",
+        "severity": "WARN",
+        "caller_claim": "Codex recovery attempt 1 output had insubstantial rubric-card dispositions",
+        "verification_status": "resolved",
+        "verification_notes": "The canonical attempt-1 sidecar attempt_chain explicitly reports rubric_cards[0..2].disposition:insubstantial. This result resolves that output defect: every rubric disposition contains multiple evidence-backed sentences naming packet \u00a77, lifecycle revision8Planning, and the exact planning 5/5, Claude 1/1 with claude_session_limit, recovery 1/3 pre-attempt, and implementation 0/5 counts."
+      },
+      {
+        "title": "Codex recovery attempt 1 omitted explicit closure for caller-carried budget issues",
+        "severity": "WARN",
+        "caller_claim": "Codex recovery attempt 1 omitted explicit closure for caller-carried budget issues",
+        "verification_status": "resolved",
+        "verification_notes": "The canonical attempt-1 sidecar reports prior_round_closure:missing_addressed_issue. This prior_round_closure explicitly dispositions both exact caller-supplied output issues and the four exact sidecar addressed_issues, with evidence from packet \u00a77 and lifecycle revision8Planning."
+      },
+      {
+        "title": "Recorded the consumed Claude amendment attempt and its session-limit failure",
+        "severity": "NOTE",
+        "caller_claim": "Recorded the consumed Claude amendment attempt and its session-limit failure",
+        "verification_status": "resolved",
+        "verification_notes": "Lifecycle revision8Planning.budgetAmendmentReviewCalls records authorized 1, used 1, remaining 0, outcome failed-to-run-claude-session-limit, and no fallback. Packet \u00a77 independently states that the Claude amendment pool is exhausted at 1/1 with claude_session_limit and no findings."
+      },
+      {
+        "title": "Added a separate three-attempt explicit-Codex recovery pool",
+        "severity": "NOTE",
+        "caller_claim": "Added a separate three-attempt explicit-Codex recovery pool",
+        "verification_status": "resolved",
+        "verification_notes": "Packet \u00a77 defines a separate maximum of three explicit Codex recovery attempts, forbids Claude fallback and borrowing, and requires stopping after the first proceedable sidecar. Lifecycle revision8Planning.codexBudgetAmendmentRecoveryCalls records authorized 3, used 1, remaining 2 before this attempt."
+      },
+      {
+        "title": "Kept the five-attempt implementation-review reserve at zero used and unavailable before approval plus activation",
+        "severity": "NOTE",
+        "caller_claim": "Kept the five-attempt implementation-review reserve at zero used and unavailable before approval plus activation",
+        "verification_status": "resolved",
+        "verification_notes": "Lifecycle revision8Planning.implementationReviewCalls records authorized 5, used 0, remaining 5 and says the pool is unavailable before separate r12 approval and offline activation. Packet \u00a77 and plan \u00a7Linked Review And Approval Handoff repeat that the 0/5 reserve cannot be borrowed for planning or amendment review."
+      },
+      {
+        "title": "Preserved all non-budget contracts and authority gates",
+        "severity": "NOTE",
+        "caller_claim": "Preserved all non-budget contracts and authority gates",
+        "verification_status": "resolved",
+        "verification_notes": "Packet frontmatter remains draft with empty approval_scope and pending activation; plan frontmatter remains draft with empty approval_scope and live_scope_approved; SPEC Approval Boundary grants no implementation or live authority. Packet \u00a7\u00a76, 7, 10, 13, and 14, plan Linked Review And Approval Handoff, todo Authority Boundaries, and lifecycle revision8Planning all preserve separate implementation, T-007, promotion, global/install, commit, push, and propagation gates."
+      }
+    ],
+    "closure_verification": "All exact caller-carried issues are resolved. Attempt-1\u2019s two output-quality failures are confirmed by the canonical sidecar and corrected here; the four carried budget/authority claims are independently verified against packet \u00a77, linked plan/SPEC/todo sections, and lifecycle state. No document finding remains open or unproven.",
+    "rerun_recommendation": "stop"
+  }
+}

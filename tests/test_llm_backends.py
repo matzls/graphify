@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
+import pytest  # type: ignore[import-not-found]
 
 from graphify import llm
 
@@ -1303,6 +1303,27 @@ def test_native_extraction_prompt_requests_hyperedges():
         )
 
 
+def test_native_extraction_prompt_requests_selective_polarity_preserving_graphs():
+    root = Path(__file__).resolve().parents[1]
+    prompts = [
+        llm._EXTRACTION_SYSTEM.lower(),
+        (root / "tools/skillgen/fragments/references/shared/extraction-spec.md")
+        .read_text(encoding="utf-8")
+        .lower(),
+        (root / "tools/skillgen/fragments/references/shared/extraction-spec-compact.md")
+        .read_text(encoding="utf-8")
+        .lower(),
+    ]
+
+    for prompt in prompts:
+        assert "compact graph" in prompt
+        assert "named policies" in prompt
+        assert "document-root" in prompt
+        assert "must_not_store" in prompt
+        assert "never invert" in prompt
+        assert "precise lifecycle" in prompt
+
+
 def test_native_extraction_prompt_matches_skill_spec_on_hyperedges():
     """Both extraction paths share the same hyperedge contract (the '3 or more
     nodes … participate together' rule), so a corpus yields the same hyperedge
@@ -1480,7 +1501,7 @@ def test_openai_compat_client_built_with_retries(monkeypatch):
             )
 
     fake_module = types.ModuleType("openai")
-    fake_module.OpenAI = _FakeOpenAI
+    setattr(fake_module, "OpenAI", _FakeOpenAI)
     monkeypatch.setitem(sys.modules, "openai", fake_module)
     monkeypatch.delenv("GRAPHIFY_MAX_RETRIES", raising=False)
 
@@ -1516,7 +1537,7 @@ def test_call_llm_claude_client_built_with_timeout_and_retries(monkeypatch):
             self.messages = _FakeMessages()
 
     fake_module = types.ModuleType("anthropic")
-    fake_module.Anthropic = _FakeAnthropic
+    setattr(fake_module, "Anthropic", _FakeAnthropic)
     monkeypatch.setitem(sys.modules, "anthropic", fake_module)
     monkeypatch.setattr(llm, "_get_backend_api_key", lambda _b: "fake-key")
     monkeypatch.setenv("GRAPHIFY_API_TIMEOUT", "1")
@@ -1544,7 +1565,7 @@ def test_call_llm_openai_compat_client_built_with_timeout_and_retries(monkeypatc
             return _fake_openai_response("ok", finish_reason="stop", completion_tokens=1)
 
     fake_module = types.ModuleType("openai")
-    fake_module.OpenAI = _FakeOpenAI
+    setattr(fake_module, "OpenAI", _FakeOpenAI)
     monkeypatch.setitem(sys.modules, "openai", fake_module)
     monkeypatch.setattr(llm, "_get_backend_api_key", lambda _b: "fake-key")
     monkeypatch.setenv("GRAPHIFY_API_TIMEOUT", "1")

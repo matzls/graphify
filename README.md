@@ -554,6 +554,8 @@ These are needed for **headless / CI extraction** (`graphify extract`) and CLI-f
 | `MOONSHOT_API_KEY` | Kimi Code backend | `--backend kimi` |
 | `OLLAMA_BASE_URL` | Ollama local inference URL | `--backend ollama` (default: `http://localhost:11434`) |
 | `OLLAMA_MODEL` | Ollama model name | `--backend ollama` (default in Mase's fork: `deepseek-v4-pro:cloud`) |
+| `GRAPHIFY_PI_MODEL` | Requested Pi model | optional for explicit `--backend pi` (default: `openai-codex/gpt-5.6-luna`) |
+| `GRAPHIFY_PI_THINKING` | Requested Pi thinking level | optional for explicit `--backend pi` (default: `high`) |
 | `GRAPHIFY_OLLAMA_NUM_CTX` | Override Ollama KV-cache window size | optional — auto-sized by default |
 | `GRAPHIFY_OLLAMA_KEEP_ALIVE` | Minutes to keep Ollama model loaded | optional — set `0` to unload after each chunk |
 | `AZURE_OPENAI_API_KEY` | Azure OpenAI Service backend | `--backend azure` |
@@ -582,10 +584,10 @@ These are needed for **headless / CI extraction** (`graphify extract`) and CLI-f
 
 - **Code files** — processed locally via tree-sitter. Nothing leaves your machine. A code-only corpus requires no API key — `graphify extract` runs fully offline. On a mixed repo, add `--code-only` to index just the code and skip the docs/PDFs/images that would otherwise need an LLM.
 - **Video / audio** — transcribed locally with faster-whisper. Nothing leaves your machine.
-- **Docs, PDFs, images** — sent to your AI assistant for semantic extraction (via the `/graphify` skill, using whatever model your IDE session runs). Headless `graphify extract` requires `GEMINI_API_KEY` / `GOOGLE_API_KEY` (Gemini), `MOONSHOT_API_KEY` (Kimi), `ANTHROPIC_API_KEY` (Claude), `OPENAI_API_KEY` (OpenAI), `DEEPSEEK_API_KEY` (DeepSeek), a running Ollama instance (`OLLAMA_BASE_URL`), AWS credentials via the standard provider chain (Bedrock - no API key needed, uses IAM), or the `claude` CLI binary (Claude Code - no API key needed, uses your Claude subscription). The `--dedup-llm` flag uses the same key.
-- **Data residency** — `graphify extract` auto-detects which provider to use based on which API key is set (priority: Gemini → Kimi → Claude → OpenAI → DeepSeek → Azure → Bedrock → Ollama). For code with data-residency requirements, use `--backend ollama` (fully local) or pass an explicit `--backend` flag. Kimi (`MOONSHOT_API_KEY`) routes to Moonshot AI servers in China.
+- **Docs, PDFs, images** — sent to the selected semantic backend. Headless `graphify extract` supports API-key backends, Ollama, AWS Bedrock, Claude CLI, and the explicit Pi CLI backend. Pi uses the existing authenticated Pi session; raster pixels are sent only with `--allow-image-upload`. The `--dedup-llm` flag uses the selected backend.
+- **Data residency** — bare `graphify extract` selects Ollama; hosted API keys do not change the automatic backend. Other providers require an explicit `--backend` selection. Ollama is fully local only when its endpoint and selected model are local; cloud tags such as `deepseek-v4-pro:cloud` leave the machine through Ollama Cloud. Explicit Pi runs use Pi's hosted authenticated provider. Choose an explicit local endpoint/model for data-residency requirements.
 - **No telemetry**, no usage tracking, no analytics.
-- **Query logging** — every `graphify query`, `graphify path`, `graphify explain`, and MCP `query_graph` call is logged to `~/.cache/graphify-queries.log` in JSON Lines format (timestamp, question, corpus, nodes returned, duration). Full subgraph responses are **not** stored by default. Set `GRAPHIFY_QUERY_LOG_DISABLE=1` to opt out, or `GRAPHIFY_QUERY_LOG=/dev/null` to silence without disabling the code path.
+- **Query logging** — local query logging is off by default. Set `GRAPHIFY_QUERY_LOG_ENABLE=1` or `GRAPHIFY_QUERY_LOG=<path>` to record query/path/explain and MCP query metadata. Full subgraph responses remain off unless `GRAPHIFY_QUERY_LOG_RESPONSES=1` is also set.
 
 ---
 
@@ -782,9 +784,11 @@ graphify antigravity install       # .agents/rules + .agents/workflows (Google A
 graphify antigravity uninstall
 
 graphify extract ./docs                        # headless LLM extraction for CI (no IDE needed)
-graphify extract ./docs --backend gemini       # explicit backend: gemini, kimi, claude, openai, deepseek, ollama, bedrock, or claude-cli
+graphify extract ./docs --backend gemini       # explicit backend: gemini, kimi, claude, openai, deepseek, ollama, bedrock, claude-cli, or pi
 graphify extract ./docs --backend gemini --model gemini-3.1-pro-preview
-graphify extract ./docs --backend ollama       # local/default Ollama; model is --model > OLLAMA_MODEL > built-in DeepSeek V4 Pro
+graphify extract ./docs --backend ollama       # automatic/default backend; cloud model tags send content to Ollama Cloud
+graphify extract ./docs --backend pi           # explicit fork-only Pi CLI backend; uses existing Pi authentication
+graphify extract ./docs --backend pi --allow-image-upload  # explicit per-command consent for raster pixels
 OPENAI_BASE_URL=http://localhost:8080/v1 OPENAI_MODEL=my-model graphify extract ./docs --backend openai   # any OpenAI-compatible server (llama.cpp, vLLM, LM Studio)
 ANTHROPIC_BASE_URL=http://localhost:4000 ANTHROPIC_MODEL=my-model graphify extract ./docs --backend claude   # any Anthropic-compatible endpoint (LiteLLM proxy, gateways)
 GRAPHIFY_OLLAMA_NUM_CTX=32768 graphify extract ./docs --backend ollama   # override KV-cache window (auto-sized by default)

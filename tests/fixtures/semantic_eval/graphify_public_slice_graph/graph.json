@@ -11,6 +11,7 @@
     {"id": "ollama_backend", "label": "Ollama Backend", "source_file": "llm_backend_excerpt.py"},
     {"id": "deepseek_v4_pro_cloud", "label": "deepseek-v4-pro:cloud", "source_file": "llm_backend_excerpt.py"},
     {"id": "trace_mode", "label": "Trace Mode", "source_file": "backend_excerpt.md"},
+    {"id": "trace_metadata", "label": "Trace Metadata", "source_file": "backend_excerpt.md"},
     {"id": "semantic_cache", "label": "Semantic Cache", "source_file": "backend_excerpt.md"}
   ],
   "links": [
@@ -19,7 +20,7 @@
     {"source": "networkx_graph", "target": "cluster_communities", "relation": "clusters communities", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "architecture_excerpt.md"},
     {"source": "semantic_extraction", "target": "llm_backend", "relation": "uses backend", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "backend_excerpt.md"},
     {"source": "ollama_backend", "target": "deepseek_v4_pro_cloud", "relation": "default model", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "llm_backend_excerpt.py"},
-    {"source": "trace_mode", "target": "llm_backend", "relation": "reports backend diagnostics", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "backend_excerpt.md"},
+    {"source": "trace_mode", "target": "trace_metadata", "relation": "reports trace metadata", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "backend_excerpt.md"},
     {"source": "semantic_cache", "target": "semantic_extraction", "relation": "prevents re-extracted files", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "backend_excerpt.md"}
   ]
 }

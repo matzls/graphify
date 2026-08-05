@@ -8,8 +8,10 @@ import os
 import re
 import tempfile
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 # Output directory name — override with GRAPHIFY_OUT env var for worktrees or
 # shared-output setups. Accepts a relative name ("graphify-out-feature") or an
@@ -75,6 +77,352 @@ def _cleanup_stale_ast_entries(ast_base: Path, current_dir: Path) -> None:
 # caller supplies its prompt; callers that don't keep the historical flat layout.
 _PROMPT_FP_LEN = 12
 
+# Raster cache provenance is deliberately narrow and file-level.  The semantic
+# cache never treats arbitrary model output as evidence that pixels were
+# delivered: callers must pass trusted delivery metadata explicitly.
+_RASTER_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp"})
+_IMAGE_PROVENANCE_VALUES = frozenset({"pixel-derived", "reference-only"})
+
+
+@dataclass(frozen=True)
+class ExpectedSourceIdentity:
+    """Immutable source snapshot metadata bound to a cache hash/write.
+
+    This contract is intentionally separate from persisted cache data.  A
+    caller that derived semantic output from raster pixels supplies the
+    identity captured while those pixels were read; the cache owner then
+    hashes the pathname through a descriptor and refuses a replacement.
+    """
+
+    identity: tuple[object, ...]
+    path: Path
+    lexical_root: Path | None = None
+    canonical_path: Path | None = None
+
+
+def _cache_image_provenance(path: Path, value: object = None) -> str | None:
+    """Normalize trusted caller metadata for a new raster cache entry."""
+    if path.suffix.lower() not in _RASTER_EXTENSIONS:
+        return None
+    if isinstance(value, str) and value in _IMAGE_PROVENANCE_VALUES:
+        return value
+    return "reference-only"
+
+
+def _loaded_image_provenance(path: Path, value: object) -> str | None:
+    """Normalize persisted raster provenance without upgrading legacy entries."""
+    if path.suffix.lower() not in _RASTER_EXTENSIONS:
+        return None
+    if isinstance(value, str) and value in _IMAGE_PROVENANCE_VALUES:
+        return value
+    return "unknown"
+
+
+def _is_pixel_derived(value: object) -> bool:
+    return value == "pixel-derived"
+
+
+class SourceIdentityChangedError(RuntimeError):
+    """Raised when a bound cache source no longer matches its snapshot."""
+
+
+def _source_identity(st: os.stat_result) -> tuple[object, ...]:
+    return (
+        st.st_dev,
+        st.st_ino,
+        st.st_mode,
+        st.st_size,
+        getattr(st, "st_mtime_ns", st.st_mtime),
+        getattr(st, "st_ctime_ns", st.st_ctime),
+    )
+
+
+def _stat_index_matches(entry: object, st: os.stat_result) -> bool:
+    """Require the identity-bearing fields before trusting a stat-index row."""
+    return isinstance(entry, dict) and all(
+        entry.get(key) == value
+        for key, value in {
+            "size": st.st_size,
+            "mtime_ns": getattr(st, "st_mtime_ns", st.st_mtime),
+            "dev": st.st_dev,
+            "ino": st.st_ino,
+            "ctime_ns": getattr(st, "st_ctime_ns", st.st_ctime),
+        }.items()
+    )
+
+
+def _stat_index_fields(st: os.stat_result) -> dict[str, object]:
+    return {
+        "size": st.st_size,
+        "mtime_ns": getattr(st, "st_mtime_ns", st.st_mtime),
+        "dev": st.st_dev,
+        "ino": st.st_ino,
+        "ctime_ns": getattr(st, "st_ctime_ns", st.st_ctime),
+    }
+
+
+def _cache_hash_salt(path: Path, root: Path) -> tuple[Path, str]:
+    resolved = path.resolve()
+    try:
+        salt = resolved.relative_to(Path(root).resolve()).as_posix().lower()
+    except ValueError:
+        salt = resolved.as_posix().lower()
+    return resolved, salt
+
+
+def _cache_lexical_contract(
+    path: Path, root: Path, expected: ExpectedSourceIdentity
+) -> tuple[Path, Path, Path, Path]:
+    """Return lexical root/path and canonical root/path for a bound source."""
+    lexical_root = Path(os.path.abspath(os.fspath(expected.lexical_root or root)))
+    expected_path = Path(expected.path)
+    if not expected_path.is_absolute():
+        expected_path = lexical_root / expected_path
+    lexical_path = Path(os.path.abspath(os.fspath(expected_path)))
+    canonical_root = Path(root).resolve()
+    canonical_path = Path(expected.canonical_path or path).resolve()
+    try:
+        lexical_path.relative_to(lexical_root)
+        canonical_path.relative_to(canonical_root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise SourceIdentityChangedError(
+            f"cache source is outside its authorized root: {lexical_path}"
+        ) from exc
+    return lexical_root, lexical_path, canonical_root, canonical_path
+
+
+def _cache_path_identity(
+    lexical_path: Path,
+    lexical_root: Path,
+    canonical_root: Path,
+    expected: ExpectedSourceIdentity,
+) -> os.stat_result:
+    """Validate the pathname without following a reparse/symlink component."""
+    import stat
+
+    def is_reparse(st: os.stat_result) -> bool:
+        return stat.S_ISLNK(st.st_mode) or bool(
+            getattr(st, "st_reparse_tag", 0) or (getattr(st, "st_file_attributes", 0) & 0x400)
+        )
+
+    current = lexical_root
+    try:
+        relative = lexical_path.relative_to(lexical_root)
+    except ValueError as exc:
+        raise SourceIdentityChangedError(
+            f"cache source is outside its authorized root: {lexical_path}"
+        ) from exc
+    if not relative.parts:
+        raise SourceIdentityChangedError(f"cache source is not a regular file: {lexical_path}")
+    parts = relative.parts
+    for index, component in enumerate(parts):
+        current /= component
+        try:
+            st = os.lstat(current)
+        except OSError as exc:
+            raise SourceIdentityChangedError(f"cache source disappeared: {lexical_path}") from exc
+        if is_reparse(st):
+            raise SourceIdentityChangedError(f"cache source is a reparse point: {current}")
+        if index == len(parts) - 1:
+            if not stat.S_ISREG(st.st_mode):
+                raise SourceIdentityChangedError(f"cache source is not a regular file: {current}")
+        elif not stat.S_ISDIR(st.st_mode):
+            raise SourceIdentityChangedError(
+                f"cache source component is not a directory: {current}"
+            )
+    try:
+        canonical = Path(os.path.realpath(lexical_path))
+        canonical.relative_to(canonical_root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise SourceIdentityChangedError(
+            f"cache source escaped its authorized root: {lexical_path}"
+        ) from exc
+    if _source_identity(st) != expected.identity:
+        raise SourceIdentityChangedError(f"cache source identity changed: {lexical_path}")
+    return st
+
+
+def _cache_posix_bound_fd(lexical_path: Path, lexical_root: Path, canonical_root: Path) -> int:
+    """Open a bound source through O_NOFOLLOW directory descriptors."""
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    if not nofollow or not directory:
+        raise SourceIdentityChangedError("cache source no-follow descriptors unavailable")
+    relative = lexical_path.relative_to(lexical_root)
+    if not relative.parts:
+        raise SourceIdentityChangedError("cache source is not a regular file")
+    root_fd = -1
+    current_fd = -1
+    try:
+        root_fd = os.open(
+            str(canonical_root), os.O_RDONLY | directory | nofollow | getattr(os, "O_BINARY", 0)
+        )
+        current_fd = root_fd
+        for component in relative.parts[:-1]:
+            next_fd = os.open(
+                component,
+                os.O_RDONLY | directory | nofollow | getattr(os, "O_BINARY", 0),
+                dir_fd=current_fd,
+            )
+            if current_fd != root_fd:
+                os.close(current_fd)
+            current_fd = next_fd
+        fd = os.open(
+            relative.parts[-1],
+            os.O_RDONLY | nofollow | getattr(os, "O_BINARY", 0),
+            dir_fd=current_fd,
+        )
+        if current_fd != root_fd:
+            os.close(current_fd)
+        current_fd = -1
+        return fd
+    except (OSError, ValueError) as exc:
+        raise SourceIdentityChangedError(
+            f"cache source could not be opened safely: {lexical_path}"
+        ) from exc
+    finally:
+        if current_fd >= 0 and current_fd != root_fd:
+            os.close(current_fd)
+        if root_fd >= 0:
+            os.close(root_fd)
+
+
+def _cache_windows_bound_fd(lexical_path: Path, canonical_root: Path) -> int:
+    """Open a Windows source with a reparse-safe handle and containment check."""
+    import ctypes
+    import msvcrt
+
+    kernel32: Any = getattr(ctypes, "WinDLL")("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    get_final = kernel32.GetFinalPathNameByHandleW
+    close_handle = kernel32.CloseHandle
+    invalid_handle = ctypes.c_void_p(-1).value
+    handle = create_file(
+        str(lexical_path),
+        0x80000000,  # GENERIC_READ
+        0x00000001 | 0x00000002 | 0x00000004,  # share read/write/delete
+        None,
+        3,  # OPEN_EXISTING
+        0x00200000,  # FILE_FLAG_OPEN_REPARSE_POINT
+        None,
+    )
+    if not handle or int(handle) == invalid_handle:
+        raise SourceIdentityChangedError(f"cache source could not be opened: {lexical_path}")
+    try:
+        final_path = None
+        for size in (512, 2048, 8192, 32768):
+            buffer = ctypes.create_unicode_buffer(size)
+            length = get_final(handle, buffer, size, 0)
+            if length == 0:
+                break
+            if length < size - 1:
+                final_path = buffer.value
+                break
+        if not final_path:
+            raise SourceIdentityChangedError("cache source final handle path unavailable")
+        if final_path.startswith("\\\\?\\"):
+            final_path = final_path[4:]
+        final_norm = os.path.normcase(os.path.abspath(final_path))
+        root_norm = os.path.normcase(os.path.abspath(os.fspath(canonical_root)))
+        if os.path.commonpath([final_norm, root_norm]) != root_norm:
+            raise SourceIdentityChangedError("cache source final handle escaped its root")
+        open_osfhandle = getattr(msvcrt, "open_osfhandle")
+        fd = open_osfhandle(int(handle), os.O_RDONLY | getattr(os, "O_BINARY", 0))
+        handle = None
+        return fd
+    finally:
+        if handle:
+            close_handle(handle)
+
+
+def _cache_open_bound_fd(
+    path: Path, root: Path, expected: ExpectedSourceIdentity
+) -> tuple[int, Path, Path]:
+    lexical_root, lexical_path, canonical_root, canonical_path = _cache_lexical_contract(
+        path, root, expected
+    )
+    _cache_path_identity(lexical_path, lexical_root, canonical_root, expected)
+    if os.name == "nt":
+        fd = _cache_windows_bound_fd(lexical_path, canonical_root)
+    else:
+        fd = _cache_posix_bound_fd(lexical_path, lexical_root, canonical_root)
+    try:
+        st = os.fstat(fd)
+        import stat
+
+        if _source_identity(st) != expected.identity or not stat.S_ISREG(st.st_mode):
+            raise SourceIdentityChangedError(f"cache source identity changed: {lexical_path}")
+        # On POSIX the descriptor is the authority; this final path check binds
+        # the lexical name to the same immutable identity for publication.
+        _cache_path_identity(lexical_path, lexical_root, canonical_root, expected)
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd, canonical_root, canonical_path
+
+
+def _validate_bound_source(
+    path: Path, root: Path, expected: ExpectedSourceIdentity
+) -> os.stat_result:
+    fd, _, _ = _cache_open_bound_fd(path, root, expected)
+    try:
+        return os.fstat(fd)
+    finally:
+        os.close(fd)
+
+
+def _file_hash_bound_to_identity(
+    path: Path,
+    root: Path,
+    expected: ExpectedSourceIdentity,
+    cache_root: Path | None = None,
+) -> str:
+    """Hash descriptor/handle bytes bound to the expected source identity."""
+    p = _normalize_path(Path(path))
+    fd, canonical_root, canonical_path = _cache_open_bound_fd(p, root, expected)
+    lexical_root, lexical_path, _, _ = _cache_lexical_contract(p, root, expected)
+    try:
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 65_536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after_fd = os.fstat(fd)
+        if _source_identity(after_fd) != expected.identity:
+            raise SourceIdentityChangedError(f"cache source changed while hashing: {p}")
+        _cache_path_identity(lexical_path, lexical_root, canonical_root, expected)
+        raw = b"".join(chunks)
+        content = _body_content(raw) if p.suffix.lower() == ".md" else raw
+        # This is deliberately after the first pathname validation and before a
+        # second descriptor/path validation. A replacement at this late hash
+        # boundary therefore fails closed even when size/mtime are unchanged.
+        _, salt = _cache_hash_salt(canonical_path, root)
+        digest = hashlib.sha256(content + b"\x00" + salt.encode()).hexdigest()
+        if _source_identity(os.fstat(fd)) != expected.identity:
+            raise SourceIdentityChangedError(f"cache source changed after hashing: {p}")
+        _cache_path_identity(lexical_path, lexical_root, canonical_root, expected)
+        _ensure_stat_index(root, cache_root=cache_root)
+        global _stat_index_dirty
+        resolved = canonical_path
+        entry = _stat_index.get(str(resolved))
+        fields = _stat_index_fields(after_fd)
+        if isinstance(entry, dict) and _stat_index_matches(entry, after_fd):
+            hashes = entry.get("hashes")
+            if not isinstance(hashes, dict):
+                hashes = {}
+                entry["hashes"] = hashes
+            hashes[salt] = digest
+            entry.pop("hash", None)
+            entry.update(fields)
+        else:
+            _stat_index[str(resolved)] = {**fields, "hashes": {salt: digest}}
+        _stat_index_dirty = True
+        return digest
+    finally:
+        os.close(fd)
+
+
 # Count of pre-fingerprint (flat-layout) entries served this process, so
 # check_semantic_cache can report N to the user (#1939).
 _legacy_semantic_hits = 0
@@ -109,8 +457,9 @@ def prompt_fingerprint(prompt: "str | Path") -> str:
     return hashlib.sha256(normalized.encode()).hexdigest()[:_PROMPT_FP_LEN]
 
 
-def _resolve_prompt_fp(prompt: "str | Path | None" = None,
-                       prompt_file: "str | Path | None" = None) -> str | None:
+def _resolve_prompt_fp(
+    prompt: "str | Path | None" = None, prompt_file: "str | Path | None" = None
+) -> str | None:
     """Fingerprint the caller's extraction prompt, or None when it supplied none.
 
     ``prompt`` is prompt TEXT; ``prompt_file`` is a path to a file CONTAINING the
@@ -175,14 +524,14 @@ def _body_content(content: bytes) -> bytes:
     # Slice right after the closing `---` (not after its line) so the output
     # stays byte-identical with the historical implementation for well-formed
     # frontmatter -- existing semantic-cache hashes must not churn.
-    return text[closer.start() + 3:].encode()
+    return text[closer.start() + 3 :].encode()
 
 
-# Stat-based index: maps absolute path → {size, mtime_ns, hash}.
-# Loaded once per process, flushed via atexit. Skips full file reads when
-# size+mtime_ns are unchanged — same trade-off as make(1).
-# Correctness risks: `touch` causes a harmless extra re-hash; same-size edits
-# within NFS second-resolution mtime have a 1-second window (same as make).
+# Stat-based index: maps absolute path → identity fields plus {hashes}.
+# Loaded once per process, flushed via atexit. Skips full file reads when the
+# identity-bearing stat signature is unchanged. Legacy rows without dev/ino/ctime
+# are recomputed rather than trusted, so same-size/mtime replacement cannot reuse
+# a prior raster digest.
 # `graphify extract --force` / `graphify update --force` (or GRAPHIFY_FORCE=1)
 # skip the cache reads and re-dispatch everything when needed (#1894).
 _stat_index: dict[str, dict] = {}
@@ -245,6 +594,7 @@ def _flush_stat_index() -> None:
 def _normalize_path(path: Path) -> Path:
     """Normalize path for consistent cache keys across Windows path spellings."""
     import sys
+
     if sys.platform != "win32":
         return path
     s = str(path)
@@ -253,7 +603,12 @@ def _normalize_path(path: Path) -> Path:
     return Path(os.path.normcase(s))
 
 
-def file_hash(path: Path, root: Path = Path("."), cache_root: "Path | None" = None) -> str:
+def file_hash(
+    path: Path,
+    root: Path = Path("."),
+    cache_root: "Path | None" = None,
+    expected_source_identity: ExpectedSourceIdentity | None = None,
+) -> str:
     """SHA256 of file contents + path relative to root.
 
     Uses a stat-based fastpath (size + mtime_ns) to skip full reads when the
@@ -266,7 +621,15 @@ def file_hash(path: Path, root: Path = Path("."), cache_root: "Path | None" = No
 
     For Markdown files (.md), only the body below the YAML frontmatter is hashed,
     so metadata-only changes (e.g. reviewed, status, tags) do not invalidate the cache.
+
+    When ``expected_source_identity`` is supplied, bypass the stat-index fast
+    path and hash through a descriptor bound to that captured source identity.
+    This is reserved for pixel-derived raster cache writes.
     """
+    if expected_source_identity is not None:
+        return _file_hash_bound_to_identity(
+            path, root, expected_source_identity, cache_root=cache_root
+        )
     global _stat_index_dirty
     p = _normalize_path(Path(path))
     root = _normalize_path(Path(root))
@@ -296,10 +659,8 @@ def file_hash(path: Path, root: Path = Path("."), cache_root: "Path | None" = No
     try:
         st = p.stat()
         entry = _stat_index.get(abs_key)
-        if (isinstance(entry, dict)
-                and entry.get("size") == st.st_size
-                and entry.get("mtime_ns") == st.st_mtime_ns):
-            hashes = entry.get("hashes")
+        if _stat_index_matches(entry, st):
+            hashes = entry.get("hashes") if isinstance(entry, dict) else None
             if isinstance(hashes, dict):
                 cached = hashes.get(salt)
                 if isinstance(cached, str):
@@ -319,18 +680,18 @@ def file_hash(path: Path, root: Path = Path("."), cache_root: "Path | None" = No
 
     if st is not None:
         entry = _stat_index.get(abs_key)
-        if (isinstance(entry, dict)
-                and entry.get("size") == st.st_size
-                and entry.get("mtime_ns") == st.st_mtime_ns):
+        if isinstance(entry, dict) and _stat_index_matches(entry, st):
             hashes = entry.get("hashes")
             if not isinstance(hashes, dict):
                 hashes = {}
                 entry["hashes"] = hashes
-            hashes[salt] = digest       # preserve a co-located word_count / other salts
-            entry.pop("hash", None)     # retire the un-salted legacy digest
+            hashes[salt] = digest  # preserve a co-located word_count / other salts
+            entry.pop("hash", None)  # retire the un-salted legacy digest
         else:
-            _stat_index[abs_key] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns,
-                                    "hashes": {salt: digest}}
+            _stat_index[abs_key] = {
+                **_stat_index_fields(st),
+                "hashes": {salt: digest},
+            }
         _stat_index_dirty = True
 
     return digest
@@ -358,10 +719,7 @@ def cached_word_count(path: Path, root: Path, compute, cache_root: "Path | None"
     try:
         st = p.stat()
         entry = _stat_index.get(abs_key)
-        if (entry
-                and entry.get("size") == st.st_size
-                and entry.get("mtime_ns") == st.st_mtime_ns
-                and "word_count" in entry):
+        if _stat_index_matches(entry, st) and isinstance(entry, dict) and "word_count" in entry:
             return entry["word_count"]
     except OSError:
         pass
@@ -370,14 +728,10 @@ def cached_word_count(path: Path, root: Path, compute, cache_root: "Path | None"
 
     if st is not None:
         entry = _stat_index.get(abs_key)
-        if (entry
-                and entry.get("size") == st.st_size
-                and entry.get("mtime_ns") == st.st_mtime_ns):
+        if isinstance(entry, dict) and _stat_index_matches(entry, st):
             entry["word_count"] = wc  # augment the existing hash entry in place
         else:
-            _stat_index[abs_key] = {
-                "size": st.st_size, "mtime_ns": st.st_mtime_ns, "word_count": wc,
-            }
+            _stat_index[abs_key] = {**_stat_index_fields(st), "word_count": wc}
         _stat_index_dirty = True
 
     return wc
@@ -451,8 +805,7 @@ def _absolutize_source_files_in(payload: dict, root: Path) -> None:
                 continue
 
 
-def cache_dir(root: Path = Path("."), kind: str = "ast",
-              prompt_fp: str | None = None) -> Path:
+def cache_dir(root: Path = Path("."), kind: str = "ast", prompt_fp: str | None = None) -> Path:
     """Returns the cache directory for ``kind`` - creates it if needed.
 
     kind is "ast", "semantic", or a mode-namespaced semantic kind such as
@@ -482,11 +835,17 @@ def cache_dir(root: Path = Path("."), kind: str = "ast",
     return d
 
 
-def load_cached(path: Path, root: Path = Path("."), kind: str = "ast",
-                cache_root: Path | None = None, prompt: "str | Path | None" = None,
-                prompt_file: "str | Path | None" = None,
-                allow_legacy: bool = True,
-                allow_partial: bool = False) -> dict | None:
+def load_cached(
+    path: Path,
+    root: Path = Path("."),
+    kind: str = "ast",
+    cache_root: Path | None = None,
+    prompt: "str | Path | None" = None,
+    prompt_file: "str | Path | None" = None,
+    allow_legacy: bool = True,
+    allow_partial: bool = False,
+    require_pixel_derived: bool = False,
+) -> dict | None:
     """Return cached extraction for this file if hash matches, else None.
 
     Cache key: SHA256 of file contents.
@@ -546,6 +905,14 @@ def load_cached(path: Path, root: Path = Path("."), kind: str = "ast",
         # across chunks without losing the truncated one (it stays partial).
         if not allow_partial and isinstance(result, dict) and result.get("partial"):
             return None
+        if isinstance(result, dict) and kind.startswith("semantic"):
+            provenance = _loaded_image_provenance(path, result.get("image_provenance"))
+            if provenance is not None:
+                # In-memory normalization only: historical/malformed entries
+                # remain byte-unchanged on disk and never self-upgrade.
+                result["image_provenance"] = provenance
+                if require_pixel_derived and not _is_pixel_derived(provenance):
+                    return None
         if legacy_hit:
             _legacy_semantic_hits += 1
         # Re-anchor relative source_file fields so callers see the same
@@ -557,9 +924,17 @@ def load_cached(path: Path, root: Path = Path("."), kind: str = "ast",
     return None
 
 
-def save_cached(path: Path, result: dict, root: Path = Path("."), kind: str = "ast",
-                cache_root: Path | None = None, prompt: "str | Path | None" = None,
-                prompt_file: "str | Path | None" = None) -> None:
+def save_cached(
+    path: Path,
+    result: dict,
+    root: Path = Path("."),
+    kind: str = "ast",
+    cache_root: Path | None = None,
+    prompt: "str | Path | None" = None,
+    prompt_file: "str | Path | None" = None,
+    image_provenance: object = None,
+    expected_source_identity: ExpectedSourceIdentity | None = None,
+) -> bool:
     """Save extraction result for this file.
 
     Stores as graphify-out/cache/{kind}/{hash}.json where hash = SHA256 of current file contents.
@@ -578,11 +953,19 @@ def save_cached(path: Path, result: dict, root: Path = Path("."), kind: str = "a
 
     No-ops if `path` is not a regular file. Subagent-produced semantic fragments
     occasionally carry a directory path in `source_file`; skipping them prevents
-    IsADirectoryError from aborting the whole batch.
+    IsADirectoryError from aborting the whole batch. For pixel-derived raster
+    output, ``expected_source_identity`` is required and binds the content hash
+    to the immutable snapshot captured by the delivering adapter.
     """
     p = Path(path)
-    if not p.is_file():
-        return
+    is_raster_semantic = kind.startswith("semantic") and _cache_image_provenance(p) is not None
+    bound_pixel = is_raster_semantic and _is_pixel_derived(image_provenance)
+    # A bound raster must not use a pathname ``is_file()`` check that follows a
+    # replacement/reparse point. The descriptor owner below performs the safe
+    # containment and identity check instead. Ordinary cache writes retain their
+    # historical best-effort regular-file check.
+    if not bound_pixel and not p.is_file():
+        return False
     # Relativize source_file fields against ``root`` before write so the
     # cache file on disk is portable across machines and checkout
     # directories (#777). The cache key is content-hashed so lookup is
@@ -594,11 +977,44 @@ def save_cached(path: Path, result: dict, root: Path = Path("."), kind: str = "a
     # source_file field's original absolute form. Mutating the input here would
     # silently break those remaps on the first extraction pass.
     on_disk = result
-    if isinstance(result, dict) and any(result.get(k) for k in ("nodes", "edges", "hyperedges", "raw_calls")):
+    if isinstance(result, dict) and (
+        is_raster_semantic
+        or any(result.get(k) for k in ("nodes", "edges", "hyperedges", "raw_calls"))
+    ):
         import copy as _copy
+
         on_disk = _copy.deepcopy(result)
         _relativize_source_files_in(on_disk, root)
-    h = file_hash(p, root, cache_root=cache_root)
+    if is_raster_semantic:
+        # Never derive this field from model JSON. The separate caller argument
+        # is the sole trust channel; missing/invalid metadata is reference-only.
+        on_disk["image_provenance"] = _cache_image_provenance(p, image_provenance)
+    if is_raster_semantic and _is_pixel_derived(image_provenance):
+        if expected_source_identity is None:
+            # A caller cannot safely attest pixels without the identity captured
+            # when those pixels were delivered. Downgrade rather than creating a
+            # clean pixel-derived entry with an unbound pathname hash.
+            on_disk["partial"] = True
+            on_disk["image_provenance"] = "reference-only"
+            image_provenance = "reference-only"
+            h = file_hash(p, root, cache_root=cache_root)
+        else:
+            try:
+                h = file_hash(
+                    p,
+                    root,
+                    cache_root=cache_root,
+                    expected_source_identity=expected_source_identity,
+                )
+            except SourceIdentityChangedError:
+                return False
+    else:
+        h = file_hash(p, root, cache_root=cache_root)
+    if bound_pixel and expected_source_identity is not None:
+        try:
+            _validate_bound_source(p, root, expected_source_identity)
+        except SourceIdentityChangedError:
+            return False
     location = cache_root if cache_root is not None else root
     target_dir = cache_dir(location, kind, _resolve_prompt_fp(prompt, prompt_file))
     entry = target_dir / f"{h}.json"
@@ -606,12 +1022,19 @@ def save_cached(path: Path, result: dict, root: Path = Path("."), kind: str = "a
     try:
         os.write(fd, json.dumps(on_disk).encode())
         os.close(fd)
+        if bound_pixel and expected_source_identity is not None:
+            try:
+                _validate_bound_source(p, root, expected_source_identity)
+            except SourceIdentityChangedError:
+                os.unlink(tmp_path)
+                return False
         try:
             os.replace(tmp_path, entry)
         except PermissionError:
             # Windows: os.replace can fail with WinError 5 if the target is
             # briefly locked. Fall back to copy-then-delete.
             import shutil
+
             shutil.copy2(tmp_path, entry)
             os.unlink(tmp_path)
     except Exception:
@@ -624,6 +1047,7 @@ def save_cached(path: Path, result: dict, root: Path = Path("."), kind: str = "a
         except OSError:
             pass
         raise
+    return True
 
 
 def cached_files(root: Path = Path(".")) -> set[str]:
@@ -723,6 +1147,7 @@ def check_semantic_cache(
     prompt: "str | Path | None" = None,
     prompt_file: "str | Path | None" = None,
     cache_root: "Path | None" = None,
+    require_pixel_derived: bool = False,
 ) -> tuple[list[dict], list[dict], list[dict], list[str]]:
     """Check semantic extraction cache for a list of absolute file paths.
 
@@ -764,8 +1189,15 @@ def check_semantic_cache(
         p = Path(fpath)
         if not p.is_absolute():
             p = Path(root) / p
-        result = load_cached(p, root, kind=kind, cache_root=cache_root,
-                             prompt=prompt, prompt_file=prompt_file)
+        result = load_cached(
+            p,
+            root,
+            kind=kind,
+            cache_root=cache_root,
+            prompt=prompt,
+            prompt_file=prompt_file,
+            require_pixel_derived=require_pixel_derived,
+        )
         if result is not None:
             cached_nodes.extend(result.get("nodes", []))
             cached_edges.extend(result.get("edges", []))
@@ -817,6 +1249,8 @@ def save_semantic_cache(
     prompt_file: "str | Path | None" = None,
     partial_source_files: Iterable[str | Path] | None = None,
     cache_root: "Path | None" = None,
+    image_provenance: Mapping[str | Path, object] | None = None,
+    expected_source_identity: Mapping[Any, ExpectedSourceIdentity] | None = None,
 ) -> int:
     """Save semantic extraction results to cache, keyed by source_file.
 
@@ -864,6 +1298,10 @@ def save_semantic_cache(
     and the final save going to the corpus tree instead of ``--out`` (#1990,
     #1991).
 
+    ``expected_source_identity`` is supplied only for pixel-derived raster
+    results. Its immutable snapshot metadata is passed to the cache owner so
+    hashing and writing cannot bind those results to replacement bytes.
+
     Returns the number of files cached.
     """
     from collections import defaultdict
@@ -878,7 +1316,7 @@ def save_semantic_cache(
         src = e.get("source_file", "")
         if src:
             by_file[src]["edges"].append(e)
-    for h in (hyperedges or []):
+    for h in hyperedges or []:
         src = h.get("source_file", "")
         if src:
             by_file[src]["hyperedges"].append(h)
@@ -899,6 +1337,18 @@ def save_semantic_cache(
     allowed_paths = None
     if allowed_source_files is not None:
         allowed_paths = {resolved_source_path(path) for path in allowed_source_files}
+
+    provenance_by_path = None
+    if image_provenance is not None:
+        provenance_by_path = {
+            resolved_source_path(path): value for path, value in image_provenance.items()
+        }
+
+    identity_by_path = None
+    if expected_source_identity is not None:
+        identity_by_path = {
+            resolved_source_path(path): value for path, value in expected_source_identity.items()
+        }
 
     partial_paths = None
     if partial_source_files is not None:
@@ -966,9 +1416,7 @@ def save_semantic_cache(
                 if group_skipped(fpath):
                     continue
                 result["edges"] = [e for e in result["edges"] if not edge_dangles(e)]
-                result["hyperedges"] = [
-                    h for h in result["hyperedges"] if not hyperedge_dangles(h)
-                ]
+                result["hyperedges"] = [h for h in result["hyperedges"] if not hyperedge_dangles(h)]
 
     saved = 0
     skipped_not_file = 0
@@ -983,6 +1431,10 @@ def save_semantic_cache(
                     stacklevel=2,
                 )
                 continue
+            incoming_provenance = _cache_image_provenance(
+                p, provenance_by_path.get(p) if provenance_by_path is not None else None
+            )
+            mixed_provenance = False
             if merge_existing:
                 # allow_legacy=False: merging a pre-fingerprint entry into this
                 # write would fuse two prompt vintages inside a single entry and
@@ -995,9 +1447,25 @@ def save_semantic_cache(
                 # markers ride through, so is_partial below re-detects it) rather
                 # than a later clean slice silently replacing it and promoting the
                 # half-file to complete.
-                prev = load_cached(p, root, kind=kind, cache_root=cache_root,
-                                   prompt=prompt, prompt_file=prompt_file,
-                                   allow_legacy=False, allow_partial=True)
+                prev = load_cached(
+                    p,
+                    root,
+                    kind=kind,
+                    cache_root=cache_root,
+                    prompt=prompt,
+                    prompt_file=prompt_file,
+                    allow_legacy=False,
+                    allow_partial=True,
+                )
+                if prev and incoming_provenance is not None:
+                    previous_provenance = prev.get("image_provenance", "unknown")
+                    if previous_provenance == "unknown":
+                        # A fresh trusted raster result supersedes historical
+                        # filename-only/unknown semantics; never blend and then
+                        # attest the union as pixel-derived.
+                        prev = None
+                    elif previous_provenance != incoming_provenance:
+                        mixed_provenance = True
                 _prev_partial = bool(prev.get("partial")) if prev else False
                 if prev:
                     result = {
@@ -1019,12 +1487,34 @@ def save_semantic_cache(
                 (partial_paths is not None and p in partial_paths)
                 or _group_has_partial_marker(result)
                 or _prev_partial
+                or mixed_provenance
             )
             if is_partial:
                 result = {**result, "partial": True}
-            save_cached(p, result, root, kind=kind, cache_root=cache_root,
-                        prompt=prompt, prompt_file=prompt_file)
-            saved += 1
+            if mixed_provenance:
+                incoming_provenance = "reference-only"
+            wrote = save_cached(
+                p,
+                result,
+                root,
+                kind=kind,
+                cache_root=cache_root,
+                prompt=prompt,
+                prompt_file=prompt_file,
+                image_provenance=incoming_provenance,
+                expected_source_identity=(
+                    identity_by_path.get(p)
+                    if identity_by_path is not None and _is_pixel_derived(incoming_provenance)
+                    else None
+                ),
+            )
+            if not wrote and _is_pixel_derived(incoming_provenance):
+                warnings.warn(
+                    f"semantic cache skipped pixel-derived source identity mismatch for {p}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            saved += int(wrote)
         else:
             skipped_not_file += 1
     if skipped_not_file and skipped_not_file == len(by_file):

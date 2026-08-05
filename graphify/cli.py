@@ -18,6 +18,14 @@ from graphify.paths import GRAPHIFY_OUT as _GRAPHIFY_OUT
 from pathlib import Path
 
 
+def _is_substantive_label(value: object) -> bool:
+    """Accept only non-placeholder labels from the optional LLM pass."""
+    if not isinstance(value, str):
+        return False
+    cleaned = value.strip()
+    return bool(cleaned) and re.fullmatch(r"Community\s+\d+", cleaned) is None
+
+
 _SEARCH_NUDGE = (
     json.dumps(
         {
@@ -191,26 +199,28 @@ def _write_semantic_marker(
     total_chunks: int,
     failed_chunks: int,
     partial_chunks: int,
+    usage_available: bool = True,
 ) -> None:
     from graphify.paths import write_text_atomic
 
     status = "partial" if failed_chunks or partial_chunks else "clean"
-    write_text_atomic(
-        _semantic_marker_path(out_dir),
-        json.dumps(
-            {
-                "output_tokens": output_tokens,
-                "status": status,
-                "backend": backend,
-                "model": model,
-                "total_chunks": total_chunks,
-                "failed_chunks": failed_chunks,
-                "partial_chunks": partial_chunks,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            },
-            indent=2,
-        ),
-    )
+    marker = {
+        "output_tokens": output_tokens,
+        "status": status,
+        "backend": backend,
+        "model": model,
+        "total_chunks": total_chunks,
+        "failed_chunks": failed_chunks,
+        "partial_chunks": partial_chunks,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if not usage_available:
+        marker.pop("output_tokens")
+        marker.pop("model")
+        marker["usage_available"] = False
+        marker["usage"] = "unavailable"
+        marker["requested_model"] = model
+    write_text_atomic(_semantic_marker_path(out_dir), json.dumps(marker, indent=2))
 
 
 def _update_cost_tracker(
@@ -219,8 +229,11 @@ def _update_cost_tracker(
     input_tokens: int,
     output_tokens: int,
     files: int = 0,
+    usage_available: bool = True,
+    backend: str | None = None,
+    requested_model: str | None = None,
 ) -> dict:
-    """Append a run to graphify-out/cost.json and return the tracker data."""
+    """Append a run, preserving an explicit unknown state for Pi print usage."""
     cost_path = Path(out_dir) / "cost.json"
     if cost_path.exists():
         try:
@@ -234,21 +247,56 @@ def _update_cost_tracker(
     cost.setdefault("runs", [])
     cost.setdefault("total_input_tokens", 0)
     cost.setdefault("total_output_tokens", 0)
-    cost["runs"].append(
-        {
-            "date": datetime.now(timezone.utc).isoformat(),
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "files": files,
-        }
-    )
-    cost["total_input_tokens"] = int(cost.get("total_input_tokens", 0) or 0) + input_tokens
-    cost["total_output_tokens"] = int(cost.get("total_output_tokens", 0) or 0) + output_tokens
+    run = {
+        "date": datetime.now(timezone.utc).isoformat(),
+        "files": files,
+    }
+    if usage_available:
+        run.update({"input_tokens": input_tokens, "output_tokens": output_tokens})
+        if cost.get("usage_available") is not False:
+            cost["total_input_tokens"] = int(cost.get("total_input_tokens", 0) or 0) + input_tokens
+            cost["total_output_tokens"] = (
+                int(cost.get("total_output_tokens", 0) or 0) + output_tokens
+            )
+    else:
+        run.update(
+            {
+                "usage_available": False,
+                "usage": "unavailable",
+                "backend": backend,
+                "requested_model": requested_model,
+                "input_tokens": None,
+                "output_tokens": None,
+            }
+        )
+        cost["usage_available"] = False
+        cost["total_input_tokens"] = None
+        cost["total_output_tokens"] = None
+    cost["runs"].append(run)
     from graphify.paths import write_text_atomic
 
     cost_path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(cost_path, json.dumps(cost, indent=2, ensure_ascii=False))
     return cost
+
+
+def _format_cost_tracker(cost_state: dict, *, input_tokens: int, output_tokens: int) -> str:
+    """Render current usage without claiming totals after an unknown run."""
+    prefix = (
+        f"[graphify extract] cost tracker: this run {input_tokens:,} in / {output_tokens:,} out; "
+    )
+    total_input = cost_state.get("total_input_tokens")
+    total_output = cost_state.get("total_output_tokens")
+    if (
+        cost_state.get("usage_available") is False
+        or not isinstance(total_input, int)
+        or not isinstance(total_output, int)
+    ):
+        return f"{prefix}all time unavailable ({len(cost_state.get('runs', []))} runs)"
+    return (
+        f"{prefix}all time {total_input:,} in / "
+        f"{total_output:,} out ({len(cost_state.get('runs', []))} runs)"
+    )
 
 
 def _stamped_manifest_files(
@@ -828,8 +876,8 @@ def _dispatch_extract() -> None:
     # has an API key set.
     if len(sys.argv) < 3:
         print(
-            "Usage: graphify extract <path> [--backend gemini|kimi|claude|openai|deepseek|ollama] "
-            "[--model M] [--mode deep] [--out DIR|--output DIR] [--google-workspace] [--no-cluster] "
+            "Usage: graphify extract <path> [--backend gemini|kimi|claude|openai|deepseek|ollama|pi] "
+            "[--model M] [--allow-image-upload] [--mode deep] [--out DIR|--output DIR] [--google-workspace] [--no-cluster] "
             "[--no-gitignore] [--code-only] [--directed] [--whisper-model M] [--llm-trace] "
             "[--max-workers N] [--token-budget N] [--max-concurrency N] "
             "[--api-timeout S] [--postgres DSN] [--cargo] [--allow-partial] [--timing]",
@@ -854,6 +902,7 @@ def _dispatch_extract() -> None:
     cli_postgres_dsn: str | None = None
     cli_cargo: bool = False
     cli_allow_partial: bool = False
+    cli_allow_image_upload: bool = False
     no_cluster = False
     directed = False
     dedup_llm = False
@@ -1017,6 +1066,9 @@ def _dispatch_extract() -> None:
             i += 1
         elif a == "--allow-partial":
             cli_allow_partial = True
+            i += 1
+        elif a == "--allow-image-upload":
+            cli_allow_image_upload = True
             i += 1
         elif a == "--timing":
             cli_timing = True
@@ -1324,8 +1376,11 @@ def _dispatch_extract() -> None:
         estimate_cost as _estimate_cost,
         extract_corpus_parallel as _extract_corpus_parallel,
         _backend_supports_vision,
+        _cache_source_identities,
         _format_backend_env_keys,
         _get_backend_api_key,
+        _invalidate_stale_image_result,
+        validate_backend_dependencies as _validate_backend_dependencies,
     )
 
     needs_llm = bool(semantic_files) or dedup_llm
@@ -1389,6 +1444,8 @@ def _dispatch_extract() -> None:
                 except Exception:
                     host = ""
                 allow_no_key = host in ("localhost", "127.0.0.1", "::1") or host.startswith("127.")
+            elif backend == "pi":
+                allow_no_key = True
             elif backend == "bedrock":
                 allow_no_key = bool(
                     os.environ.get("AWS_PROFILE")
@@ -1476,6 +1533,7 @@ def _dispatch_extract() -> None:
         "hyperedges": [],
         "input_tokens": 0,
         "output_tokens": 0,
+        "usage_available": backend != "pi",
     }
 
     def _video_source_file(value: object) -> str | None:
@@ -1508,6 +1566,15 @@ def _dispatch_extract() -> None:
     # (mirrors the #933 failed-chunk handling); captured below before the
     # _partial markers are stripped from the corpus.
     _partial_semantic_files: set[str] = set()
+    # Sources whose pixel snapshot was invalidated must also be removed from an
+    # existing incremental graph; otherwise build_merge could retain A nodes
+    # after the fresh result was safely dropped before persistence.
+    _identity_invalidated_semantic_files: set[str] = set()
+    # Keep adapter-captured image identities through graph publication. The
+    # semantic result is intentionally serialized without these private records,
+    # so the CLI owns this narrow publication guard instead of leaking identity
+    # objects into graph/cache payloads.
+    _publication_image_identities: dict[str, object] = {}
     sem_cache_hits = 0
     sem_cache_misses = 0
     semantic_total_chunks = 0
@@ -1546,6 +1613,7 @@ def _dispatch_extract() -> None:
                     cache_root=out_root,
                     mode=sem_cache_mode,
                     prompt=sem_prompt,
+                    require_pixel_derived=backend == "pi",
                 )
                 cached_nodes.extend(reg_nodes)
                 cached_edges.extend(reg_edges)
@@ -1577,6 +1645,29 @@ def _dispatch_extract() -> None:
             )
 
         if uncached_paths:
+            if backend == "pi":
+                image_sources = {
+                    path.resolve()
+                    for path in image_files
+                    if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+                }
+                uncached_images = {
+                    (Path(path) if Path(path).is_absolute() else scan_root / path).resolve()
+                    for path in uncached_paths
+                } & image_sources
+                if uncached_images and not cli_allow_image_upload:
+                    print(
+                        "error: Pi image upload is not authorized for this run; re-run with "
+                        "--allow-image-upload to send raster pixels, or select an explicit "
+                        "non-Pi backend.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
+                try:
+                    _validate_backend_dependencies("pi")
+                except (ImportError, RuntimeError, ValueError) as exc:
+                    print(f"error: {exc}", file=sys.stderr)
+                    sys.exit(1)
             print(
                 f"[graphify extract] semantic extraction on "
                 f"{len(uncached_paths)} files via {backend}..."
@@ -1597,6 +1688,8 @@ def _dispatch_extract() -> None:
                 corpus_kwargs["token_budget"] = cli_token_budget
             if cli_max_concurrency is not None:
                 corpus_kwargs["max_concurrency"] = cli_max_concurrency
+            if backend == "pi":
+                corpus_kwargs["allow_image_upload"] = cli_allow_image_upload
 
             _chunk_stats = {"total": 0, "succeeded": 0}
 
@@ -1630,6 +1723,25 @@ def _dispatch_extract() -> None:
                     "failed_chunks": 1,
                     "total_chunks": 1,
                 }
+
+            # Retain only adapter-owned immutable identity records for the
+            # final graph-publication guard. These are never serialized.
+            _fresh_identities = fresh.get("_image_identity")
+            if isinstance(_fresh_identities, dict):
+                _publication_image_identities.update(
+                    {
+                        path: identity
+                        for path, identity in _fresh_identities.items()
+                        if isinstance(path, str)
+                    }
+                )
+
+            if _invalidate_stale_image_result(fresh):
+                print(
+                    "[graphify extract] image source identity changed before cache handling; "
+                    "semantic output remains partial",
+                    file=sys.stderr,
+                )
 
             has_chunk_summary = any(
                 key in fresh for key in ("total_chunks", "failed_chunks", "partial_chunks")
@@ -1680,6 +1792,22 @@ def _dispatch_extract() -> None:
                     _video_source_file(str(path)) or str(path) for path in uncached_paths
                 )
 
+            # Recheck immediately before the fail-closed/cache branch as well;
+            # the source can change during result reconciliation.
+            if _invalidate_stale_image_result(fresh):
+                invalidated_files = set(_partial_sf(fresh))
+                _identity_invalidated_semantic_files.update(invalidated_files)
+                if fresh_partial_chunks == 0:
+                    semantic_partial_chunks += 1
+                fresh_partial_chunks = max(fresh_partial_chunks, 1)
+                degraded_fresh_output = True
+                fresh_incomplete = True
+                print(
+                    "[graphify extract] image source identity changed immediately before "
+                    "cache persistence; semantic output remains partial",
+                    file=sys.stderr,
+                )
+
             if not cli_allow_partial and fresh_incomplete:
                 failure_summary = (
                     "all fresh semantic chunks failed or returned no usable output"
@@ -1714,10 +1842,33 @@ def _dispatch_extract() -> None:
                         allowed_source_files=cache_source_paths,
                         mode=sem_cache_mode,
                         prompt=sem_prompt,
+                        image_provenance=fresh.get("_image_provenance"),
+                        expected_source_identity=_cache_source_identities(
+                            fresh.get("_image_identity")
+                        ),
                     )
                 except Exception as exc:
                     print(
                         f"[graphify extract] warning: could not write semantic cache: {exc}",
+                        file=sys.stderr,
+                    )
+                # save_semantic_cache deliberately keeps ordinary cache-write
+                # failures nonfatal. A bound pixel write is different: a zero
+                # write followed by an identity recheck means A's semantics
+                # raced with replacement B, so carry that outcome through the
+                # graph, manifest, and semantic marker as partial.
+                if _invalidate_stale_image_result(fresh):
+                    invalidated_files = set(_partial_sf(fresh))
+                    _partial_semantic_files.update(invalidated_files)
+                    _identity_invalidated_semantic_files.update(invalidated_files)
+                    if fresh_partial_chunks == 0:
+                        semantic_partial_chunks += 1
+                    fresh_partial_chunks = max(fresh_partial_chunks, 1)
+                    fresh_incomplete = True
+                    _extraction_incomplete = True
+                    print(
+                        "[graphify extract] image source identity changed during cache "
+                        "persistence; semantic output remains partial",
                         file=sys.stderr,
                     )
             _strip_partial(fresh)
@@ -1726,6 +1877,8 @@ def _dispatch_extract() -> None:
             sem_result["hyperedges"].extend(fresh.get("hyperedges", []))
             sem_result["input_tokens"] += fresh.get("input_tokens", 0)
             sem_result["output_tokens"] += fresh.get("output_tokens", 0)
+            if fresh.get("usage_available") is False:
+                sem_result["usage_available"] = False
 
     # Prune orphaned semantic cache entries. The semantic cache is
     # content-hash-keyed and unversioned, so it is never swept by the AST
@@ -1810,8 +1963,121 @@ def _dispatch_extract() -> None:
         "hyperedges": list(sem_result.get("hyperedges", [])),
         "input_tokens": ast_result.get("input_tokens", 0) + sem_result.get("input_tokens", 0),
         "output_tokens": ast_result.get("output_tokens", 0) + sem_result.get("output_tokens", 0),
+        "usage_available": sem_result.get("usage_available", True),
         "directed": directed,
     }
+
+    # Publication is the last boundary after cache/identity validation. Keep a
+    # private wrapper around the merged payload so a source replacement that
+    # lands during graph writing can be downgraded and scrubbed before marker or
+    # manifest finalization. Ordinary text/non-image results have no records and
+    # take the unchanged fast path.
+    _publication_invalidated_files: set[str] = set()
+    # Earlier cache/result rechecks may already have accounted for this same
+    # source race; do not inflate the partial-chunk count at publication.
+    _publication_identity_race_seen = bool(_identity_invalidated_semantic_files)
+
+    def _refresh_publication_manifest_scope() -> None:
+        nonlocal _manifest_files, _cleared_semantic
+        _manifest_files = _stamped_manifest_files(
+            files_by_type,
+            sem_result,
+            scan_root,
+            partial_source_files=_partial_semantic_files,
+            video_transcript_map=video_transcript_map,
+        )
+        _stamped_semantic = {f for _flist in _manifest_files.values() for f in _flist}
+        _cleared_semantic = {str(p) for p in semantic_files} - _stamped_semantic
+
+    def _reconcile_publication_image_identity() -> bool:
+        """Fail closed if an extracted raster changed before graph publication."""
+        nonlocal _extraction_incomplete, _publication_identity_race_seen, semantic_partial_chunks
+        if not _publication_image_identities:
+            return False
+        guarded = {
+            "nodes": merged.get("nodes", []),
+            "edges": merged.get("edges", []),
+            "hyperedges": merged.get("hyperedges", []),
+            "_image_identity": dict(_publication_image_identities),
+        }
+        if not _invalidate_stale_image_result(guarded):
+            return False
+        merged["nodes"] = guarded["nodes"]
+        merged["edges"] = guarded["edges"]
+        merged["hyperedges"] = guarded["hyperedges"]
+        invalidated = {str(path) for path in guarded.get("_partial_files", [])}
+        if not invalidated:
+            invalidated = set(_publication_image_identities)
+        _publication_invalidated_files.update(invalidated)
+        _partial_semantic_files.update(invalidated)
+        _identity_invalidated_semantic_files.update(invalidated)
+        _extraction_incomplete = True
+        if not _publication_identity_race_seen:
+            _publication_identity_race_seen = True
+            semantic_partial_chunks += 1
+        _refresh_publication_manifest_scope()
+        print(
+            "[graphify extract] image source identity changed during graph publication; "
+            "semantic output remains partial",
+            file=sys.stderr,
+        )
+        return True
+
+    def _scrub_invalidated_image_sources(path: Path) -> None:
+        """Remove source-owned image nodes from an already-published graph."""
+        if not _publication_invalidated_files or not path.exists():
+            return
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if not isinstance(data, dict) or not isinstance(data.get("nodes"), list):
+            return
+
+        def logical_source(value: object) -> str | None:
+            if not isinstance(value, str) or not value:
+                return None
+            candidate = Path(value)
+            if not candidate.is_absolute():
+                candidate = scan_root / candidate
+            return os.path.normcase(os.path.abspath(os.fspath(candidate)))
+
+        invalidated = {logical_source(source) for source in _publication_invalidated_files}
+        invalidated.discard(None)
+        removed_ids: set[object] = set()
+        kept_nodes: list[dict] = []
+        for node in data["nodes"]:
+            if (
+                not isinstance(node, dict)
+                or logical_source(node.get("source_file")) not in invalidated
+            ):
+                kept_nodes.append(node)
+            elif "id" in node:
+                removed_ids.add(node["id"])
+        if not removed_ids and len(kept_nodes) == len(data["nodes"]):
+            return
+        data["nodes"] = kept_nodes
+        links_key = "links" if isinstance(data.get("links"), list) else "edges"
+        if isinstance(data.get(links_key), list):
+            data[links_key] = [
+                edge
+                for edge in data[links_key]
+                if isinstance(edge, dict)
+                and edge.get("source") not in removed_ids
+                and edge.get("target") not in removed_ids
+                and logical_source(edge.get("source_file")) not in invalidated
+            ]
+        if isinstance(data.get("hyperedges"), list):
+            data["hyperedges"] = [
+                hyperedge
+                for hyperedge in data["hyperedges"]
+                if isinstance(hyperedge, dict)
+                and logical_source(hyperedge.get("source_file")) not in invalidated
+                and not removed_ids.intersection(hyperedge.get("nodes", []) or [])
+            ]
+        from graphify.paths import write_json_atomic as _write_json_atomic
+
+        _write_json_atomic(path, data, indent=2)
 
     graph_json_path = graphify_out / "graph.json"
     analysis_path = graphify_out / ".graphify_analysis.json"
@@ -1861,6 +2127,7 @@ def _dispatch_extract() -> None:
             print(f"error: could not invalidate file manifest: {exc}", file=sys.stderr)
             sys.exit(1)
 
+    usage_available = merged.get("usage_available", True) is not False
     if no_cluster:
         # --no-cluster: dump the raw merged extraction as graph.json.
         # No NetworkX, no community detection, no analysis sidecar.
@@ -1956,10 +2223,16 @@ def _dispatch_extract() -> None:
                 )
                 sys.exit(1)
         _backup(graphify_out)
+        # Check both sides of the atomic graph publication. If replacement B
+        # lands inside the writer, scrub the just-written A-owned nodes before
+        # the partial marker/manifest are finalized.
+        _reconcile_publication_image_identity()
         _invalidate_file_manifest_for_db_graph()
         from graphify.paths import write_json_atomic as _write_json_atomic
 
         _write_json_atomic(graph_json_path, merged, indent=2)
+        if _reconcile_publication_image_identity():
+            _scrub_invalidated_image_sources(graph_json_path)
         stages.mark("write")
         cost = _estimate_cost(backend or "", merged["input_tokens"], merged["output_tokens"])
         print(
@@ -1967,26 +2240,42 @@ def _dispatch_extract() -> None:
             f"{len(merged['nodes'])} nodes, {len(merged['edges'])} edges "
             f"(no clustering)"
         )
-        if merged["input_tokens"] or merged["output_tokens"]:
+        if usage_available and (merged["input_tokens"] or merged["output_tokens"]):
             print(
                 f"[graphify extract] tokens: "
                 f"{merged['input_tokens']:,} in / "
                 f"{merged['output_tokens']:,} out, "
                 f"est. cost: ${cost:.4f}"
             )
+        elif not usage_available:
+            print(
+                "[graphify extract] token usage: unavailable "
+                "(Pi --print does not expose response metadata)"
+            )
         cost_state = _update_cost_tracker(
             graphify_out,
             input_tokens=merged["input_tokens"],
             output_tokens=merged["output_tokens"],
             files=detection.get("total_files", 0) if has_path else 0,
+            usage_available=usage_available,
+            backend=backend,
+            requested_model=model,
         )
-        print(
-            f"[graphify extract] cost tracker: this run "
-            f"{merged['input_tokens']:,} in / {merged['output_tokens']:,} out; "
-            f"all time {cost_state['total_input_tokens']:,} in / "
-            f"{cost_state['total_output_tokens']:,} out ({len(cost_state['runs'])} runs)"
-        )
+        if usage_available:
+            print(
+                _format_cost_tracker(
+                    cost_state,
+                    input_tokens=merged["input_tokens"],
+                    output_tokens=merged["output_tokens"],
+                )
+            )
+        else:
+            print("[graphify extract] cost tracker: response usage unavailable")
         if semantic_files:
+            # One last check keeps a replacement between graph publication and
+            # marker finalization from turning the run back into "clean".
+            if _reconcile_publication_image_identity():
+                _scrub_invalidated_image_sources(graph_json_path)
             _write_semantic_marker(
                 graphify_out,
                 output_tokens=merged["output_tokens"],
@@ -1995,6 +2284,7 @@ def _dispatch_extract() -> None:
                 total_chunks=semantic_total_chunks,
                 failed_chunks=semantic_failed_chunks,
                 partial_chunks=semantic_partial_chunks,
+                usage_available=usage_available,
             )
         else:
             _clear_semantic_marker(graphify_out)
@@ -2050,7 +2340,11 @@ def _dispatch_extract() -> None:
         # and the graph's own stale sources — which catches files that
         # became excluded without ever being manifest-listed (#1909).
         _prune_sources: list[str] = list(deleted_files)
-        for _src in list(excluded_files) + graph_stale_sources:
+        for _src in (
+            list(excluded_files)
+            + graph_stale_sources
+            + sorted(_identity_invalidated_semantic_files)
+        ):
             if _src not in _prune_sources:
                 _prune_sources.append(_src)
         G = _build_merge(
@@ -2115,7 +2409,12 @@ def _dispatch_extract() -> None:
     # passing --allow-partial (the good graph is preserved and the manifest
     # is not stamped, so the retry re-extracts).
     _force_write = cli_allow_partial or not _extraction_incomplete
+    # Reconcile immediately before publication, then repeat after the atomic
+    # writer returns to catch a deterministic replacement in that final window.
+    _reconcile_publication_image_identity()
     _wrote = _to_json(G, communities, str(graph_json_path), force=_force_write)
+    if _reconcile_publication_image_identity():
+        _scrub_invalidated_image_sources(graph_json_path)
     if not _wrote:
         # The shrink guard refused: this partial build is smaller than the
         # existing graph. Exit before writing the manifest/marker below, which
@@ -2134,6 +2433,10 @@ def _dispatch_extract() -> None:
         sys.exit(1)
     stages.mark("export")
     if semantic_files:
+        # Repeat the identity check immediately before marker publication so a
+        # replacement in the remaining graph/marker window also fails partial.
+        if _reconcile_publication_image_identity():
+            _scrub_invalidated_image_sources(graph_json_path)
         _write_semantic_marker(
             graphify_out,
             output_tokens=merged["output_tokens"],
@@ -2142,6 +2445,7 @@ def _dispatch_extract() -> None:
             total_chunks=semantic_total_chunks,
             failed_chunks=semantic_failed_chunks,
             partial_chunks=semantic_partial_chunks,
+            usage_available=usage_available,
         )
     else:
         _clear_semantic_marker(graphify_out)
@@ -2171,38 +2475,55 @@ def _dispatch_extract() -> None:
         "tokens": {
             "input": merged["input_tokens"],
             "output": merged["output_tokens"],
+            "usage_available": usage_available,
         },
     }
-    from graphify.paths import write_json_atomic as _wja
-
-    _wja(analysis_path, analysis, indent=2)
+    analysis_written = False
     report_written = False
-    try:
-        from graphify.export import _git_head as _git_head
-        from graphify.report import generate as _generate_report
-
-        labels = {cid: f"Community {cid}" for cid in communities}
-        report = _generate_report(
-            G,
-            communities,
-            cohesion,
-            labels,
-            gods,
-            surprises,
-            detection,
-            {"input": merged["input_tokens"], "output": merged["output_tokens"]},
-            str(target),
-            built_at_commit=_git_head(),
-        )
-        from graphify.paths import write_text_atomic
-
-        write_text_atomic(graphify_out / "GRAPH_REPORT.md", report)
-        report_written = True
-    except Exception as exc:
+    if _publication_invalidated_files:
+        # The graph was scrubbed after a source race. Do not publish sidecars
+        # derived from the pre-scrub clustered graph; the partial marker and
+        # unstamped manifest remain the authoritative retry signal.
         print(
-            f"[graphify extract] warning: could not write GRAPH_REPORT.md: {exc}",
+            "[graphify extract] skipped clustered analysis/report sidecars after "
+            "image publication identity race",
             file=sys.stderr,
         )
+    else:
+        from graphify.paths import write_json_atomic as _wja
+
+        _wja(analysis_path, analysis, indent=2)
+        analysis_written = True
+        try:
+            from graphify.export import _git_head as _git_head
+            from graphify.report import generate as _generate_report
+
+            labels = {cid: f"Community {cid}" for cid in communities}
+            report = _generate_report(
+                G,
+                communities,
+                cohesion,
+                labels,
+                gods,
+                surprises,
+                detection,
+                {
+                    "input": merged["input_tokens"],
+                    "output": merged["output_tokens"],
+                    "usage_available": usage_available,
+                },
+                str(target),
+                built_at_commit=_git_head(),
+            )
+            from graphify.paths import write_text_atomic
+
+            write_text_atomic(graphify_out / "GRAPH_REPORT.md", report)
+            report_written = True
+        except Exception as exc:
+            print(
+                f"[graphify extract] warning: could not write GRAPH_REPORT.md: {exc}",
+                file=sys.stderr,
+            )
     try:
         if has_path:
             _save_manifest(
@@ -2224,7 +2545,8 @@ def _dispatch_extract() -> None:
         f"{G.number_of_nodes()} nodes, {G.number_of_edges()} edges, "
         f"{len(communities)} communities"
     )
-    print(f"[graphify extract] wrote {analysis_path}")
+    if analysis_written:
+        print(f"[graphify extract] wrote {analysis_path}")
     if report_written:
         print(f"[graphify extract] wrote {graphify_out / 'GRAPH_REPORT.md'}")
     if incremental_mode:
@@ -2239,25 +2561,37 @@ def _dispatch_extract() -> None:
         print(
             f"[graphify extract] semantic cache: {sem_cache_hits} cached, {sem_cache_misses} re-extracted"
         )
-    if merged["input_tokens"] or merged["output_tokens"]:
+    if usage_available and (merged["input_tokens"] or merged["output_tokens"]):
         print(
             f"[graphify extract] tokens: "
             f"{merged['input_tokens']:,} in / "
             f"{merged['output_tokens']:,} out, "
             f"est. cost (~{backend}): ${cost:.4f}"
         )
+    elif not usage_available:
+        print(
+            "[graphify extract] token usage: unavailable "
+            "(Pi --print does not expose response metadata)"
+        )
     cost_state = _update_cost_tracker(
         graphify_out,
         input_tokens=merged["input_tokens"],
         output_tokens=merged["output_tokens"],
         files=detection.get("total_files", 0) if has_path else 0,
+        usage_available=usage_available,
+        backend=backend,
+        requested_model=model,
     )
-    print(
-        f"[graphify extract] cost tracker: this run "
-        f"{merged['input_tokens']:,} in / {merged['output_tokens']:,} out; "
-        f"all time {cost_state['total_input_tokens']:,} in / "
-        f"{cost_state['total_output_tokens']:,} out ({len(cost_state['runs'])} runs)"
-    )
+    if usage_available:
+        print(
+            _format_cost_tracker(
+                cost_state,
+                input_tokens=merged["input_tokens"],
+                output_tokens=merged["output_tokens"],
+            )
+        )
+    else:
+        print("[graphify extract] cost tracker: response usage unavailable")
     # Community labels and wiki output remain the responsibility of cluster-only.
     # Point standalone users at it so communities get named (#1097).
     print(
@@ -3346,7 +3680,11 @@ def dispatch_command(cmd: str) -> None:
         # Accumulate token usage from the labeling LLM calls so cluster-only mode
         # reports real cost instead of a hardcoded zero (#1694). Stays {0, 0} on
         # the reuse / no-label paths, which make no LLM calls.
-        label_token_usage = {"input": 0, "output": 0}
+        label_token_usage = {
+            "input": 0,
+            "output": 0,
+            "usage_available": label_backend != "pi",
+        }
         # #2073: a --no-label run produces only "Community N" placeholders.
         # Persisting them (plus a matching .sig) made the reuse branch treat them
         # as fresh forever, permanently blocking real labeling on later runs.
@@ -3449,7 +3787,7 @@ def dispatch_command(cmd: str) -> None:
                     if cid not in existing_labels
                     or bool(re.fullmatch(r"Community\s+\d+", existing_labels[cid].strip()))
                 }
-            generated_labels, _ = generate_community_labels(
+            generated_labels, label_source = generate_community_labels(
                 G,
                 label_communities_input,
                 backend=label_backend,
@@ -3459,12 +3797,35 @@ def dispatch_command(cmd: str) -> None:
                 batch_size=label_batch_size,
                 usage_out=label_token_usage,
             )
+            if label_backend == "pi":
+                from graphify.pi_canary import campaign_active as _campaign_active
+
+                if _campaign_active() and (
+                    label_source != "llm"
+                    or not any(_is_substantive_label(value) for value in generated_labels.values())
+                ):
+                    print(
+                        "[graphify cluster-only] Pi canary label stage failed: "
+                        "the one-batch response was not substantive; deterministic hub "
+                        "fallback is disabled.",
+                        file=sys.stderr,
+                    )
+                    sys.exit(1)
             # Only let the LLM OVERRIDE where it produced a real name — its no-backend
             # fallback returns "Community {cid}" placeholders, which must not clobber
             # the deterministic hub labels.
             labels.update(
-                {cid: v for cid, v in generated_labels.items() if v and v != f"Community {cid}"}
+                {
+                    cid: value
+                    for cid, value in generated_labels.items()
+                    if _is_substantive_label(value)
+                }
             )
+            # A failed/unsubstantive Pi response must not turn placeholders into
+            # an apparently authoritative sidecar. Hub labels remain the only
+            # persisted fallback when no community has a substantive name.
+            if not any(_is_substantive_label(value) for value in labels.values()):
+                placeholder_only = True
         stages.mark("label")
         questions = suggest_questions(G, communities, labels)
         tokens = label_token_usage

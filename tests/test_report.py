@@ -86,6 +86,23 @@ def test_report_shows_token_cost():
     assert "1,200" in report
 
 
+def test_report_marks_pi_usage_unavailable_without_zero_counts():
+    G, communities, cohesion, labels, gods, surprises, detection, _ = make_inputs()
+    report = generate(
+        G,
+        communities,
+        cohesion,
+        labels,
+        gods,
+        surprises,
+        detection,
+        {"input": 0, "output": 0, "usage_available": False},
+        "./project",
+    )
+    assert "Token usage: unavailable" in report
+    assert "Token cost: 0" not in report
+
+
 def test_report_shows_raw_cohesion_scores():
     G, communities, cohesion, labels, gods, surprises, detection, tokens = make_inputs()
     report = generate(

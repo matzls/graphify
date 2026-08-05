@@ -1,6 +1,6 @@
 {
   "name": "graphify-semantic-model-suite",
-  "version": 2,
+  "version": 3,
   "description": "Privacy-safe synthetic, public-realistic, and multimodal fixture suite for recurring Graphify semantic model comparisons.",
   "quality_gate": {
     "critical_dimensions": [
@@ -11,7 +11,10 @@
       "source_coverage"
     ],
     "minimum_overall": 0.7,
-    "minimum_critical_dimension": 0.45
+    "minimum_critical_dimension": 0.45,
+    "minimum_profile_scores": {
+      "multimodal": 0.7
+    }
   },
   "fixtures": [
     {

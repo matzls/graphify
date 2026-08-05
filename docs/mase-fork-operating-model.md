@@ -8,15 +8,16 @@ doc_id: "mase-graphify-fork-operating-model"
 owners:
   - "mase"
 created: 2026-05-02
-updated: 2026-07-26
-last_verified: 2026-07-26
-reconciliation_status: "v0.9.26 portable Codex SessionStart is installed and source-verified; pi-agent-skills semantic propagation is complete; dirty Second Brain/Personal AI refreshes and push remain gated"
+updated: 2026-08-05
+last_verified: 2026-08-05
+reconciliation_status: "The active v0.9.26 CLI has not been refreshed for the current Pi/evaluation source commit; Ollama Pro remains automatic, Pi explicit, evaluation redesign plan-only, and install/push/propagation gated"
 source_of_truth: "./mase-fork-operating-model.md"
 related:
   - "../AGENTS.md"
   - "../ARCHITECTURE.md"
   - "../README.md"
   - "./codex-pi-semantic-refresh.md"
+  - "./semantic-model-quality-harness.md"
   - "/Users/mase/.codex/docs/reference/graphify.md"
 tags:
   - "graphify"
@@ -226,15 +227,17 @@ The promoted local branch `mase/local-fixes` descends from the immutable
 v0.9.26 target `66d8110a534b52df3d660b5fda5aa5461a6b667a` and preserves
 all 71 pre-v0.9.26 local commits after a clean rebase. The validated temporary
 branch `mase/reconcile/graphify-v0.9.26` remains at the same stage-one commit,
-`6228b3c18c2f92d7ecf4f4d16b0174da07e999a6`. The active Graphify 0.9.26 CLI
-now includes the validated opt-in portable Codex SessionStart implementation.
-`graphify doctor --require-source` passes, the installed `__main__.py`,
-`install.py`, `cli.py`, and `hooks.py` match this checkout, and the global Pi
-skill is byte-identical to `graphify/skill-pi.md`. A cache-only stale-marker bug
-found by the Personal AI canary was repaired and previously verified by a
-successful semantic retry plus query smoke. Bounded semantic propagation has
-also completed for `pi-agent-skills`; `my-second-brain-build`, `Personal AI`,
-every other downstream target, and push remain separate approval gates.
+`6228b3c18c2f92d7ecf4f4d16b0174da07e999a6`.
+
+The active Graphify CLI was last refreshed for the earlier v0.9.26 closeout. It
+has **not** been reinstalled for the current source commit: installed core-file
+hashes differ from this checkout, and installed help does not expose the new Pi
+backend. Do not describe the current source implementation as active or
+promoted until Mase separately authorizes reinstall and source verification.
+The previously validated portable Codex SessionStart, cache-only stale-marker
+repair, and bounded `pi-agent-skills` propagation remain historical active-install
+evidence. `my-second-brain-build`, `Personal AI`, every other downstream target,
+install, propagation, and push remain separate approval gates.
 
 As last verified on 2026-07-25 against `upstream/v8` at the v0.9.26 base, the
 local fork carries Mase-specific or recently upstream-oriented changes in these
@@ -262,6 +265,10 @@ areas:
   semantic refreshes propagate failed/partial chunk state and fail closed unless
   `--allow-partial`; pending semantic markers widen incremental runs to the live
   semantic corpus while content-hash cache hits avoid unnecessary inference.
+  The current source also adds an explicit final-`pi --print` semantic backend
+  with truthful unavailable metadata, bounded output and cleanup, serialized
+  calls, explicit image-upload consent, and no automatic Ollama fallback. This
+  backend is source-only until a separately authorized reinstall.
 - `graphify/watch.py`: code-only rebuilds preserve upstream v8's stable graph
   behavior while dropping stale edges from changed sources.
 - `graphify/build.py` and `graphify/export.py`: legacy or model-produced
@@ -270,11 +277,14 @@ areas:
   output.
 - `graphify/adoption.py`: audit, apply, and bounded propagation workflows keep
   generated graph state local by default and preserve Mase's target exclusions.
-- `graphify/semantic_eval.py`: the local decision-grade semantic harness
-  calibrates provider/model quality and fail-closed behavior.
+- `graphify/semantic_eval.py`: the local diagnostic regression harness records
+  provider/model behavior and fail-closed failures. Its current scorer and gates
+  are not authoritative for prompt, model, image, or promotion decisions.
 - `tests/test_install.py`, `tests/test_transcribe.py`, `tests/test_watch.py`,
   `tests/test_detect.py`, `tests/test_hooks.py`,
   `tests/test_cli_semantic_fail_closed.py`, `tests/test_llm_backends.py`,
+  `tests/test_pi_cli_backend.py`, `tests/test_pi_canary.py`,
+  `tests/test_image_vision.py`, `tests/test_labeling.py`,
   `tests/test_cli_export.py`, `tests/test_hypergraph.py`,
   `tests/test_build_merge_hyperedges_and_prune.py`, `tests/test_extract_cli.py`,
   `tests/test_adoption.py`, `tests/test_semantic_eval.py`, and
@@ -531,14 +541,23 @@ single semantic concurrency, smaller per-chunk token budget, longer request
 timeout, safe trace output, bounded model output tokens, and a conservative
 `.graphifyignore` starter before semantic extraction.
 
-Current model decision: use `deepseek-v4-pro:cloud` as Graphify's built-in
-Ollama default. The 2026-07-07 prompt-v2 A/B showed DeepSeek V4 Pro as the
-cleanest full-suite candidate under the calibrated semantic harness: it passed
-the gate, improved edge coverage and relation quality, and had no forbidden or
-source-grounding regression. Routine commands should omit `--model` so explicit
-user flags and `OLLAMA_MODEL` can override the default. Treat `glm-5.2:cloud` as
-a cost-conscious fallback candidate and `deepseek-v4-flash:cloud` as available
-but lower-quality for this harness cycle.
+Current model decision: keep `deepseek-v4-pro:cloud` as Graphify's built-in
+automatic Ollama text default. This is a retention decision: no accepted
+replacement has cleared the qualitative and operational bar, and the current
+scorer is diagnostic only. Routine commands should omit `--model` so explicit
+user flags and `OLLAMA_MODEL` can override the default.
+
+A 2026-08-05 blind bounded comparison of
+`deepseek-v4-flash:0731-cloud` found broader architecture recovery but weaker
+privacy-contract fidelity, substantially more graph noise, and 2.76 times the
+elapsed runtime. Flash 0731 remains explicit and is not the default. Pi/Luna is
+also explicit, uninstalled from the current source commit, and unpromoted; image
+runs require fresh upload consent and human semantic review.
+
+The next project iteration is **plan-only evaluation-harness redesign**. Use
+`docs/semantic-model-quality-harness.md` and lifecycle state for the current
+scope. Do not implement the redesign, tune prompts, spend provider calls, change
+defaults, reinstall, or promote without a newly reviewed and approved plan.
 
 ## Codex Guidance Rules
 

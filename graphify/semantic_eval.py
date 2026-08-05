@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import base64
 import difflib
+import hashlib
 import json
 import math
 import os
@@ -28,8 +29,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+from graphify import llm
 
-SCORER_VERSION = 2
+
+SCORER_VERSION = 3
 SCORER_V1_VERSION = 1
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
@@ -64,6 +67,124 @@ def _load_json(path: Path) -> dict[str, Any]:
 def _write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _paths_sha256(paths: list[Path], *, root: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(paths):
+        try:
+            relative = path.resolve().relative_to(root.resolve())
+        except ValueError:
+            relative = Path("__external__") / path.name
+        digest.update(str(relative).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _corpus_sha256(corpus: Path) -> str:
+    paths = [
+        path
+        for path in corpus.rglob("*")
+        if path.is_file()
+        and path.name != "expected.json"
+        and "graphify-out" not in path.relative_to(corpus).parts
+    ]
+    return _paths_sha256(paths, root=corpus)
+
+
+def _suite_contract_sha256(suite_path: Path, suite: dict[str, Any]) -> str:
+    paths = [suite_path, *(fixture["expected_path"] for fixture in suite["fixtures"])]
+    return _paths_sha256(paths, root=suite_path.parent)
+
+
+def _suite_corpus_sha256(suite_path: Path, suite: dict[str, Any]) -> str:
+    digest = hashlib.sha256()
+    for fixture in suite["fixtures"]:
+        digest.update(fixture["id"].encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(_corpus_sha256(fixture["corpus_path"]).encode("ascii"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def _extraction_prompt_sha256() -> str:
+    return hashlib.sha256(llm._extraction_system(deep=False).encode("utf-8")).hexdigest()
+
+
+def _git_evidence() -> dict[str, Any]:
+    def _git(*args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", *args],
+            cwd=Path.cwd(),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    head = _git("rev-parse", "HEAD")
+    status = _git("status", "--short")
+    unstaged = _git("diff", "--no-ext-diff", "--binary")
+    staged = _git("diff", "--cached", "--no-ext-diff", "--binary")
+    untracked = _git("ls-files", "--others", "--exclude-standard", "-z")
+    commands = (head, status, unstaged, staged, untracked)
+    if any(command.returncode != 0 for command in commands):
+        return {"available": False}
+
+    digest = hashlib.sha256()
+    for payload in (status.stdout, unstaged.stdout, staged.stdout):
+        digest.update(payload.encode("utf-8"))
+        digest.update(b"\0")
+    for relative in sorted(path for path in untracked.stdout.split("\0") if path):
+        path = Path.cwd() / relative
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        if path.is_file():
+            digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return {
+        "available": True,
+        "head": head.stdout.strip(),
+        "dirty": bool(status.stdout.strip()),
+        "diff_sha256": digest.hexdigest(),
+    }
+
+
+def _evaluation_operational_config(
+    *, backend: str, model: str, timeout: int, token_budget: int
+) -> dict[str, Any]:
+    env_names = (
+        "GRAPHIFY_DISABLE_THINKING",
+        "GRAPHIFY_LLM_TEMPERATURE",
+        "GRAPHIFY_MAX_OUTPUT_TOKENS",
+        "GRAPHIFY_MAX_RETRIES",
+        "GRAPHIFY_NO_INCREMENTAL_CACHE",
+        "GRAPHIFY_OLLAMA_KEEP_ALIVE",
+        "GRAPHIFY_OLLAMA_NUM_CTX",
+        "GRAPHIFY_OLLAMA_PARALLEL",
+        "GRAPHIFY_OLLAMA_REASONING_EFFORT",
+        "GRAPHIFY_OLLAMA_VISION",
+        "GRAPHIFY_SEMANTIC_EVAL_THINKING_LEVEL",
+        "GRAPHIFY_SEMANTIC_EVAL_TRANSPORT",
+        "GRAPHIFY_SEMANTIC_EVAL_VISION_MODE",
+    )
+    endpoint = ""
+    backend_config = llm.BACKENDS.get(backend, {})
+    if backend == "ollama":
+        endpoint = llm._resolve_ollama_base_url(str(backend_config.get("base_url") or ""))
+    elif backend_config.get("base_url"):
+        endpoint = str(backend_config["base_url"])
+    return {
+        "backend": backend,
+        "model": model,
+        "timeout_seconds": timeout,
+        "token_budget": token_budget,
+        "endpoint_sha256": hashlib.sha256(endpoint.encode("utf-8")).hexdigest()
+        if endpoint
+        else None,
+        "environment": {name: os.environ[name] for name in env_names if name in os.environ},
+    }
 
 
 def _safe_rmtree(path: Path) -> None:
@@ -127,6 +248,56 @@ def _concept_spec(item: Any) -> dict[str, Any]:
 
 def _concept_specs(items: list[Any]) -> list[dict[str, Any]]:
     return [spec for spec in (_concept_spec(item) for item in items) if spec["name"]]
+
+
+def _concept_spec_with_required_aliases(
+    item: Any, required_specs: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Add aliases declared by the matching required-concept contract."""
+    spec = _concept_spec(item)
+    spec_norms = {_comparison_norm(value) for value in [spec["name"], *spec["aliases"]] if value}
+    matches = []
+    for required in required_specs:
+        required_values = [required["name"], *required["aliases"]]
+        required_norms = {_comparison_norm(value) for value in required_values if value}
+        if spec_norms.intersection(required_norms):
+            matches.append(required)
+    if len(matches) != 1:
+        return spec
+
+    alias_owner_counts: dict[str, int] = {}
+    for required in required_specs:
+        owner_norms = {
+            _comparison_norm(value)
+            for value in [required["name"], *required["aliases"]]
+            if _comparison_norm(value)
+        }
+        for normalized in owner_norms:
+            alias_owner_counts[normalized] = alias_owner_counts.get(normalized, 0) + 1
+
+    aliases = list(spec["aliases"])
+    required_values = [matches[0]["name"], *matches[0]["aliases"]]
+    seen = {_comparison_norm(spec["name"]), *(_comparison_norm(value) for value in aliases)}
+    for value in required_values:
+        normalized = _comparison_norm(value)
+        if normalized and normalized not in seen and alias_owner_counts.get(normalized) == 1:
+            aliases.append(value)
+            seen.add(normalized)
+    return {**spec, "aliases": aliases}
+
+
+def _edge_specs_with_required_aliases(
+    edges: list[dict[str, Any]], required_specs: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Apply fixture-wide required-concept aliases to edge endpoints."""
+    return [
+        {
+            **edge,
+            "source": _concept_spec_with_required_aliases(edge.get("source", ""), required_specs),
+            "target": _concept_spec_with_required_aliases(edge.get("target", ""), required_specs),
+        }
+        for edge in edges
+    ]
 
 
 def _concept_norms(spec: dict[str, Any]) -> set[str]:
@@ -294,6 +465,7 @@ def _edge_matches(
     target_ids: set[str],
     relation_terms: list[str],
     directed: bool,
+    respect_relation_polarity: bool = False,
 ) -> bool:
     source = str(edge.get("source", ""))
     target = str(edge.get("target", ""))
@@ -302,16 +474,80 @@ def _edge_matches(
         endpoints_match = endpoints_match or (source in target_ids and target in source_ids)
     if not endpoints_match:
         return False
-    return _edge_relation_matches(edge, relation_terms)
+    return _edge_relation_matches(edge, relation_terms, respect_polarity=respect_relation_polarity)
 
 
-def _edge_relation_matches(edge: dict[str, Any], relation_terms: list[str]) -> bool:
+def _relation_is_explicitly_negative(value: str) -> bool:
+    tokens = _norm(value).split()
+    if not tokens:
+        return False
+    if tokens[0] in {
+        "avoid",
+        "avoids",
+        "cannot",
+        "forbid",
+        "forbids",
+        "never",
+        "no",
+        "not",
+        "prevent",
+        "prevents",
+        "prohibit",
+        "prohibits",
+        "without",
+    }:
+        return True
+    return "not" in tokens[:3] and tokens[0] in {
+        "are",
+        "can",
+        "did",
+        "do",
+        "does",
+        "is",
+        "must",
+        "should",
+        "was",
+        "were",
+        "will",
+    }
+
+
+def _contains_token_phrase(tokens: list[str], phrase: list[str]) -> bool:
+    if not phrase or len(phrase) > len(tokens):
+        return False
+    return any(
+        tokens[index : index + len(phrase)] == phrase
+        for index in range(len(tokens) - len(phrase) + 1)
+    )
+
+
+def _relation_matches_required_polarity(edge: dict[str, Any], required: str | None) -> bool:
+    if required is None:
+        return True
+    if required not in {"negative", "positive"}:
+        raise ValueError(f"unsupported expected-edge polarity: {required!r}")
+    is_negative = _relation_is_explicitly_negative(str(edge.get("relation", "")))
+    return is_negative if required == "negative" else not is_negative
+
+
+def _edge_relation_matches(
+    edge: dict[str, Any], relation_terms: list[str], *, respect_polarity: bool = False
+) -> bool:
     if not relation_terms:
         return True
     relation = _comparison_norm(str(edge.get("relation", "")))
-    return any(
-        _comparison_norm(term) in relation for term in relation_terms if _comparison_norm(term)
-    )
+    relation_tokens = relation.split()
+    relation_is_negative = _relation_is_explicitly_negative(str(edge.get("relation", "")))
+    for term in relation_terms:
+        normalized_term = _comparison_norm(term)
+        if not normalized_term or not _contains_token_phrase(
+            relation_tokens, normalized_term.split()
+        ):
+            continue
+        if respect_polarity and relation_is_negative and not _relation_is_explicitly_negative(term):
+            continue
+        return True
+    return False
 
 
 def _edge_endpoint_matches(
@@ -376,6 +612,7 @@ def _expected_edge_diagnostic(
     target_spec: dict[str, Any],
     relation_terms: list[str],
     directed: bool,
+    required_polarity: str | None = None,
 ) -> dict[str, Any]:
     node_by_id = {str(node.get("id", "")): node for node in nodes}
     source_matches = _matching_nodes(nodes, source_spec)
@@ -421,6 +658,19 @@ def _expected_edge_diagnostic(
             directed=directed,
         )
     ]
+    if (
+        required_polarity
+        and endpoint_edges
+        and not any(
+            _relation_matches_required_polarity(edge, required_polarity) for edge in endpoint_edges
+        )
+    ):
+        diagnostic["failure_reason"] = "polarity_mismatch"
+        diagnostic["required_polarity"] = required_polarity
+        diagnostic["candidate_edges"] = [
+            _edge_brief(edge, node_by_id) for edge in endpoint_edges[:3]
+        ]
+        return diagnostic
     if endpoint_edges:
         diagnostic["failure_reason"] = "relation_mismatch"
         diagnostic["candidate_edges"] = [
@@ -435,7 +685,11 @@ def _expected_edge_diagnostic(
 
 
 def _expected_edge_coverage(
-    nodes: list[dict[str, Any]], links: list[dict[str, Any]], expected_edges: list[dict[str, Any]]
+    nodes: list[dict[str, Any]],
+    links: list[dict[str, Any]],
+    expected_edges: list[dict[str, Any]],
+    *,
+    default_directed: bool = False,
 ) -> dict[str, Any]:
     checks: list[tuple[bool, float]] = []
     relation_checks: list[tuple[bool, float]] = []
@@ -451,7 +705,10 @@ def _expected_edge_coverage(
         if isinstance(relation_terms, str):
             relation_terms = [relation_terms]
         normalized_relation_terms = [str(term) for term in relation_terms]
-        directed = bool(spec.get("directed", False))
+        directed = bool(spec.get("directed", default_directed))
+        required_polarity = spec.get("polarity")
+        if required_polarity is not None:
+            required_polarity = str(required_polarity).strip().lower()
         weight = _as_weight(spec.get("weight"))
         endpoint_edges = [
             edge
@@ -462,11 +719,17 @@ def _expected_edge_coverage(
                 target_ids=target_ids,
                 directed=directed,
             )
+            and _relation_matches_required_polarity(edge, required_polarity)
         ]
         endpoint_ok = bool(source_ids and target_ids and endpoint_edges)
         checks.append((endpoint_ok, weight))
         relation_ok = any(
-            _edge_relation_matches(edge, normalized_relation_terms) for edge in endpoint_edges
+            _edge_relation_matches(
+                edge,
+                normalized_relation_terms,
+                respect_polarity=required_polarity is not None,
+            )
+            for edge in endpoint_edges
         )
         if endpoint_ok and normalized_relation_terms:
             relation_checks.append((relation_ok, weight))
@@ -478,6 +741,7 @@ def _expected_edge_coverage(
                 target_spec=target_spec,
                 relation_terms=normalized_relation_terms,
                 directed=directed,
+                required_polarity=required_polarity,
             )
             diagnostics.append(diagnostic)
         if not endpoint_ok:
@@ -537,6 +801,7 @@ def _forbidden_edge_absence(
                     target_ids=target_ids,
                     relation_terms=[str(term) for term in relation_terms],
                     directed=directed,
+                    respect_relation_polarity=True,
                 )
             ]
             for edge in matches:
@@ -640,9 +905,16 @@ def score_graph(
         if _matching_nodes(nodes, spec)
     }
 
-    expected_edges = expected.get("expected_edges", [])
+    expected_edges = _edge_specs_with_required_aliases(
+        expected.get("expected_edges", []), required_specs
+    )
     edge_coverage = (
-        _expected_edge_coverage(nodes, links, expected_edges)
+        _expected_edge_coverage(
+            nodes,
+            links,
+            expected_edges,
+            default_directed=bool(expected.get("expected_edges_directed", False)),
+        )
         if expected_edges
         else {
             "score": None,
@@ -654,7 +926,10 @@ def score_graph(
             "relation_total": 0,
         }
     )
-    forbidden_edges = _forbidden_edge_absence(nodes, links, expected.get("forbidden_edges", []))
+    forbidden_edge_specs = _edge_specs_with_required_aliases(
+        expected.get("forbidden_edges", []), required_specs
+    )
+    forbidden_edges = _forbidden_edge_absence(nodes, links, forbidden_edge_specs)
     source_coverage = _source_coverage(nodes, links, expected.get("expected_source_files", []))
 
     generic_relations = {str(r).lower() for r in expected.get("generic_relations", ["references"])}
@@ -828,6 +1103,18 @@ def run_harness(
     env = os.environ.copy()
     env.setdefault("OLLAMA_API_KEY", "ollama")
     env.setdefault("GRAPHIFY_LLM_TRACE", "1")
+    evidence = {
+        "expected_contract_sha256": _paths_sha256([expected], root=expected.parent),
+        "corpus_sha256": _corpus_sha256(corpus),
+        "extraction_prompt_sha256": _extraction_prompt_sha256(),
+        "operational_config": _evaluation_operational_config(
+            backend=backend,
+            model=model,
+            timeout=timeout,
+            token_budget=token_budget,
+        ),
+        "git_state": _git_evidence(),
+    }
 
     commands = [
         [
@@ -884,6 +1171,7 @@ def run_harness(
                 "scorer_version": SCORER_VERSION,
                 "backend": backend,
                 "model": model,
+                **evidence,
                 "commands": command_results,
             }
             _write_json(out_dir / "run.json", summary)
@@ -902,6 +1190,7 @@ def run_harness(
         "scorer_version": SCORER_VERSION,
         "backend": backend,
         "model": model,
+        **evidence,
         "commands": command_results,
         "score": score,
     }
@@ -1109,6 +1398,9 @@ def _aggregate_suite(suite: dict[str, Any], fixture_runs: list[dict[str, Any]]) 
     )
     minimum_overall = quality_gate.get("minimum_overall")
     minimum_critical = quality_gate.get("minimum_critical_dimension")
+    minimum_profiles = quality_gate.get("minimum_profile_scores", {})
+    if not isinstance(minimum_profiles, dict):
+        minimum_profiles = {}
     critical_dimensions = [str(d) for d in quality_gate.get("critical_dimensions", [])]
     fixture_failures = [
         {"id": fixture["id"], "error": fixture["error"]}
@@ -1134,6 +1426,14 @@ def _aggregate_suite(suite: dict[str, Any], fixture_runs: list[dict[str, Any]]) 
                 gate_failures.append(
                     f"{dimension} {value} < minimum_critical_dimension {minimum_critical}"
                 )
+    for profile, minimum in sorted(minimum_profiles.items()):
+        value = profile_scores.get(str(profile))
+        if value is None:
+            gate_failures.append(
+                f"{profile} profile score missing; minimum_profile_score {minimum}"
+            )
+        elif _as_float(value) < _as_float(minimum):
+            gate_failures.append(f"{profile} profile {value} < minimum_profile_score {minimum}")
     return {
         "scorer_version": SCORER_VERSION,
         "suite": suite.get("name", "semantic-eval-suite"),
@@ -1246,6 +1546,20 @@ def compare_suite_runs(baseline_path: Path, candidate_path: Path) -> dict[str, A
             "scorer_version mismatch: "
             f"baseline={baseline_scorer_version!r}, candidate={candidate_scorer_version!r}"
         )
+    for key in (
+        "suite_version",
+        "suite_contract_sha256",
+        "suite_corpus_sha256",
+        "extraction_prompt_sha256",
+    ):
+        baseline_value = baseline.get(key)
+        candidate_value = candidate.get(key)
+        if baseline_value is None and candidate_value is None:
+            continue
+        if baseline_value != candidate_value:
+            warnings.append(
+                f"{key} mismatch: baseline={baseline_value!r}, candidate={candidate_value!r}"
+            )
     dimensions = sorted(set(baseline_scores) | set(candidate_scores))
     score_deltas = {}
     for key in dimensions:
@@ -1290,6 +1604,10 @@ def compare_suite_runs(baseline_path: Path, candidate_path: Path) -> dict[str, A
             "overall": baseline_scores.get("overall"),
             "gate_passed": baseline.get("gate_passed"),
             "scorer_version": baseline_scorer_version,
+            "suite_version": baseline.get("suite_version"),
+            "suite_contract_sha256": baseline.get("suite_contract_sha256"),
+            "suite_corpus_sha256": baseline.get("suite_corpus_sha256"),
+            "extraction_prompt_sha256": baseline.get("extraction_prompt_sha256"),
         },
         "candidate": {
             "path": str(candidate_path),
@@ -1298,6 +1616,10 @@ def compare_suite_runs(baseline_path: Path, candidate_path: Path) -> dict[str, A
             "overall": candidate_scores.get("overall"),
             "gate_passed": candidate.get("gate_passed"),
             "scorer_version": candidate_scorer_version,
+            "suite_version": candidate.get("suite_version"),
+            "suite_contract_sha256": candidate.get("suite_contract_sha256"),
+            "suite_corpus_sha256": candidate.get("suite_corpus_sha256"),
+            "extraction_prompt_sha256": candidate.get("extraction_prompt_sha256"),
         },
         "warnings": warnings,
         "score_deltas": score_deltas,
@@ -1555,6 +1877,7 @@ def rebaseline_saved_artifacts(
 ) -> dict[str, Any]:
     suite = _load_suite(suite_path)
     fixture_ids = {fixture["id"] for fixture in suite["fixtures"]}
+    fixture_by_id = {fixture["id"]: fixture for fixture in suite["fixtures"]}
     required_targets = [
         semantic_eval_root / "glm-5.2-cloud-suite-amended-20260629-151816",
         semantic_eval_root / "deepseek-v4-pro-cloud-suite-20260701-compare",
@@ -1586,7 +1909,7 @@ def rebaseline_saved_artifacts(
                 }
             )
             continue
-        expected_path = suite_path.parent / fixture_id / "expected.json"
+        expected_path = fixture_by_id[fixture_id]["expected_path"]
         labels_path = graph_path.with_name(".graphify_labels.json")
         if not expected_path.exists():
             skipped.append({"path": str(graph_path), "reason": "expected.json missing"})
@@ -1627,7 +1950,18 @@ def rebaseline_saved_artifacts(
     for run_id in sorted({record["run_id"] for record in records}):
         group_records = [record for record in records if record["run_id"] == run_id]
         old_aggregate = _weighted_aggregate_scores(group_records, suite, score_key="old_score")
-        new_aggregate = _weighted_aggregate_scores(group_records, suite, score_key="new_score")
+        current_summary = _aggregate_suite(
+            suite,
+            [
+                {
+                    "fixture_id": record["fixture_id"],
+                    "score": record["new_score"],
+                    "commands": [],
+                }
+                for record in group_records
+            ],
+        )
+        new_aggregate = current_summary["scores"]
         groups.append(
             {
                 "run_id": run_id,
@@ -1641,12 +1975,11 @@ def rebaseline_saved_artifacts(
                     else round(_as_float(new_aggregate[key]) - _as_float(old_aggregate[key]), 3)
                     for key in sorted(set(old_aggregate) | set(new_aggregate))
                 },
-                "quality_gate_v2": _run_gate(
-                    new_aggregate,
-                    suite.get("quality_gate", {})
-                    if isinstance(suite.get("quality_gate"), dict)
-                    else {},
-                ),
+                "profile_scores": current_summary["profile_scores"],
+                "quality_gate_current": {
+                    "passed": current_summary["gate_passed"],
+                    "failures": current_summary["gate_failures"],
+                },
             }
         )
 
@@ -1690,24 +2023,24 @@ def rebaseline_saved_artifacts(
 
 def _rebaseline_markdown(payload: dict[str, Any]) -> str:
     lines = [
-        "# Scorer v2 Re-baseline",
+        f"# Scorer v{SCORER_VERSION} Re-baseline",
         "",
         "No model calls were made. Graphs were scored from saved `corpus/graphify-out/graph.json` artifacts only; dated snapshot subdirectories under `graphify-out/` were not globbed.",
         "",
         f"- Processed graphs: {payload['summary']['processed_graphs']}",
         f"- Processed runs: {payload['summary']['processed_runs']}",
         f"- Skipped artifacts: {payload['summary']['skipped_artifacts']}",
-        f"- Sonnet integration-gateway v2 edge coverage spot check: {payload['summary']['sonnet_integration_gateway_new_edge_coverage']}",
+        f"- Sonnet integration-gateway current edge coverage spot check: {payload['summary']['sonnet_integration_gateway_new_edge_coverage']}",
         "",
         "## Run Aggregates",
         "",
-        "| Run | Fixtures | Old Overall | New Overall | New Concept Recall | New Edge Coverage | New Relation Agreement | Gate v2 |",
+        "| Run | Fixtures | Old Overall | New Overall | New Concept Recall | New Edge Coverage | New Relation Agreement | Current Gate |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     for run in payload["runs"]:
         new_scores = run["new_scores"]
         old_scores = run["old_scores"]
-        gate = "pass" if run["quality_gate_v2"]["passed"] else "fail"
+        gate = "pass" if run["quality_gate_current"]["passed"] else "fail"
         lines.append(
             f"| `{run['run_id']}` | {run['fixture_count']} | {old_scores.get('overall')} | "
             f"{new_scores.get('overall')} | {new_scores.get('concept_recall')} | "
@@ -2883,6 +3216,17 @@ def run_suite(
         "backend": backend,
         "model": model,
         "suite_path": str(suite_path.resolve()),
+        "suite_version": suite.get("version"),
+        "suite_contract_sha256": _suite_contract_sha256(suite_path, suite),
+        "suite_corpus_sha256": _suite_corpus_sha256(suite_path, suite),
+        "extraction_prompt_sha256": _extraction_prompt_sha256(),
+        "operational_config": _evaluation_operational_config(
+            backend=backend,
+            model=model,
+            timeout=timeout,
+            token_budget=token_budget,
+        ),
+        "git_state": _git_evidence(),
         **_aggregate_suite(suite, fixture_runs),
     }
     _write_json(out_dir / "suite-run.json", summary)
@@ -2934,7 +3278,7 @@ def main(argv: list[str] | None = None) -> int:
     rebaseline_p.add_argument(
         "--out-dir",
         type=Path,
-        default=Path(".semantic-evals/comparisons/scorer-v2-rebaseline"),
+        default=Path(f".semantic-evals/comparisons/scorer-v{SCORER_VERSION}-rebaseline"),
     )
 
     judge_suite_p = sub.add_parser("judge-suite", help="LLM-judge one suite-run.json artifact")

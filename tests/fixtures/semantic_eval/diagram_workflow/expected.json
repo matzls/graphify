@@ -1,4 +1,5 @@
 {
+  "expected_edges_directed": true,
   "required_concepts": [
     {"name": "Visual Routing Workflow", "weight": 1.5},
     {"name": "Intake Queue", "weight": 2.0},

@@ -1,20 +1,62 @@
 ---
 title: "Semantic Model Quality Harness"
-kind: "operator-guide"
-status: "active"
+kind: reference
+status: active
+audience: agents-maintainers-operators
+canonicality: canonical
 created: 2026-06-02
-updated: 2026-07-06
-audience: "maintainers"
+updated: 2026-08-05
+last_verified: 2026-08-05
+source_of_truth: "./semantic-model-quality-harness.md"
+related:
+  - "./luna-cli-semantic-evaluation-2026-07-31.md"
+  - "./mase-fork-operating-model.md"
+  - "../tasks/todo.md"
 ---
 
-# Semantic Model Quality Harness
+## Purpose
 
-Use this harness to compare LLM backends for Graphify semantic extraction on a
-small, repeatable, privacy-safe corpus suite before choosing a production
-semantic model.
+Use this harness for deterministic regression diagnostics on Graphify semantic
+extraction. It records operational completion and useful quality dimensions, but
+the current scorer and gates are **not authoritative** for choosing prompts,
+models, image behavior, or production defaults.
 
-Quality is the primary decision signal. Runtime and token counts are recorded,
-but speed is a tiebreaker unless candidate quality is operationally equivalent.
+## Current Disposition And Next Step
+
+The 2026-08-05 audit found material decision-validity gaps:
+
+- relationship meaning and hyperedges do not decisively affect promotion gates;
+- the diagram gold prefers one representation instead of accepting equivalent
+  branch nodes, edge qualifiers, or hyperedges;
+- community-label and provenance checks can pass without grounded per-community
+  labels or claim-level evidence;
+- closed forbidden lists do not measure general hallucination precision;
+- aggregate weights can hide a severe privacy, relationship, or fixture-slice
+  regression; and
+- one public diagram and single stochastic runs do not establish repeatability.
+
+Current operating decisions:
+
+- Keep `deepseek-v4-pro:cloud` as the automatic Ollama text default.
+- Keep Pi explicit, uninstalled from the current source commit, and unpromoted.
+- Treat Pi image output as requiring explicit upload consent and human review.
+- Do not adopt either the current or pinned-upstream image prompt from the one
+  blind comparison.
+- `deepseek-v4-flash:0731-cloud` remains an explicit candidate only. A bounded
+  blind comparison found broader architecture recovery but weaker privacy
+  constraints, more noise, and 2.76 times the elapsed runtime; it is not the
+  default.
+
+The next project iteration is **plan-only evaluation-harness redesign**. The
+plan must separate operational safety, semantic fidelity, and promotion
+readiness; add representation-aware relationship and hyperedge scoring,
+claim-level provenance, general hallucination precision, held-out fixtures,
+paired repeats, and blinded qualitative review. This status grants no
+implementation, prompt edit, provider-call, default-change, install, or
+promotion authority.
+
+All scorer-v1/v2/v3 numbers below remain historical or diagnostic evidence.
+They must not be presented as proof of prompt or model superiority.
 
 ## Privacy And Fixture Policy
 
@@ -55,6 +97,13 @@ Initial fixture profiles:
 | `integration_gateway` | Synthetic small code/docs integration shape that tests doc-to-code relationships. |
 | `graphify_public_slice` | Public-realistic slice derived from Graphify architecture/backend concepts. |
 | `diagram_workflow` | Multimodal PNG workflow diagram that tests visual node/edge extraction. |
+
+The active manifest is suite version 3. Scorer/fixture corrections and the
+current Luna-versus-DeepSeek evidence are recorded in:
+
+```text
+docs/luna-cli-semantic-evaluation-2026-07-31.md
+```
 
 ## Run One Fixture
 
@@ -110,12 +159,45 @@ not attach pixels to the Ollama request. Record this setting in the run notes.
 - one per-fixture subdirectory with `run.json`, `EVALUATION.md`, and copied
   `corpus/graphify-out/`
 - `suite-run.json`: aggregate scores, profile scores, quality-gate state,
-  timings, token counts, and fixture scores
+  timings, token counts, fixture scores, suite/contract/corpus/prompt hashes,
+  non-secret operational settings, sanitized endpoint fingerprint, and Git
+  state evidence
 - `SUMMARY.md`: operator-readable aggregate summary
 
-## Scorer v2 Calibration
+## Scorer v3 Diagnostic Contract
 
-Scorer v2 stamps every score, run, run-suite, and compare payload with
+Scorer v3 is the current deterministic implementation, not a decision-grade
+promotion instrument. It stamps score, run, run-suite, compare, and re-baseline
+payloads with `scorer_version: 3` and adds two fail-closed corrections:
+
+- expected-edge endpoints inherit aliases from exactly one matching required
+  concept; ambiguous shared aliases do not expand
+- forbidden positive-edge checks preserve relation polarity, so
+  `must_not_store`, `cannot_store`, and `avoids_logging` do not match positive
+  `stores` or `logs` requirements
+
+Suite contract v3 also stops classifying source-grounded prohibited targets as
+hallucinated concepts. Such targets are required concepts with explicit negative
+expected edges and separate forbidden positive edges. Fixture endpoint and
+alias contracts were corrected only where source inspection proved the old
+expectation wrong or incomplete.
+
+The final 2026-07-31 prompt-v3 runs have matching suite-contract, corpus, and
+prompt hashes. Luna `high` scored 0.831 overall and 0.912 text-only versus
+DeepSeek V4 Pro at 0.734 overall and 0.790 text-only. Luna won all five text
+fixtures, while DeepSeek retained materially higher relation agreement. Both
+runs failed the multimodal profile gate, and DeepSeek also fell below the
+aggregate edge-coverage floor. The recorded Pi/Luna probe returned no visual
+labels because image delivery was blocked; a later explicitly enabled native
+probe proved pixel delivery and model vision capability. Subsequent Graphify
+image runs remained semantically mixed, so this is capability evidence rather
+than promotion evidence. The comparison covers deployable configurations—Luna
+`high` through Pi/OAuth and DeepSeek reasoning-disabled through Ollama—not
+isolated model weights.
+
+## Historical Scorer v2 Calibration
+
+Scorer v2 stamped every score, run, run-suite, and compare payload with
 `scorer_version: 2`. Historical artifacts without this field are scorer-v1
 numbers and should not be compared silently; the `compare` command emits a
 warning when scorer versions differ.
@@ -169,9 +251,25 @@ runs cluster at 0.451-0.497 while concept recall and safety/source dimensions
 are higher. This avoids the old aspirational 0.80 critical floor that no saved
 candidate could reach after the scorer contract changed.
 
-## Prompt V2 Default Decision
+## Prompt V3 Luna Candidate Decision
 
-The 2026-07-07 prompt-v2 A/B artifacts are at:
+The dated investigation is the decision source for the current candidate:
+
+```text
+docs/luna-cli-semantic-evaluation-2026-07-31.md
+```
+
+Historical decision at that checkpoint: Luna `high` merited planning a
+first-class Pi CLI text backend. That explicit print-only backend is now
+implemented and transport-validated in source, but the later evaluator audit and
+image/prompt experiments did not justify promotion. DeepSeek V4 Pro through
+Ollama therefore remains automatic; Pi remains explicit and uninstalled from
+this source closeout.
+
+## Historical Prompt V2 Default Decision
+
+The 2026-07-07 prompt-v2 A/B artifacts selected the still-active production
+default before the prompt-v3 Luna investigation. They are retained at:
 
 ```text
 .semantic-evals/comparisons/prompt-v2-ab/TASK_7_SUMMARY.md
@@ -318,11 +416,12 @@ fixture-level deltas, and regressions.
 
 ## Add Strong LLM Judges
 
-Deterministic scoring is the hard measurement layer. For semantic judgment,
-attach one or two strong judge models as an additional, opt-in layer. Quick
-iteration can use one fresh strong judge. Default-model changes should use two
-independent judge families when possible, for example a GPT-family judge and a
-Claude/Opus-family judge.
+Deterministic scoring is a reproducible diagnostic layer, not a hard semantic or
+promotion authority. Strong judge models can provide additional opt-in evidence,
+but their verdicts also require source inspection and blinded human synthesis.
+After the redesign, serious default-model decisions should use paired repeats,
+held-out fixtures, and independent judge families when practical—for example a
+GPT-family judge and a Claude/Opus-family judge.
 
 Pointwise judge for one suite run, using subscription-authenticated local agent
 CLIs instead of raw API keys:
@@ -450,9 +549,16 @@ Richer contracts can use:
 - `dedup_watchlist`: concepts that should not appear as duplicate semantic
   nodes, with alias-aware matching.
 - `expected_edges`: important relationships. Each entry has `source`, `target`,
-  optional `relation_terms`, optional `directed`, and optional `weight`.
-- `forbidden_concepts`: hallucinated or unsafe concepts that must not appear.
-- `forbidden_edges`: unsafe relationships that must not appear.
+  optional `relation_terms`, optional `directed`, optional `polarity`
+  (`positive` or `negative`), and optional `weight`. A top-level
+  `expected_edges_directed: true` makes fixture edges directed unless an entry
+  overrides it.
+- `forbidden_concepts`: hallucinated or unsafe concepts that the source does
+  not establish and that must not appear. Do not put an explicitly named
+  prohibited target here merely because the source says it must not be used.
+- `forbidden_edges`: unsafe positive relationships that must not appear.
+  Source-grounded prohibitions should instead use required concepts plus a
+  negative expected edge and a separately forbidden positive edge.
 - `expected_source_files`: files that should be represented in node or edge
   source attribution.
 - `expected_community_label_terms`: term groups that should appear in generated
@@ -461,12 +567,16 @@ Richer contracts can use:
 - `score_weights`: per-dimension weights used for the fixture overall score.
 
 The suite manifest can also define a `quality_gate` with critical dimensions and
-minimum aggregate floors. The current scorer-v2 gate requires weighted overall
+minimum aggregate floors. The current scorer-v3 gate requires weighted overall
 `>= 0.70` and every present critical dimension `>= 0.45`; the critical
 dimensions are `concept_recall`, `expected_edge_coverage`,
 `forbidden_concepts_absent`, `forbidden_edges_absent`, and `source_coverage`.
-`expected_edge_relation_agreement` is intentionally report-only. `run-suite`
-exits non-zero when a fixture command fails or the quality gate fails.
+The active suite also requires the `multimodal` profile to reach 0.70, so a
+text-heavy aggregate cannot hide total image failure. Negative-polarity
+expected edges contribute to endpoint coverage only when the extracted edge is
+also negative. `expected_edge_relation_agreement` remains report-only.
+`run-suite` exits non-zero when a fixture command fails or the quality gate
+fails.
 
 When a required concept is missed, the scorer also records diagnostic
 near-matches from extracted node labels. Near-matches are explanatory only:
@@ -475,10 +585,11 @@ they do not improve the score unless the expected contract is updated with an
 explicit alias.
 
 When an expected edge is missed, the scorer records why: missing source
-endpoint, missing target endpoint, missing both endpoints, relation mismatch
-between otherwise matched endpoint concepts, or no edge between the matched
-endpoint concepts. These diagnostics are explanatory only and do not change the
-expected-edge score.
+endpoint, missing target endpoint, missing both endpoints, required-polarity
+mismatch, relation mismatch between otherwise matched endpoint concepts, or no
+edge between the matched endpoint concepts. These diagnostics are explanatory;
+required polarity and endpoint presence affect edge coverage, while the
+relation-vocabulary agreement score remains report-only.
 
 Scored dimensions currently include:
 
@@ -510,12 +621,16 @@ When adding a fixture:
 
 ## Model Comparison Protocol
 
-Current standard: treat `deepseek-v4-pro:cloud` as the quality/reference
-candidate and built-in Ollama default. Use the prompt-v2 A/B artifacts above as
-the current default-change evidence. `glm-5.2:cloud` is the practical fallback
-candidate for cost-sensitive experiments, but its observed privacy regression
-means it should not replace the default without additional safeguards or review.
-`deepseek-v4-flash:cloud` is available but did not pass the calibrated gate.
+Current production standard: keep `deepseek-v4-pro:cloud` as the built-in
+Ollama default. The explicit Pi/Luna backend and DeepSeek V4 Flash 0731 are
+candidates, not accepted replacements. Prompt-v2/v3 scores and gates are
+historical diagnostics only; the 2026-08-05 blind qualitative evidence and
+known scorer defects supersede score-only promotion claims.
+
+Until the plan-only redesign is reviewed and approved, do not use this protocol
+to change a default. `glm-5.2:cloud`, the older
+`deepseek-v4-flash:cloud`, and `deepseek-v4-flash:0731-cloud` remain explicit
+comparison points only.
 
 Keep ensemble extraction on hold. Do not add a hybrid workflow unless benchmark
 evidence shows that a single available model cannot meet the prioritized quality
@@ -525,35 +640,42 @@ model instead of adding ensemble complexity.
 
 For a serious candidate comparison:
 
-1. Run baseline and candidate on the same suite version.
-2. Repeat volatile or close-call fixtures 3-5 times and compare paired deltas,
+1. Freeze the expected contracts before candidate generation. Use a separate
+   held-out slice for promotion evidence after prompt/fixture calibration.
+2. Run baseline and candidate with matching suite-contract, corpus, and prompt
+   hashes. Record the intentionally different operational settings rather than
+   calling unlike reasoning configurations identical model tests.
+3. Repeat volatile or close-call fixtures 3-5 times and compare paired deltas,
    not just independent averages.
-3. Inspect profile scores (`synthetic`, `public-realistic`, `multimodal`,
+4. Inspect profile scores (`synthetic`, `public-realistic`, `multimodal`,
    `privacy`, `doc-to-code`, etc.) so aggregate quality does not hide slice
    regressions. The suite also reports a derived `text-only` profile for
    fixtures that are not tagged as `multimodal`, `image`, `diagram`, or
    `vision`; use it to separate text semantic quality from image/diagram
    capability.
-4. Run pointwise and pairwise judge passes with one or two independent strong
+5. Run pointwise and pairwise judge passes with one or two independent strong
    judge models.
-5. Do a short human review of changed wins/losses before changing defaults,
+6. Do a short human review of changed wins/losses before changing defaults,
    especially when judges disagree.
-6. Record model, backend, judge models, vision settings, timeout, token budget,
-   suite version, and artifact paths.
+7. Record model, backend, judge models, vision settings, timeout, token budget,
+   suite version, contract/corpus/prompt hashes, Git evidence, and artifact
+   paths.
 
-A candidate should not replace the default unless it:
+After the evaluation redesign, a candidate should not replace the default
+unless it:
 
-- completes the suite without extraction, parse, cluster, or wiki failures
-- passes the suite quality gate
-- beats the active standard model (`deepseek-v4-pro:cloud` as of 2026-07-07) on
-  prioritized quality dimensions or is clearly non-inferior while materially
-  improving operational concerns
-- has no severe regression in critical dimensions: concept recall, expected-edge
-  coverage, forbidden-concept absence, forbidden-edge absence, and source
-  coverage
-- avoids systematic duplicate-node or overconfident inferred-edge behavior
-- is preferred or accepted as non-inferior by the independent judge layer
-- has acceptable runtime for Mase's workflows
+- completes the suite without extraction, parse, cluster, or wiki failures;
+- passes redesigned non-compensating semantic gates rather than only the current
+  aggregate score;
+- is non-inferior to `deepseek-v4-pro:cloud` across relationship meaning,
+  conditional and negative semantics, hyperedges, hallucination precision,
+  claim-level provenance, and grounded community labels;
+- has no severe regression in any privacy, safety, multimodal, or held-out
+  fixture slice;
+- avoids systematic duplicate nodes, noisy document hubs, or overconfident
+  inferred edges;
+- remains acceptable across paired repeats and blinded qualitative review; and
+- has acceptable runtime for Mase's workflows.
 
 Runtime, output tokens, and cost are useful comparison data, but they should not
 override clear quality regressions.

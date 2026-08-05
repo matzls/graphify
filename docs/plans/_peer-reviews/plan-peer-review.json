@@ -1,18 +1,18 @@
 {
   "schema_version": "peer-review-v1",
-  "review_id": "peer-review-058cc41b3943",
+  "review_id": "peer-review-94214ec04d0a",
   "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/tasks/plan.md",
-  "plan_sha256": "3452fbe75d6158b871ae309d58f84e7d327b033303921d113d8adb9241aecbb5",
+  "plan_sha256": "75488eb5d53017222175e2f1e01a4d3a0cab6ed2ce6b9d3a3d0b59eee1b458a1",
   "mode": "workflow-plan-gate",
   "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_peer-reviews",
-  "engine": "Claude",
-  "requested_engine": "opposite",
-  "origin_runtime": "codex",
-  "engine_policy": "opposite_preferred",
-  "resolved_primary_engine": "claude",
-  "preferred_engine": "claude",
+  "engine": "GPT",
+  "requested_engine": "codex",
+  "origin_runtime": "claude",
+  "engine_policy": "explicit",
+  "resolved_primary_engine": "codex",
+  "preferred_engine": "codex",
   "fallback_engine": null,
-  "final_engine": "claude",
+  "final_engine": "codex",
   "reviewer_match": "opposite",
   "gate_quality": "preferred",
   "artifact_role": "canonical",
@@ -21,38 +21,16 @@
   "fallback_reason": null,
   "attempt_chain": [
     {
-      "engine": "claude",
+      "engine": "codex",
       "phase": "primary",
-      "attempt": 1,
-      "timeout_seconds": 300,
-      "result": "timeout",
-      "elapsed_seconds": 300.389
-    },
-    {
-      "engine": "claude",
-      "phase": "primary",
-      "attempt": 2,
-      "timeout_seconds": 600,
       "result": "completed",
-      "elapsed_seconds": 4.135,
-      "returncode": 1
+      "returncode": 0
     }
   ],
-  "attempt_failures": [
-    {
-      "engine": "claude",
-      "phase": "primary",
-      "result": "timeout",
-      "error": null
-    }
-  ],
-  "primary_failure": {
-    "engine": "claude",
-    "phase": "primary",
-    "result": "timeout",
-    "error": null
-  },
+  "attempt_failures": [],
+  "primary_failure": null,
   "fallback_failure": null,
+  "codex_sandbox": "read-only",
   "review_round": 1,
   "max_rounds": 3,
   "prior_review_id": "None",
@@ -60,24 +38,174 @@
   "addressed_issues": [],
   "deferred_issues": [],
   "recheck_requests": [],
-  "model": "claude-opus-5",
-  "verdict": "Failed-to-run",
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "verdict": "Sound",
+  "stance": null,
   "issues_count": 0,
-  "ran_at": "2026-07-26T09:53:02.212471+00:00",
-  "raw_review_excerpt": "{\"is_error\":true,\"duration_api_ms\":0,\"num_turns\":1,\"stop_reason\":\"stop_sequence\",\"session_id\":\"22581383-a2ea-4f64-b606-c578efe8f320\",\"total_cost_usd\":0,\"usage\":{\"input_tokens\":0,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":0,\"server_tool_use\":{\"web_search_requests\":0,\"web_fetch_requests\":0},\"service_tier\":\"standard\",\"cache_creation\":{\"ephemeral_1h_input_tokens\":0,\"ephemeral_5m_input_tokens\":0},\"inference_geo\":\"\",\"iterations\":[],\"speed\":\"standard\"},\"modelUsage\":{},\"permission_denials\":[],\"terminal_reason\":\"api_error\",\"fast_mode_state\":\"off\",\"fast_mode_disabled_reason\":\"sdk_opt_in_required\",\"subtype\":\"success\",\"api_error_status\":429,\"result\":\"You've hit your session limit \u00b7 resets 3:10pm (Europe/Berlin)\",\"type\":\"result\",\"duration_ms\":2864,\"uuid\":\"484f4d04-de34-4281-b0fb-03a7d94451d3\"}",
-  "error": "claude_session_limit",
-  "failure_family": "quota_or_session_limit",
-  "recovery_steps": [
-    "Peer review failed to run because the Claude reviewer is session-limited. Recovery:",
-    "- Wait until the Claude session limit resets, then rerun preflight",
-    "- If this is an advisory lane and Codex is acceptable, rerun with `--engine auto` or `--engine codex` as documented"
-  ],
-  "stop_guidance": [
-    "- Run `python3 \"/Users/mase/.codex/skills/my-peer-review/scripts/run_claude_peer_review.py\" --plan-path \"/Users/mase/Codebase/Personal-Projects/graphify/tasks/plan.md\" --mode workflow-plan-gate --check-only` to confirm the current sidecar state.",
-    "- If the sidecar verdict is `Needs-revision` or `Failed-to-run`, do not freeze.",
-    "- Safe next step: fix the plan and rerun one clean peer review.",
-    "- If Claude remains unreliable here, switch explicitly to `--engine codex`.",
-    "- Only skip peer review if the user explicitly approves bypassing that gate."
-  ],
-  "next_action": "- Run `python3 \"/Users/mase/.codex/skills/my-peer-review/scripts/run_claude_peer_review.py\" --plan-path \"/Users/mase/Codebase/Personal-Projects/graphify/tasks/plan.md\" --mode workflow-plan-gate --check-only` to confirm the current sidecar state."
+  "ran_at": "2026-08-03T16:37:32.857944+00:00",
+  "raw_review_excerpt": "Sound. complete: revision 7 consistently makes Windows runtime tests non-gating at CP-1, CP-2, CP-4, and T-013; retains macOS privacy/fail-closed coverage; requires the baseline-shadow audit before any repair writer; and delegates exact approval provenance and CP-1-only repair authority to hash-bound packet revision 11. simplify/remove: none; defer: Windows runtime validation; reject: inferring activation from this review; escalate: none.",
+  "error": null,
+  "closure_verification": "No carried prior-round issues were supplied. The requested platform, audit, approval-provenance, and repair-authority claims were independently verified against the current artifacts.",
+  "prior_round_closure": [],
+  "rerun_recommendation": "stop",
+  "review": {
+    "mode": "workflow-plan-gate",
+    "summary": "Sound. complete: revision 7 consistently makes Windows runtime tests non-gating at CP-1, CP-2, CP-4, and T-013; retains macOS privacy/fail-closed coverage; requires the baseline-shadow audit before any repair writer; and delegates exact approval provenance and CP-1-only repair authority to hash-bound packet revision 11. simplify/remove: none; defer: Windows runtime validation; reject: inferring activation from this review; escalate: none.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "tasks/plan.md lines 169-175, 274-365, 542-563, 736-879, 1257-1272, and 1299-1314; packet revision 11 lines 421-502 and 631-746",
+        "claim": "The macOS-only gates, pre-writer audit, approval reconstruction, and repair-authority boundaries are materially complete.",
+        "evidence": "CP-1, both focused CP-2 suites, the CP-2 full suite, CP-4 skillgen tests, and T-013's repeated CP-2/skillgen tests all use `-k 'not windows'`. Directly inspected Windows process, reparse, Claude-shim, and skillgen tests have `windows` in their node names. Non-Windows Pi privacy, consent, identity-race, cleanup, malformed-output, partial-output, and credential-leak tests remain selected. The plan mandates the current baseline-shadow audit before a writer, while packet revision 11 binds the current plan hash, reconstructs reviewed draft bytes after approval, limits three repairs to the named macOS CP-1 defect, and requires new Mase authority for CP-2 or later repairs.",
+        "disposition": "complete: all requested freeze-safety contracts; defer: Windows runtime evidence"
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "Current artifact, supplied review focus, and inspected campaign state",
+        "claim": "Artifact, conversation, and campaign evidence were kept separate.",
+        "evidence": "Canonical plan, packet, lifecycle mirror, review sidecars, selected test definitions, fixture hashes, and Git state were inspected directly. Conversation evidence supplied only the review scope. No campaign execution evidence was inferred.",
+        "disposition": "slice-only assessment; no full-campaign completion claim"
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "Requested revision-7 freeze-readiness slice",
+        "claim": "The review covered the binding checkpoint commands and directly implicated approval, audit, repair-authority, and test artifacts\u2014not implementation completion.",
+        "evidence": "No builds, tests, package commands, live calls, approval transition, external evidence reads, or checkpoint execution were performed.",
+        "disposition": "stop the plan-review cycle; retain normal activation gates"
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "plan/packet/tests inspected",
+          "private evidence referenced",
+          "executed approval proof"
+        ],
+        [
+          "focus and stdin used",
+          "prior packet empty",
+          "full thread history"
+        ],
+        [
+          "freeze slice checked",
+          "implementation sampled",
+          "checkpoint/live outcomes"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": true,
+      "sources": [
+        "Current user prompt: Focus for revision-7 freeze readiness",
+        "Current user prompt: BEGIN_DOCUMENT_TEXT containing tasks/plan.md revision 7",
+        "Current user prompt: PRIOR ROUND CONTEXT with no carried issues"
+      ],
+      "summary": "Conversation evidence defined the requested review slice and constraints; technical conclusions came from canonical local artifacts.",
+      "gaps": [
+        "The full campaign conversation was not supplied.",
+        "No executed revision-7/revision-11 approval or repair-round evidence was supplied."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "Revision-7 binding CP-1, CP-2, CP-4, and T-013 verification commands",
+        "Directly implicated Windows and macOS privacy/fail-closed test definitions",
+        "Mandatory recovered-baseline and pre-writer baseline-shadow audit contract",
+        "Revision-11 reviewed-draft approval reconstruction",
+        "Three additional macOS CP-1-only repair rounds and later-stage authority denial",
+        "Current Git branch, HEAD, staged state, artifact hashes, and fixture hashes"
+      ],
+      "missing": [
+        "Execution of CP-1 through CP-4",
+        "T-007 live canary results",
+        "T-012 external-guide edit",
+        "T-013 final validation",
+        "Executed approval transition and private approval receipt",
+        "Actual baseline-shadow audit output"
+      ],
+      "gaps": [
+        "Builds, tests, package commands, providers, models, and peer-review commands were prohibited.",
+        "Private receipt, manifest, shadow, and audit artifacts are outside the declared repository read scope."
+      ]
+    },
+    "issues": [],
+    "verification_gaps": [
+      "No tests or validation commands were executed; selector behavior and retained coverage were established statically from commands and test node names.",
+      "The lifecycle-recorded recovered receipt and audit artifacts could not be inspected because they are outside the declared read scope.",
+      "The stored plan review sidecar currently records a failed run, and the packet review sidecar targets an older packet hash; this completed review still must be recorded through the owning workflow before approval.",
+      "Packet revision 11 itself still requires a separate hash-current no-blocker review before activation."
+    ],
+    "recommended_fixes": [],
+    "evidence_sources": [
+      "tasks/plan.md revision 7, SHA-256 75488eb5d53017222175e2f1e01a4d3a0cab6ed2ce6b9d3a3d0b59eee1b458a1",
+      "docs/plans/autonomous-build-packets/graphify-pi-cli-backend-autonomous-build-packet.md revision 11, SHA-256 c07c2d04622a3d219e21bfcc46f2d0e74ecb8f8b34646a4e451bc159339474c6",
+      "SPEC.md, SHA-256 fce334689029edc11fc5c30e6a76ee9fa6e11d36c0772e9cdd0da03b4002c3cb",
+      ".agent-skills/lifecycle-state.json task graphify-pi-cli-backend-2026-07-31",
+      "tasks/todo.md",
+      "docs/plans/_peer-reviews/plan-peer-review.json",
+      "docs/plans/_peer-reviews/graphify-pi-cli-backend-autonomous-build-packet-peer-review.json",
+      "tests/test_pi_cli_backend.py lines 193-1368",
+      "tests/test_image_vision.py lines 84-583",
+      "tests/test_cli_semantic_fail_closed.py lines 978-1212",
+      "tests/test_cache.py lines 1200-1505",
+      "tests/test_claude_cli_backend.py lines 214-352",
+      "tests/test_skillgen.py lines 231-381",
+      "Read-only Git state, hash, and search output",
+      "Graphify-derived artifacts were not used"
+    ],
+    "error": null,
+    "verdict": "Sound",
+    "workflow_compliance": [
+      "Inspected the current plan before considering sidecars or campaign claims.",
+      "Used only read-only local file, search, hash, JSON, and Git-inspection commands within the declared repository scope.",
+      "Did not invoke skills, agents, peer-review commands, builds, tests, package managers, network access, providers, or models.",
+      "Kept artifact, conversation, and campaign evidence separate.",
+      "Made no file or repository changes and proposed no code changes.",
+      "Reported no cosmetic or non-material issue."
+    ],
+    "technical_reality": [
+      "Current branch is mase/local-fixes at HEAD 8cac3a75fb5d13b584dc2c31c673d22140158499, with no staged path or detected active Git operation.",
+      "Plan revision 7 and packet revision 11 remain drafts, so their requested authority is inactive.",
+      "Packet revision 11 records both governing_plan_sha256 and governing_plan_reviewed_sha256 as the current plan hash 75488eb5d53017222175e2f1e01a4d3a0cab6ed2ce6b9d3a3d0b59eee1b458a1.",
+      "CP-1, CP-2, CP-4, and T-013 consistently apply the Windows exclusion to binding pytest commands; static lint, formatting, skill generation, diagnostics, and scope audits are not Windows runtime criteria.",
+      "The selected Pi, image, cache, and CLI suites retain macOS consent, source-identity, subprocess-cleanup, malformed-output, partial-output, and sensitive-output fail-closed tests.",
+      "The recovered-baseline verification and the current baseline-shadow delta audit are distinct: the former forbids recapture, and the latter must inventory and disposition current deltas before any writer.",
+      "Packet revision 11 provides the exact administrative approval transition and reverse-hash proof, then confines repair authority to three post-audit macOS CP-1 rounds; CP-2 and later repairs stop for Mase.",
+      "Authorized fixture hashes in packet revision 11 match the current repository fixture bytes."
+    ],
+    "assumptions_to_verify": [
+      "The execution host is macOS.",
+      "This review result and a separate packet review will be recorded against the exact current hashes before Mase approval.",
+      "Mase's approval will explicitly name plan revision 7 and packet revision 11 and will not be inferred from earlier approvals.",
+      "The recovered receipt, immutable manifest/shadow, and E4 audit evidence remain present and hash-valid at activation.",
+      "The parent will run and disposition the current baseline-shadow audit before launching any repair writer."
+    ],
+    "verification_sufficiency": [
+      "Direct plan inspection is sufficient to verify all binding pytest selectors and T-013's inheritance of the macOS-selected CP-2 commands.",
+      "Direct test-definition inspection is sufficient to verify that deferred Windows-specific tests are deselected while material macOS privacy and fail-closed tests remain selected.",
+      "Direct packet, lifecycle, and sidecar inspection is sufficient to assess approval-provenance and repair-authority design.",
+      "Execution correctness, private evidence validity, and campaign completion remain intentionally unproven and are protected by explicit stop gates."
+    ],
+    "downstream_risks": [
+      "Activation without recording hash-current no-blocker sidecars would violate the plan's approval-provenance gate.",
+      "A missing or changed recovered receipt, shadow, manifest, or audit artifact must stop execution because this review could not inspect those external private files.",
+      "Any CP-2-or-later failure requiring repair must stop for new Mase authority; packet approval does not cover that repair."
+    ],
+    "freeze_recommendation": "Safe to freeze. No blocker-level issues were identified.",
+    "prior_round_closure": [],
+    "closure_verification": "No carried prior-round issues were supplied. The requested platform, audit, approval-provenance, and repair-authority claims were independently verified against the current artifacts.",
+    "rerun_recommendation": "stop"
+  }
 }

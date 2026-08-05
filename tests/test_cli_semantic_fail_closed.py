@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
 
 def _run_main(monkeypatch: pytest.MonkeyPatch, args: list[str]) -> int:
@@ -24,6 +25,7 @@ def _patch_extract_dependencies(
     *,
     fresh: dict,
     ast_nodes: list[dict] | None = None,
+    patch_llm: bool = True,
 ) -> tuple[Path, Path]:
     import graphify.cache
     import graphify.detect
@@ -57,8 +59,9 @@ def _patch_extract_dependencies(
         "save_semantic_cache",
         lambda *_, **__: (_ for _ in ()).throw(AssertionError("cache should not be written")),
     )
-    monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
-    monkeypatch.setattr(graphify.llm, "extract_corpus_parallel", lambda *_, **__: fresh)
+    if patch_llm:
+        monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
+        monkeypatch.setattr(graphify.llm, "extract_corpus_parallel", lambda *_, **__: fresh)
     if ast_nodes is not None:
         monkeypatch.setattr(
             graphify.extract,
@@ -1001,6 +1004,25 @@ def test_doctor_backend_validation_failure_does_not_report_success(
     assert "backend probe (ollama): ok" not in captured.out
 
 
+def test_doctor_pi_capability_runtime_error_returns_status_one(
+    monkeypatch: pytest.MonkeyPatch, capsys
+):
+    import graphify.llm
+
+    monkeypatch.setattr(
+        graphify.llm,
+        "validate_backend_dependencies",
+        lambda backend: (_ for _ in ()).throw(RuntimeError("Pi capability unavailable")),
+    )
+
+    rc = _run_main(monkeypatch, ["doctor", "--backend", "pi"])
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert "Pi capability unavailable" in captured.err
+    assert "backend dependencies (pi): ok" not in captured.out
+
+
 def test_doctor_probe_failure_does_not_report_success(monkeypatch: pytest.MonkeyPatch, capsys):
     import graphify.llm
 
@@ -1051,3 +1073,277 @@ def test_doctor_backend_probe_reports_summary(monkeypatch: pytest.MonkeyPatch, c
     assert "backend dependencies (ollama): ok" in out
     assert "backend probe (ollama): ok" in out
     assert "1 nodes, 2 edges, 3 hyperedges" in out
+
+
+def test_doctor_pi_probe_reports_usage_unavailable(monkeypatch: pytest.MonkeyPatch, capsys):
+    import graphify.llm
+
+    monkeypatch.setattr(graphify.llm, "validate_backend_dependencies", lambda backend: None)
+    monkeypatch.setattr(
+        graphify.llm,
+        "probe_backend",
+        lambda backend: {
+            "nodes": 1,
+            "edges": 0,
+            "hyperedges": 0,
+            "usage_available": False,
+            "requested_model": "openai-codex/gpt-5.6-luna",
+            "usage": "unavailable",
+        },
+    )
+
+    rc = _run_main(monkeypatch, ["doctor", "--backend", "pi", "--probe"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "response usage metadata unavailable" in out
+    assert "input tokens" not in out
+
+
+def test_extract_late_pixel_cache_identity_mismatch_is_partial_end_to_end(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """A final cache race must not stamp B with A semantics."""
+    import graphify.cache
+    import graphify.detect
+    import graphify.llm
+
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={
+            "nodes": [],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "failed_chunks": 0,
+            "partial_chunks": 0,
+            "total_chunks": 1,
+        },
+        ast_nodes=[
+            {
+                "id": "code",
+                "label": "Code",
+                "file_type": "code",
+                "source_file": "app.py",
+            }
+        ],
+    )
+    image = root / "diagram.png"
+    image.write_bytes(b"raster-A")
+    source = image.resolve()
+    identity = graphify.llm._ImageSourceIdentity(
+        source,
+        graphify.llm._image_stat_identity(image.stat()),
+        source,
+        root.resolve(),
+    )
+    fresh = {
+        "nodes": [
+            {"id": "A-semantics", "label": "A", "file_type": "image", "source_file": image.name}
+        ],
+        "edges": [],
+        "hyperedges": [],
+        "input_tokens": 1,
+        "output_tokens": 1,
+        "failed_chunks": 0,
+        "partial_chunks": 0,
+        "total_chunks": 1,
+        "_image_provenance": {str(source): "pixel-derived"},
+        "_image_identity": {str(source): identity},
+    }
+    monkeypatch.setattr(graphify.llm, "extract_corpus_parallel", lambda *_, **__: fresh)
+    monkeypatch.setattr(
+        graphify.detect,
+        "detect",
+        lambda *_, **__: {
+            "files": {
+                "document": [],
+                "paper": [],
+                "image": [str(image)],
+                "video": [],
+                "code": [str(root / "app.py")],
+            },
+            "total_files": 2,
+            "total_words": 1,
+        },
+    )
+    original_mtime = image.stat().st_mtime_ns
+
+    def late_save(*_, **__):
+        image.unlink()
+        image.write_bytes(b"raster-B")
+        os.utime(image, ns=(original_mtime, original_mtime))
+        return 0
+
+    monkeypatch.setattr(graphify.cache, "save_semantic_cache", late_save)
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "ollama", "--no-cluster"])
+
+    out = root / "graphify-out"
+    graph = json.loads((out / "graph.json").read_text(encoding="utf-8"))
+    marker = json.loads((out / ".graphify_semantic_marker").read_text(encoding="utf-8"))
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert rc == 0
+    assert all(node.get("id") != "A-semantics" for node in graph["nodes"])
+    assert marker["status"] == "partial"
+    assert not manifest.get("diagram.png", {}).get("semantic_hash")
+
+
+@pytest.mark.parametrize(
+    "no_cluster",
+    [pytest.param(True, id="no-cluster"), pytest.param(False, id="clustered")],
+)
+def test_extract_graph_publication_identity_race_is_partial(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, no_cluster: bool
+):
+    """A replacement during either graph writer cannot publish A semantics as clean."""
+    import graphify.cache
+    import graphify.detect
+    import graphify.export
+    import graphify.llm
+    import graphify.paths
+
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={},
+        ast_nodes=[
+            {
+                "id": "code",
+                "label": "Code",
+                "file_type": "code",
+                "source_file": "app.py",
+            }
+        ],
+    )
+    image = root / "diagram.png"
+    image.write_bytes(b"raster-A")
+    source = image.resolve()
+    identity = graphify.llm._ImageSourceIdentity(
+        source,
+        graphify.llm._image_stat_identity(image.stat()),
+        source,
+        root.resolve(),
+    )
+    fresh = {
+        "nodes": [
+            {"id": "A-semantics", "label": "A", "file_type": "image", "source_file": image.name}
+        ],
+        "edges": [],
+        "hyperedges": [],
+        "input_tokens": 1,
+        "output_tokens": 1,
+        "failed_chunks": 0,
+        "partial_chunks": 0,
+        "total_chunks": 1,
+        "_image_provenance": {str(source): "pixel-derived"},
+        "_image_identity": {str(source): identity},
+    }
+    monkeypatch.setattr(graphify.llm, "extract_corpus_parallel", lambda *_, **__: fresh)
+    monkeypatch.setattr(graphify.cache, "save_semantic_cache", lambda *_, **__: None)
+    monkeypatch.setattr(
+        graphify.detect,
+        "detect",
+        lambda *_, **__: {
+            "files": {
+                "document": [],
+                "paper": [],
+                "image": [str(image)],
+                "video": [],
+                "code": [str(root / "app.py")],
+            },
+            "total_files": 2,
+            "total_words": 1,
+        },
+    )
+
+    swapped = False
+
+    def replace_source() -> None:
+        nonlocal swapped
+        if swapped:
+            return
+        swapped = True
+        image.unlink()
+        image.write_bytes(b"raster-B")
+
+    if no_cluster:
+        original_writer = graphify.paths.write_json_atomic
+
+        def late_raw_writer(path, obj, **kwargs):
+            if Path(path).name == "graph.json":
+                replace_source()
+            return original_writer(path, obj, **kwargs)
+
+        monkeypatch.setattr(graphify.paths, "write_json_atomic", late_raw_writer)
+    else:
+        original_writer = graphify.export.to_json
+
+        def late_cluster_writer(G, communities, output_path, **kwargs):
+            replace_source()
+            return original_writer(G, communities, output_path, **kwargs)
+
+        monkeypatch.setattr(graphify.export, "to_json", late_cluster_writer)
+
+    args = ["extract", str(root), "--backend", "ollama"]
+    if no_cluster:
+        args.append("--no-cluster")
+    rc = _run_main(monkeypatch, args)
+
+    out = root / "graphify-out"
+    graph = json.loads((out / "graph.json").read_text(encoding="utf-8"))
+    marker = json.loads((out / ".graphify_semantic_marker").read_text(encoding="utf-8"))
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert rc == 0
+    assert swapped
+    assert all(node.get("id") != "A-semantics" for node in graph["nodes"])
+    assert marker["status"] == "partial"
+    assert not manifest.get("diagram.png", {}).get("semantic_hash")
+
+
+def test_pi_cli_fail_closed_on_actual_adapter_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    root, _doc = _patch_extract_dependencies(
+        monkeypatch,
+        tmp_path,
+        fresh={},
+        ast_nodes=[],
+        patch_llm=False,
+    )
+    attempt = tmp_path / "model-attempt.txt"
+    script = tmp_path / "pi"
+    script.write_text(
+        f"""#!{sys.executable}
+import json, sys
+if '--help' in sys.argv:
+    print('--mode --print --no-session --no-tools --no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files --offline --approve --model --thinking --list-models')
+    raise SystemExit(0)
+sys.stdin.read()
+open({str(attempt)!r}, 'w', encoding='utf-8').write('1')
+message = {{
+    'role': 'assistant',
+    'content': [{{'type': 'text', 'text': 'PRIVATE_SOURCE_LINE'}}],
+    'provider': 'openai-codex',
+    'model': 'gpt-5.6-luna',
+    'usage': {{'input': 1, 'output': 1, 'cacheRead': 0, 'cacheWrite': 0}},
+    'stopReason': 'error',
+}}
+print(json.dumps({{'type': 'message_end', 'message': message}}))
+""",
+        encoding="utf-8",
+    )
+    script.chmod(script.stat().st_mode | 0o100)
+    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
+
+    rc = _run_main(monkeypatch, ["extract", str(root), "--backend", "pi", "--no-cluster"])
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert attempt.read_text(encoding="utf-8") == "1"
+    assert "PRIVATE_SOURCE_LINE" not in captured.out + captured.err
+    assert not (root / "graphify-out" / "graph.json").exists()

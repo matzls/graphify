@@ -1,5 +1,7 @@
 {
+  "expected_edges_directed": true,
   "required_concepts": [
+    {"name": "Message Router", "weight": 1.0},
     {"name": "Intake Adapter", "aliases": ["Inbound Message Intake"], "weight": 1.5},
     {"name": "Redaction Stage", "aliases": ["Redacted Summary"], "weight": 2.0},
     {"name": "Classifier", "aliases": ["Classification Label"]},
@@ -9,6 +11,7 @@
     {"name": "Consent Boundary", "weight": 2.0},
     {"name": "Retention Marker", "weight": 1.5},
     {"name": "Privacy Contract", "weight": 1.5},
+    {"name": "Raw Mailbox Export", "aliases": ["Raw Mailbox Exports"], "weight": 1.5},
     {"name": "Trace Event"}
   ],
   "dedup_watchlist": [
@@ -23,15 +26,16 @@
     {"source": "Classifier", "target": "Routing Decision", "relation_terms": ["emits", "produces"], "weight": 1.5},
     {"source": "Routing Decision", "target": "Audit Event", "relation_terms": ["writes", "records", "references"], "weight": 1.5},
     {"source": "Audit Event", "target": "Retention Marker", "relation_terms": ["references", "records"], "weight": 1.5},
-    {"source": "Consent Boundary", "target": "Privacy Contract", "relation_terms": ["requires", "governs"]}
+    {"source": "Privacy Contract", "target": "Consent Boundary", "relation_terms": ["requires", "governs"]},
+    {"source": "Message Router", "target": "Raw Mailbox Export", "relation_terms": ["must_not_store", "does_not_store", "avoids_storing"], "polarity": "negative", "weight": 2}
   ],
   "forbidden_concepts": [
-    {"name": "Raw Mailbox Export", "aliases": ["Raw Mailbox Exports"]},
     "External Vendor Secret Sharing",
     "Consent Bypass"
   ],
   "forbidden_edges": [
     {"source": "Classifier", "target": "Raw Mailbox Export", "relation_terms": ["stores", "sends", "uses"]},
+    {"source": "Message Router", "target": "Raw Mailbox Export", "relation_terms": ["stores", "sends", "uses"], "directed": true},
     {"source": "Redaction Stage", "target": "Consent Bypass", "relation_terms": ["bypasses"]}
   ],
   "expected_source_files": [

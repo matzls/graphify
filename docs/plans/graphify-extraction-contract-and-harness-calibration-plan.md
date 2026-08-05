@@ -5,7 +5,7 @@ status: complete
 audience: "agents-operators"
 canonicality: canonical
 created: 2026-07-06
-updated: 2026-07-26
+updated: 2026-08-05
 source_of_truth: "./graphify-extraction-contract-and-harness-calibration-plan.md"
 related:
   - "../../AGENTS.md"
@@ -24,9 +24,22 @@ tags:
 Status as of 2026-07-26: complete. Tasks 1-8 and Checkpoints A-C are
 accepted. Scorer v2, the guided-open extraction contract, downstream relation
 handling, calibrated gates, prompt-v2 A/B evidence, and the DeepSeek V4 Pro
-default are implemented and validated. The active Graphify 0.9.26 CLI is
-source-verified to this checkout, and the global Pi skill is byte-identical to
-`graphify/skill-pi.md`.
+default are implemented and validated. The active Graphify 0.9.26 CLI was
+source-verified to this checkout at that checkpoint, and the global Pi skill was
+byte-identical to `graphify/skill-pi.md`.
+
+Follow-up on 2026-07-31: this plan remains a completed historical execution
+record, while the living harness advanced to scorer v3, suite contract v3, and
+the prompt-v3 selective/polarity extraction contract. The correction and matched
+Luna-versus-DeepSeek evidence are documented in
+`docs/luna-cli-semantic-evaluation-2026-07-31.md` and
+`docs/semantic-model-quality-harness.md`.
+
+Supersession on 2026-08-05: adversarial and independent review found material
+relationship, hyperedge, representation, label, provenance, hallucination, and
+repeatability defects. Scorer v3 remains diagnostic only. The next iteration is
+plan-only evaluation-harness redesign; this historical plan is not authority to
+implement it.
 
 The fork-local semantic quality harness previously could not distinguish capable
 models from weak ones, because two of its gate dimensions were structurally
@@ -53,10 +66,10 @@ candidate — scored overall 0.695 with `expected_edge_coverage` exactly 0.0 on
 `deepseek-v4-pro:cloud` (0.655). When a top model and mid models score
 identically, the ceiling is the contract, not the model.
 
-This plan fixes both sides in a fixed order: calibrate the harness first (so
-there is a trustworthy instrument and a free offline re-baseline), then change
-the extraction prompt (relation vocabulary + canonical concept naming), then
-run a live A/B validation through the calibrated harness.
+This plan's historical sequence calibrated the then-current diagnostic first,
+changed the extraction prompt, and ran a live A/B through that harness. The
+2026-08-05 audit supersedes the assumption that this produced a trustworthy
+promotion instrument.
 
 Upstream check (2026-07-06, `upstream/v8`): the extraction prompt there is
 identical (same 7-relation enum), and upstream has no structured-output,
@@ -577,7 +590,13 @@ Cross-repository propagation is tracked separately in the operating model.
 
 ## Recommended Next Action
 
-No implementation action remains for this plan. Preserve the calibrated harness
-and DeepSeek V4 Pro default, use forced semantic refresh only where current audit
-or legacy-cache evidence justifies it, and handle any upstream PR or relation
-normalization as a separately scoped task.
+No implementation action remains for this historical plan. Keep DeepSeek V4 Pro
+as the automatic Ollama default, but do not treat this plan's calibrated scorer
+as decision-grade: the 2026-08-05 audit found material relationship, hyperedge,
+representation, label, provenance, hallucination, and repeatability gaps.
+
+The operative next iteration is **plan-only evaluation-harness redesign**, as
+recorded in `docs/semantic-model-quality-harness.md`, `tasks/todo.md`, and
+`.agent-skills/lifecycle-state.json`. This completed plan grants no redesign
+implementation, prompt edit, provider-call, default-change, install, or promotion
+authority.

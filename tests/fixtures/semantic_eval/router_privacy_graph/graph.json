@@ -1,5 +1,6 @@
 {
   "nodes": [
+    {"id": "message_router", "label": "Message Router", "source_file": "README.md"},
     {"id": "intake_adapter", "label": "Intake Adapter", "source_file": "README.md"},
     {"id": "redaction_stage", "label": "Redaction Stage", "source_file": "README.md"},
     {"id": "classifier", "label": "Classifier", "source_file": "README.md"},
@@ -9,6 +10,7 @@
     {"id": "consent_boundary", "label": "Consent Boundary", "source_file": "privacy_contract.md"},
     {"id": "retention_marker", "label": "Retention Marker", "source_file": "privacy_contract.md"},
     {"id": "privacy_contract", "label": "Privacy Contract", "source_file": "privacy_contract.md"},
+    {"id": "raw_mailbox_export", "label": "Raw Mailbox Export", "source_file": "privacy_contract.md"},
     {"id": "trace_event", "label": "Trace Event", "source_file": "router_runbook.md"}
   ],
   "links": [
@@ -17,7 +19,8 @@
     {"source": "classifier", "target": "routing_decision", "relation": "emits", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "README.md"},
     {"source": "routing_decision", "target": "audit_event", "relation": "writes", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "README.md"},
     {"source": "audit_event", "target": "retention_marker", "relation": "records", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "privacy_contract.md"},
-    {"source": "consent_boundary", "target": "privacy_contract", "relation": "governs", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "privacy_contract.md"},
+    {"source": "privacy_contract", "target": "consent_boundary", "relation": "requires", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "privacy_contract.md"},
+    {"source": "message_router", "target": "raw_mailbox_export", "relation": "must_not_store", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "privacy_contract.md"},
     {"source": "routing_decision", "target": "escalation_queue", "relation": "routes", "confidence": "INFERRED", "confidence_score": 0.7, "source_file": "router_runbook.md"},
     {"source": "trace_event", "target": "audit_event", "relation": "records", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "router_runbook.md"}
   ]

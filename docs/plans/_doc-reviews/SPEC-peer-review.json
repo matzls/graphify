@@ -1,0 +1,250 @@
+{
+  "schema_version": "peer-review-v1",
+  "review_id": "peer-review-062a9b7f6602",
+  "plan_path": "/Users/mase/Codebase/Personal-Projects/graphify/SPEC.md",
+  "plan_sha256": "fce334689029edc11fc5c30e6a76ee9fa6e11d36c0772e9cdd0da03b4002c3cb",
+  "mode": "artifact-review",
+  "sidecar_dir": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_doc-reviews",
+  "engine": "GPT",
+  "requested_engine": "opposite",
+  "origin_runtime": "codex",
+  "engine_policy": "opposite_preferred",
+  "resolved_primary_engine": "claude",
+  "preferred_engine": "claude",
+  "fallback_engine": "codex",
+  "final_engine": "codex",
+  "reviewer_match": "same_model_fallback",
+  "gate_quality": "degraded_fallback",
+  "artifact_role": "canonical",
+  "canonical_sidecar_path": "/Users/mase/Codebase/Personal-Projects/graphify/docs/plans/_doc-reviews/SPEC-peer-review.json",
+  "fallback_used": true,
+  "fallback_reason": "claude_session_limit",
+  "attempt_chain": [
+    {
+      "engine": "claude",
+      "phase": "primary",
+      "attempt": 1,
+      "timeout_seconds": 600,
+      "result": "completed",
+      "elapsed_seconds": 3.216,
+      "returncode": 1
+    },
+    {
+      "engine": "codex",
+      "phase": "fallback",
+      "result": "completed",
+      "returncode": 0
+    }
+  ],
+  "attempt_failures": [],
+  "primary_failure": null,
+  "fallback_failure": null,
+  "codex_sandbox": "read-only",
+  "review_round": 3,
+  "max_rounds": 3,
+  "prior_review_id": "peer-review-816356aa5199",
+  "caller_disposition_summary": "",
+  "addressed_issues": [
+    "Added backward-compatible raster cache provenance with pixel-derived/reference-only/unknown states; unknown historical caches cannot satisfy Pi multimodal runs; no-consent reuse is limited to proven pixel-derived local cache.",
+    "Aligned labeling contract with Community-N extract placeholders, deterministic hub-label fallback, substantive LLM override, no placeholder-only persistence, and unchanged extraction partial state.",
+    "Defined every attempted Pi request as counted; disabled child retries for canaries; allocated probe/text extract/text label/image extract/image label; required a counter that aborts before request six."
+  ],
+  "deferred_issues": [],
+  "recheck_requests": [
+    "Confirm SC-6, SC-7, SC-10, SC-12 and S-2, S-5, S-11 are implementation-ready and mutually consistent."
+  ],
+  "model": "gpt-5.6-sol",
+  "effort": "xhigh",
+  "verdict": "Sound-with-issues",
+  "stance": null,
+  "issues_count": 1,
+  "ran_at": "2026-07-31T11:52:07.824990+00:00",
+  "raw_review_excerpt": "Sound-with-issues at the current specification-to-planning phase. complete: historical raster-cache provenance, deterministic hub-label fallback, and the original five-attempt counting/abort requirement are resolved in the artifact; simplify/remove: none; defer: the exact campaign-wide counter mechanism to planning; reject: process-local or manual/post-hoc call accounting; escalate: none. One concrete WARN remains, but it does not require another review cycle.\n\nIssues:\n- 1. [WARN] Campaign-wide counter ownership is not pinned",
+  "error": null,
+  "closure_verification": "All three carried issues are resolved in the current artifact. SC-6, SC-7, SC-12 and S-2, S-5, S-11 are mutually consistent and ready for planning. SC-10 is materially corrected but carries one non-blocking planning warning about campaign-wide counter ownership.",
+  "prior_round_closure": [
+    {
+      "title": "Historical image-cache provenance",
+      "severity": "BLOCK",
+      "caller_claim": "Raster entries now carry pixel-derived, reference-only, or unknown provenance; unknown historical entries cannot satisfy Pi multimodal runs, and no-consent reuse is limited to proven local pixel-derived cache.",
+      "verification_status": "resolved",
+      "verification_notes": "SPEC.md consistently applies this rule in the cache contract, S-5, S-11, SC-6, and SC-12. It directly addresses the inspected current cache format, which has no such provenance."
+    },
+    {
+      "title": "Deterministic hub-label fallback",
+      "severity": "WARN",
+      "caller_claim": "Community labeling starts from deterministic hub labels, permits only substantive LLM overrides, does not persist placeholder-only output, and leaves extraction partial state unchanged on label failure.",
+      "verification_status": "resolved",
+      "verification_notes": "The contract is consistent across the owner section, S-2, SC-7, and SC-8 and matches the inspected CLI baseline and deterministic hub-label tests."
+    },
+    {
+      "title": "Five-attempt live-call budget",
+      "severity": "WARN",
+      "caller_claim": "Every attempted Pi request is counted, child retries are disabled for canaries, calls are allocated across the five stages, and the counter aborts before request six.",
+      "verification_status": "resolved",
+      "verification_notes": "The original carried omission is corrected in Bounded live validation and SC-10. A narrower new WARN remains because campaign-wide cross-process counter ownership and Graphify-level retry stopping are not explicit."
+    }
+  ],
+  "rerun_recommendation": "stop",
+  "review": {
+    "mode": "artifact-review",
+    "summary": "Sound-with-issues at the current specification-to-planning phase. complete: historical raster-cache provenance, deterministic hub-label fallback, and the original five-attempt counting/abort requirement are resolved in the artifact; simplify/remove: none; defer: the exact campaign-wide counter mechanism to planning; reject: process-local or manual/post-hoc call accounting; escalate: none. One concrete WARN remains, but it does not require another review cycle.",
+    "rubric_cards": [
+      {
+        "title": "Claim anchoring",
+        "anchor": "SPEC.md lines 204-240, 331-340, 421-497, and 515-545; inspected cache, label, retry, and test owners",
+        "claim": "SC-6, SC-7, SC-12 and S-2, S-5, S-11 are mutually consistent and ready for planning. SC-10 contains the required all-attempt accounting and pre-sixth-call abort, but its cross-process enforcement owner remains underspecified.",
+        "evidence": "Current cache entries lack image-delivery provenance; current non-vision routing can strip pixels; current CLI behavior seeds deterministic hub labels and rejects placeholder overrides; current extraction and labeling owners can recursively retry.",
+        "disposition": "Accept the three carried corrections; retain one campaign-counter WARN."
+      },
+      {
+        "title": "Disposition matrix",
+        "anchor": "Review rubric Card 2",
+        "claim": "Artifact, conversation, and campaign evidence were kept distinct.",
+        "evidence": "The matrix separately records present, partial, and missing evidence for each source class.",
+        "disposition": "See disposition_matrix."
+      },
+      {
+        "title": "Coverage scope",
+        "anchor": "Requested final recheck focus",
+        "claim": "This review covers only the three carried issues, not the complete SPEC or implementation campaign.",
+        "evidence": "Repository inspection was limited to the current artifact and eight directly relevant phase, cache, image, labeling, retry, and test files.",
+        "disposition": "Slice-only verdict; no campaign-wide soundness claim."
+      }
+    ],
+    "disposition_matrix": {
+      "rows": [
+        "artifact",
+        "conversation",
+        "campaign"
+      ],
+      "columns": [
+        "present",
+        "partial",
+        "missing"
+      ],
+      "cells": [
+        [
+          "three revisions verified",
+          "counter owner underspecified",
+          "no focused blocker"
+        ],
+        [
+          "focus and prior claims used",
+          "earlier claims treated as hypotheses",
+          "full thread not supplied"
+        ],
+        [
+          "round-3 slice covered",
+          "pre-planning evidence only",
+          "implementation and live proof absent"
+        ]
+      ]
+    },
+    "conversation_evidence": {
+      "used": true,
+      "sources": [
+        "Current user message \u2014 Focus section",
+        "Current user message \u2014 PRIOR ROUND CONTEXT",
+        "Current user message \u2014 embedded BEGIN_DOCUMENT_TEXT/END_DOCUMENT_TEXT"
+      ],
+      "summary": "Conversation evidence defined the review slice and carried claims only; technical conclusions were checked against the current artifact and local canonical files.",
+      "gaps": [
+        "No complete earlier-round conversation or campaign record was supplied."
+      ]
+    },
+    "campaign_coverage": {
+      "scope": "slice-only",
+      "covered": [
+        "Historical raster image-cache provenance",
+        "Deterministic hub-label fallback",
+        "Fail-closed five-attempt live-call budget",
+        "SC-6, SC-7, SC-10, SC-12",
+        "S-2, S-5, S-11"
+      ],
+      "missing": [
+        "Unrelated SPEC mechanisms",
+        "Implementation plan",
+        "Pi backend implementation",
+        "Executed offline or live validation",
+        "Full prior-review campaign"
+      ],
+      "gaps": [
+        "The verdict establishes specification handoff readiness only, not implemented correctness or operational success."
+      ]
+    },
+    "issues": [
+      {
+        "title": "Campaign-wide counter ownership is not pinned",
+        "details": "SPEC.md requires five total attempts across a doctor probe, text extraction, separate text labeling, image extraction, and optional image labeling, while graphify/llm.py currently contains recursive adaptive extraction and label retries. The artifact says a validation counter aborts before request six and that an unexpected failure stops the campaign, but it does not explicitly state that one counter persists across the separate CLI processes or how an unexpected result prevents Graphify-level retry entry points from issuing another request before control returns. A process-local counter could reset between commands, and a post-hoc tally cannot fail closed before request six. This is a planning-handoff ambiguity, not a blocker at the inspected pre-implementation-planning phase.",
+        "suggested_fix": "The implementation plan should assign one campaign-scope counter owner shared across every canary command and define pre-dispatch counting/denial plus fail-fast treatment of Graphify adaptive and label retries. Process-local and manual/post-hoc accounting should be explicitly rejected.",
+        "severity": "WARN"
+      }
+    ],
+    "verification_gaps": [
+      "No Pi implementation, implementation plan, new provenance tests, campaign counter, or live canary evidence exists in the inspected phase.",
+      "The named Luna evaluation document was not inspected because model-quality and transport evidence were outside this three-issue recheck.",
+      "Fresh graphify-out artifacts were not used because canonical source and test files directly established the relevant current behavior."
+    ],
+    "recommended_fixes": [
+      "Carry the single campaign-wide counter owner and Graphify-retry fail-fast rule into planning; no further artifact-review round is necessary for this WARN."
+    ],
+    "evidence_sources": [
+      "/Users/mase/Codebase/Personal-Projects/graphify/SPEC.md",
+      "/Users/mase/Codebase/Personal-Projects/graphify/.agent-skills/lifecycle-state.json",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/cache.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/extract.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/cli.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/graphify/llm.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_image_vision.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_community_hub_labels.py",
+      "/Users/mase/Codebase/Personal-Projects/graphify/tests/test_labeling.py"
+    ],
+    "error": null,
+    "verdict": "Sound-with-issues",
+    "core_challenge": "Ensure the new safety contracts match existing cache, labeling, and retry boundaries without demanding implementation detail beyond the current specification-to-planning phase.",
+    "assumptions_to_verify": [
+      "Image provenance will be stamped from trusted attachment state rather than model-produced output and preserved through incremental cache merges.",
+      "The validation counter will be shared across all separate canary commands and incremented before dispatching each attempted Pi request.",
+      "An unexpected canary failure will prevent Graphify adaptive splitting or label retry from silently consuming another attempt."
+    ],
+    "technical_reality": [
+      "Current semantic cache entries contain nodes, edges, hyperedges, and optional partial state but no image-delivery provenance; historical raster entries therefore cannot prove pixel delivery.",
+      "Current image routing can strip pixels for a non-vision backend and retain only a reference, establishing the need for pixel-derived versus reference-only provenance.",
+      "Current cluster-only behavior computes deterministic hub labels, overlays only non-placeholder generated labels, and avoids persisting intentionally placeholder-only output.",
+      "Current extraction and label owners can recursively split and retry up to configured depth, so a live-call budget must govern those internal requests as well as top-level commands.",
+      "The inspected lifecycle source places this work before implementation planning; SPEC.md likewise describes its commands as contracts for later planning and validation."
+    ],
+    "spec_gaps": [
+      "The live-validation counter is not explicitly defined as one cross-process campaign resource, and the interaction between fail-fast campaign behavior and existing Graphify retry recursion is not pinned."
+    ],
+    "downstream_risks": [
+      "A process-local or post-hoc counter could let the complete canary campaign exceed five Pi requests despite each individual command appearing compliant."
+    ],
+    "prior_round_closure": [
+      {
+        "title": "Historical image-cache provenance",
+        "severity": "BLOCK",
+        "caller_claim": "Raster entries now carry pixel-derived, reference-only, or unknown provenance; unknown historical entries cannot satisfy Pi multimodal runs, and no-consent reuse is limited to proven local pixel-derived cache.",
+        "verification_status": "resolved",
+        "verification_notes": "SPEC.md consistently applies this rule in the cache contract, S-5, S-11, SC-6, and SC-12. It directly addresses the inspected current cache format, which has no such provenance."
+      },
+      {
+        "title": "Deterministic hub-label fallback",
+        "severity": "WARN",
+        "caller_claim": "Community labeling starts from deterministic hub labels, permits only substantive LLM overrides, does not persist placeholder-only output, and leaves extraction partial state unchanged on label failure.",
+        "verification_status": "resolved",
+        "verification_notes": "The contract is consistent across the owner section, S-2, SC-7, and SC-8 and matches the inspected CLI baseline and deterministic hub-label tests."
+      },
+      {
+        "title": "Five-attempt live-call budget",
+        "severity": "WARN",
+        "caller_claim": "Every attempted Pi request is counted, child retries are disabled for canaries, calls are allocated across the five stages, and the counter aborts before request six.",
+        "verification_status": "resolved",
+        "verification_notes": "The original carried omission is corrected in Bounded live validation and SC-10. A narrower new WARN remains because campaign-wide cross-process counter ownership and Graphify-level retry stopping are not explicit."
+      }
+    ],
+    "closure_verification": "All three carried issues are resolved in the current artifact. SC-6, SC-7, SC-12 and S-2, S-5, S-11 are mutually consistent and ready for planning. SC-10 is materially corrected but carries one non-blocking planning warning about campaign-wide counter ownership.",
+    "rerun_recommendation": "stop"
+  }
+}

@@ -8,26 +8,35 @@ backends whose model can see them.
 Every backend is mocked (fake SDK module / subprocess), so the suite runs on CI
 with no API keys, no network, and no `claude` binary.
 """
+
 from __future__ import annotations
 
+import base64
 import json
 import sys
 import types
+from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
-import pytest
+import pytest  # pyright: ignore[reportMissingImports]
 
 from graphify import llm
 
 # A 1x1 PNG is unnecessary — the renderers never decode pixels, they only base64
 # the bytes — so any non-empty byte string stands in for image content.
 _PNG_BYTES = b"\x89PNG\r\n\x1a\nFAKEPIXELDATA"
-_NODE_JSON = json.dumps({
-    "nodes": [{"id": "x", "label": "L", "file_type": "image", "source_file": "a.png"}],
-    "edges": [],
-    "hyperedges": [],
-})
+_VALID_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+_NODE_JSON = json.dumps(
+    {
+        "nodes": [{"id": "x", "label": "L", "file_type": "image", "source_file": "a.png"}],
+        "edges": [],
+        "hyperedges": [],
+    }
+)
 
 
 def _make_corpus(tmp_path):
@@ -44,6 +53,7 @@ def _make_corpus(tmp_path):
 
 # ── pure helpers ──────────────────────────────────────────────────────────────
 
+
 def test_pdf_routed_through_pypdf_not_readtext(tmp_path, monkeypatch):
     # A PDF is binary; reading it as text yields garbage (the bug). It must be
     # routed through the pypdf extractor, and the raw bytes must never reach the
@@ -51,6 +61,7 @@ def test_pdf_routed_through_pypdf_not_readtext(tmp_path, monkeypatch):
     pdf = tmp_path / "paper.pdf"
     pdf.write_bytes(b"%PDF-1.4 RAWBINARYGARBAGE\x00\xff")
     import graphify.detect as detect
+
     monkeypatch.setattr(detect, "extract_pdf_text", lambda p: "EXTRACTED PDF TEXT")
     out = llm._read_files([pdf], tmp_path)
     assert "EXTRACTED PDF TEXT" in out
@@ -104,6 +115,178 @@ def test_build_image_refs_sets_rel_media_and_bytes(tmp_path):
     assert ref.bedrock_format == "png"
 
 
+def test_pi_rejects_caller_symlink_replacement_before_staging(tmp_path):
+    """A source replacement fails closed instead of staging the old snapshot."""
+    image = tmp_path / "diagram.png"
+    image.write_bytes(_VALID_PNG)
+    (ref,) = llm._build_image_refs([image], tmp_path)
+    assert ref.raw == _VALID_PNG
+    assert ref.source_identity is not None
+    assert ref.lexical_path == image.resolve()
+
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"attacker-controlled replacement")
+    image.unlink()
+    image.symlink_to(outside)
+
+    project = tmp_path / "pi-project"
+    project.mkdir()
+    with pytest.raises(ValueError, match="source identity changed"):
+        llm._stage_pi_images([ref], project)
+    assert not (project / ".graphify-images").exists()
+
+
+def test_pi_incremental_checkpoint_refuses_replacement_inside_cache_hash(monkeypatch, tmp_path):
+    """The llm checkpoint cannot hash replacement B under A's Pi semantics."""
+    import graphify.cache as cache_mod
+
+    image = tmp_path / "diagram.png"
+    image.write_bytes(_VALID_PNG)
+    source = image.resolve()
+    identity = llm._ImageSourceIdentity(
+        source,
+        llm._image_stat_identity(image.stat()),
+        source,
+        tmp_path.resolve(),
+    )
+
+    def fake_extract(_files, **_kwargs):
+        return {
+            "nodes": [{"id": "A-semantics", "source_file": image.name, "file_type": "image"}],
+            "edges": [],
+            "hyperedges": [],
+            "input_tokens": 1,
+            "output_tokens": 1,
+            "finish_reason": "stop",
+            "_image_provenance": {str(source): "pixel-derived"},
+            "_image_identity": {str(source): identity},
+        }
+
+    original_hash = cache_mod._file_hash_bound_to_identity
+    swapped = False
+
+    def replace_before_cache_hash(path, root, expected, **kwargs):
+        nonlocal swapped
+        if not swapped:
+            swapped = True
+            image.unlink()
+            image.write_bytes(b"replacement-B")
+        return original_hash(path, root, expected, **kwargs)
+
+    monkeypatch.setattr(llm, "extract_files_direct", fake_extract)
+    monkeypatch.setattr(cache_mod, "_file_hash_bound_to_identity", replace_before_cache_hash)
+    with pytest.warns(RuntimeWarning, match="identity mismatch"):
+        result = llm.extract_corpus_parallel(
+            [image],
+            backend="pi",
+            root=tmp_path,
+            max_concurrency=1,
+            token_budget=None,
+            checkpoint_cache=True,
+            allow_image_upload=True,
+        )
+
+    assert swapped
+    assert result["nodes"] == []
+    assert result["partial_chunks"] == 1
+    assert result["_partial_files"] == [str(source)]
+    assert not list(cache_mod.cache_dir(tmp_path, "semantic").glob("**/*.json"))
+
+
+def test_merge_conflicting_image_identities_downgrades_and_drops_pixel_semantics(tmp_path):
+    image = tmp_path / "diagram.png"
+    image.write_bytes(_VALID_PNG)
+    source = image.resolve()
+    identity_a = llm._ImageSourceIdentity(
+        source,
+        (1, 10, 0o100644, 1, 2, 3),
+        source,
+        tmp_path.resolve(),
+    )
+    identity_b = llm._ImageSourceIdentity(
+        source,
+        (1, 11, 0o100644, 1, 2, 3),
+        source,
+        tmp_path.resolve(),
+    )
+    merged = {
+        "nodes": [],
+        "edges": [],
+        "hyperedges": [],
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "partial_chunks": 0,
+    }
+    llm._merge_into(
+        merged,
+        {
+            "nodes": [{"id": "A", "source_file": image.name}],
+            "edges": [],
+            "hyperedges": [],
+            "_image_provenance": {str(source): "pixel-derived"},
+            "_image_identity": {str(source): identity_a},
+        },
+    )
+    llm._merge_into(
+        merged,
+        {
+            "nodes": [{"id": "B", "source_file": image.name}],
+            "edges": [],
+            "hyperedges": [],
+            "_image_provenance": {str(source): "pixel-derived"},
+            "_image_identity": {str(source): identity_b},
+        },
+    )
+
+    assert merged["partial_chunks"] >= 1
+    assert not merged["nodes"]
+    assert not merged.get("_image_provenance")
+    assert str(source) in merged["_partial_files"]
+
+
+def test_build_image_refs_rejects_external_swap_before_snapshot(tmp_path, monkeypatch):
+    """A race before the snapshot cannot redirect raster bytes outside root."""
+    image = tmp_path / "diagram.png"
+    image.write_bytes(_VALID_PNG)
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(_VALID_PNG + b"EXTERNAL")
+    original_resolve = llm._resolve_under_root
+    calls = 0
+
+    def swap_after_authorization(path, root):
+        nonlocal calls
+        resolved = original_resolve(path, root)
+        calls += 1
+        if calls == 1:
+            image.unlink()
+            image.symlink_to(outside)
+        return resolved
+
+    monkeypatch.setattr(llm, "_resolve_under_root", swap_after_authorization)
+    assert llm._build_image_refs([image], tmp_path) == []
+
+
+def test_build_image_refs_rejects_identity_swap_during_snapshot(tmp_path, monkeypatch):
+    image = tmp_path / "diagram.png"
+    image.write_bytes(_VALID_PNG)
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(_VALID_PNG)
+    original_read = llm.os.read
+    swapped = False
+
+    def swap_after_descriptor_read(fd, size):
+        nonlocal swapped
+        data = original_read(fd, size)
+        if not swapped:
+            swapped = True
+            image.unlink()
+            image.symlink_to(outside)
+        return data
+
+    monkeypatch.setattr(llm.os, "read", swap_after_descriptor_read)
+    assert llm._build_image_refs([image], tmp_path) == []
+
+
 def test_build_image_refs_skips_out_of_root_symlink(tmp_path):
     root = tmp_path / "root"
     root.mkdir()
@@ -135,7 +318,7 @@ def test_path_backend_skips_byte_read_and_size_cap(tmp_path, monkeypatch):
     big.write_bytes(b"x" * 64)
     monkeypatch.setattr(llm, "_MAX_IMAGE_BYTES", 8)
     (ref,) = llm._build_image_refs([big], tmp_path, read_bytes=False)
-    assert ref.raw is None              # never read
+    assert ref.raw is None  # never read
     assert ref.rel == "huge.png" and ref.path.name == "huge.png"  # path still usable
 
 
@@ -143,9 +326,9 @@ def test_claude_cli_passes_oversized_image_by_path(tmp_path, monkeypatch):
     # An image over the inline base64 cap must still reach claude-cli by path —
     # opus reads it via the Read tool, no size limit on that route.
     big = tmp_path / "huge.png"
-    big.write_bytes(b"x" * 100)
+    big.write_bytes(_VALID_PNG)
     monkeypatch.setattr(llm, "_MAX_IMAGE_BYTES", 8)
-    refs = llm._build_image_refs([big], tmp_path, read_bytes=False)
+    refs = llm._build_image_refs([big], tmp_path, read_bytes=False, secure_snapshot=True)
     envelope = {"result": _NODE_JSON, "usage": {"output_tokens": 1}, "stop_reason": "end_turn"}
     seen: dict = {}
 
@@ -154,10 +337,13 @@ def test_claude_cli_passes_oversized_image_by_path(tmp_path, monkeypatch):
         return MagicMock(returncode=0, stdout=json.dumps(envelope), stderr="")
 
     monkeypatch.setattr(llm, "_response_is_hollow", lambda r, p: False)
-    with patch("shutil.which", return_value="/fake/claude"), \
-         patch("subprocess.run", side_effect=fake_run):
+    with (
+        patch("shutil.which", return_value="/fake/claude"),
+        patch("subprocess.run", side_effect=fake_run),
+    ):
         llm._call_claude_cli("CORPUS", images=refs)
-    assert str(refs[0].path) in seen["input"]
+    assert str(refs[0].path) not in seen["input"]
+    assert ".graphify-images" in seen["input"]
 
 
 def test_capability_flags(monkeypatch):
@@ -187,11 +373,12 @@ def test_chunk_packing_caps_images_per_chunk(tmp_path):
     chunks = llm._pack_chunks_by_tokens(imgs, token_budget=10_000_000)
     assert len(chunks) >= 3  # would be 1 chunk without the cap
     for chunk in chunks:
-        n_imgs = sum(1 for p in chunk if llm._is_vision_image(p))
+        n_imgs = sum(1 for p in chunk if isinstance(p, Path) and llm._is_vision_image(p))
         assert n_imgs <= llm._MAX_IMAGES_PER_CHUNK
 
 
 # ── content builders ──────────────────────────────────────────────────────────
+
 
 def test_anthropic_content_has_base64_block(tmp_path):
     img, _, _ = _make_corpus(tmp_path)
@@ -200,7 +387,9 @@ def test_anthropic_content_has_base64_block(tmp_path):
     assert isinstance(content, list)
     assert content[0]["type"] == "image"
     assert content[0]["source"] == {
-        "type": "base64", "media_type": "image/png", "data": refs[0].b64,
+        "type": "base64",
+        "media_type": "image/png",
+        "data": refs[0].b64,
     }
     assert content[-1]["type"] == "text" and "CORPUS" in content[-1]["text"]
 
@@ -208,7 +397,7 @@ def test_anthropic_content_has_base64_block(tmp_path):
 def test_openai_content_has_data_uri(tmp_path):
     img, _, _ = _make_corpus(tmp_path)
     refs = llm._build_image_refs([img], tmp_path)
-    content = llm._openai_content("CORPUS", refs)
+    content = cast(Any, llm._openai_content("CORPUS", refs))
     assert content[0]["type"] == "text"
     assert content[1]["type"] == "image_url"
     assert content[1]["image_url"]["url"] == f"data:image/png;base64,{refs[0].b64}"
@@ -242,6 +431,7 @@ def test_no_images_is_byte_identical(tmp_path):
 
 # ── fake SDK modules ──────────────────────────────────────────────────────────
 
+
 def _fake_anthropic(monkeypatch, captured):
     class _Messages:
         def create(self, **kw):
@@ -251,8 +441,9 @@ def _fake_anthropic(monkeypatch, captured):
                 usage=SimpleNamespace(input_tokens=5, output_tokens=7),
                 stop_reason="end_turn",
             )
+
     mod = types.ModuleType("anthropic")
-    mod.Anthropic = lambda **kw: SimpleNamespace(messages=_Messages())
+    setattr(mod, "Anthropic", lambda **kw: SimpleNamespace(messages=_Messages()))
     monkeypatch.setitem(sys.modules, "anthropic", mod)
 
 
@@ -261,12 +452,20 @@ def _fake_openai(monkeypatch, captured):
         def create(self, **kw):
             captured.update(kw)
             return SimpleNamespace(
-                choices=[SimpleNamespace(
-                    message=SimpleNamespace(content=_NODE_JSON), finish_reason="stop")],
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content=_NODE_JSON), finish_reason="stop"
+                    )
+                ],
                 usage=SimpleNamespace(prompt_tokens=3, completion_tokens=4),
             )
+
     mod = types.ModuleType("openai")
-    mod.OpenAI = lambda **kw: SimpleNamespace(chat=SimpleNamespace(completions=_Completions()))
+    setattr(
+        mod,
+        "OpenAI",
+        lambda **kw: SimpleNamespace(chat=SimpleNamespace(completions=_Completions())),
+    )
     monkeypatch.setitem(sys.modules, "openai", mod)
 
 
@@ -279,18 +478,20 @@ def _fake_boto3(monkeypatch, captured):
                 "usage": {"inputTokens": 1, "outputTokens": 2},
                 "stopReason": "end_turn",
             }
+
     boto3 = types.ModuleType("boto3")
-    boto3.Session = lambda **kw: SimpleNamespace(client=lambda svc: _Client())
+    setattr(boto3, "Session", lambda **kw: SimpleNamespace(client=lambda svc: _Client()))
     monkeypatch.setitem(sys.modules, "boto3", boto3)
     botocore = types.ModuleType("botocore")
     exc = types.ModuleType("botocore.exceptions")
-    exc.ClientError = type("ClientError", (Exception,), {})
-    botocore.exceptions = exc
+    setattr(exc, "ClientError", type("ClientError", (Exception,), {}))
+    setattr(botocore, "exceptions", exc)
     monkeypatch.setitem(sys.modules, "botocore", botocore)
     monkeypatch.setitem(sys.modules, "botocore.exceptions", exc)
 
 
 # ── backend payload shape (mocked) ────────────────────────────────────────────
+
 
 def test_call_claude_sends_image_block(tmp_path, monkeypatch):
     img, _, _ = _make_corpus(tmp_path)
@@ -333,9 +534,9 @@ def test_call_bedrock_sends_raw_image_bytes(tmp_path, monkeypatch):
 # ── CLI backends (mocked subprocess) ──────────────────────────────────────────
 
 
-
 def test_claude_cli_adds_dir_and_read_instruction(tmp_path, monkeypatch):
     img, _, _ = _make_corpus(tmp_path)
+    img.write_bytes(_VALID_PNG)
     refs = llm._build_image_refs([img], tmp_path)
     envelope = {"result": _NODE_JSON, "usage": {"output_tokens": 1}, "stop_reason": "end_turn"}
     seen: dict = {}
@@ -346,17 +547,22 @@ def test_claude_cli_adds_dir_and_read_instruction(tmp_path, monkeypatch):
         return MagicMock(returncode=0, stdout=json.dumps(envelope), stderr="")
 
     monkeypatch.setattr(llm, "_response_is_hollow", lambda raw, parsed: False)
-    with patch("shutil.which", return_value="/fake/claude"), \
-         patch("subprocess.run", side_effect=fake_run):
+    with (
+        patch("shutil.which", return_value="/fake/claude"),
+        patch("subprocess.run", side_effect=fake_run),
+    ):
         llm._call_claude_cli("CORPUS", images=refs)
 
     assert "--add-dir" in seen["args"]
-    assert str(refs[0].path.parent) in seen["args"]
-    # the prompt sent on stdin tells the model to Read the image path
-    assert "Read tool" in seen["input"] and str(refs[0].path) in seen["input"]
+    assert str(refs[0].path.parent) not in seen["args"]
+    assert any(".graphify-images" in arg for arg in seen["args"])
+    # the prompt sent on stdin tells the model to Read only the staged image path
+    assert "Read tool" in seen["input"] and ".graphify-images" in seen["input"]
+    assert str(refs[0].path) not in seen["input"]
 
 
 # ── dispatch-level vision gating ──────────────────────────────────────────────
+
 
 def test_extract_files_direct_gates_pixels_by_capability(tmp_path, monkeypatch):
     img, _, doc = _make_corpus(tmp_path)
